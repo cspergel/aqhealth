@@ -1,18 +1,42 @@
 import { useEffect, useState } from "react";
 import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
-import { MetricCard } from "../ui/MetricCard";
 import { InsightCard } from "../ui/InsightCard";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface Kpi {
   label: string;
   value: string;
+  benchmark?: string;
+  status?: string; // "over" | "under" | undefined
 }
 
-interface TableDef {
+interface ColumnDef {
+  key: string;
+  label: string;
+  numeric?: boolean;
+  format?: string; // "dollar" | "pct"
+  benchmark?: number;
+  invertBenchmark?: boolean; // true = higher is better
+}
+
+interface InsightItem {
   title: string;
-  columns: string[];
-  rows: Record<string, unknown>[];
+  description: string;
+  dollar_impact: number | null;
+  category: "cost" | "revenue" | "quality";
+}
+
+interface Section {
+  id: string;
+  title: string;
+  type: "table" | "insights";
+  columns?: ColumnDef[];
+  rows?: Record<string, unknown>[];
+  items?: InsightItem[];
 }
 
 interface DrillDownData {
@@ -23,17 +47,7 @@ interface DrillDownData {
   claim_count: number;
   unique_members: number;
   kpis: Kpi[];
-  tables: TableDef[];
-}
-
-interface InsightData {
-  id: number;
-  title: string;
-  description: string;
-  dollar_impact: number | null;
-  recommended_action: string | null;
-  confidence: number | null;
-  category: string;
+  sections: Section[];
 }
 
 interface DrillDownProps {
@@ -41,30 +55,172 @@ interface DrillDownProps {
   onBack: () => void;
 }
 
-function formatCell(val: unknown): string {
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
+
+function formatCellValue(val: unknown, format?: string): string {
   if (val == null) return "--";
   if (typeof val === "number") {
+    if (format === "dollar") {
+      if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
+      return `$${val.toLocaleString("en-US")}`;
+    }
+    if (format === "pct") return `${val.toFixed(1)}%`;
     if (val >= 1000) return val.toLocaleString("en-US");
-    return String(val);
+    if (Number.isInteger(val)) return String(val);
+    return val.toFixed(1);
   }
   return String(val);
 }
 
+function getCellColor(
+  val: unknown,
+  col: ColumnDef,
+): string | undefined {
+  if (typeof val !== "number" || col.benchmark == null) return undefined;
+  const above = val > col.benchmark;
+  // invertBenchmark: higher is better (e.g., capture rate)
+  if (col.invertBenchmark) {
+    return above ? tokens.accentText : tokens.red;
+  }
+  // default: lower is better (e.g., readmit rate, cost)
+  return above ? tokens.red : tokens.accentText;
+}
+
+// ---------------------------------------------------------------------------
+// Collapsible section wrapper
+// ---------------------------------------------------------------------------
+
+function CollapsibleSection({
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="mb-6">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full text-left mb-3 group"
+      >
+        <span
+          className="text-[11px] transition-transform"
+          style={{
+            color: tokens.textMuted,
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+          }}
+        >
+          &#9654;
+        </span>
+        <h3
+          className="text-[13px] font-semibold"
+          style={{ color: tokens.textSecondary, fontFamily: fonts.heading }}
+        >
+          {title}
+        </h3>
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Table renderer
+// ---------------------------------------------------------------------------
+
+function DataTable({ columns, rows }: { columns: ColumnDef[]; rows: Record<string, unknown>[] }) {
+  if (!rows || rows.length === 0) {
+    return (
+      <div
+        className="text-[13px] py-6 text-center"
+        style={{ color: tokens.textMuted }}
+      >
+        No data available
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-[10px] border overflow-hidden"
+      style={{ borderColor: tokens.border }}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr style={{ background: tokens.surfaceAlt }}>
+              {columns.map((col) => (
+                <th
+                  key={col.key}
+                  className={`px-4 py-2.5 font-semibold whitespace-nowrap ${
+                    col.numeric ? "text-right" : "text-left"
+                  }`}
+                  style={{
+                    color: tokens.textSecondary,
+                    fontFamily: fonts.heading,
+                  }}
+                >
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => (
+              <tr
+                key={idx}
+                style={{
+                  borderTop: `1px solid ${tokens.borderSoft}`,
+                  background:
+                    idx % 2 === 0 ? tokens.surface : tokens.surfaceAlt,
+                }}
+              >
+                {columns.map((col) => {
+                  const val = row[col.key];
+                  const cellColor = getCellColor(val, col);
+                  return (
+                    <td
+                      key={col.key}
+                      className={`px-4 py-2.5 whitespace-nowrap ${
+                        col.numeric ? "text-right" : "text-left"
+                      }`}
+                      style={{
+                        color: cellColor || tokens.text,
+                        fontFamily: col.numeric ? fonts.code : fonts.body,
+                        fontWeight: cellColor ? 600 : 400,
+                      }}
+                    >
+                      {formatCellValue(val, col.format)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main DrillDown component
+// ---------------------------------------------------------------------------
+
 export function DrillDown({ category, onBack }: DrillDownProps) {
   const [data, setData] = useState<DrillDownData | null>(null);
-  const [insights, setInsights] = useState<InsightData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      api.get(`/api/expenditure/${category}`),
-      api.get(`/api/expenditure/${category}/insights`),
-    ])
-      .then(([drillRes, insightRes]) => {
-        setData(drillRes.data);
-        setInsights(insightRes.data);
-      })
+    api
+      .get(`/api/expenditure/${category}`)
+      .then((res) => setData(res.data))
       .catch((err) => console.error("Drilldown fetch error:", err))
       .finally(() => setLoading(false));
   }, [category]);
@@ -72,10 +228,7 @@ export function DrillDown({ category, onBack }: DrillDownProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div
-          className="text-sm"
-          style={{ color: tokens.textMuted }}
-        >
+        <div className="text-sm" style={{ color: tokens.textMuted }}>
           Loading {category} details...
         </div>
       </div>
@@ -109,119 +262,100 @@ export function DrillDown({ category, onBack }: DrillDownProps) {
         </h2>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {data.kpis.map((kpi) => (
-          <MetricCard key={kpi.label} label={kpi.label} value={kpi.value} />
-        ))}
+      {/* KPI cards with benchmark coloring */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        {data.kpis.map((kpi) => {
+          let trendText: string | undefined;
+          if (kpi.benchmark) {
+            trendText = `Benchmark: ${kpi.benchmark}`;
+          }
+
+          // Determine card border accent
+          let borderAccent: string | undefined;
+          if (kpi.status === "over") borderAccent = tokens.red;
+          else if (kpi.status === "under") borderAccent = tokens.amber;
+
+          return (
+            <div
+              key={kpi.label}
+              className="rounded-[10px] border bg-white p-4"
+              style={{
+                borderColor: borderAccent || tokens.border,
+                borderLeftWidth: borderAccent ? 3 : 1,
+              }}
+            >
+              <div
+                className="text-xs font-medium mb-1"
+                style={{ color: tokens.textMuted }}
+              >
+                {kpi.label}
+              </div>
+              <div
+                className="text-xl font-semibold tracking-tight"
+                style={{
+                  fontFamily: fonts.code,
+                  color: borderAccent || tokens.text,
+                }}
+              >
+                {kpi.value}
+              </div>
+              {trendText && (
+                <div
+                  className="text-[11px] font-medium mt-1"
+                  style={{
+                    color:
+                      kpi.status === "over"
+                        ? tokens.red
+                        : kpi.status === "under"
+                          ? tokens.amber
+                          : tokens.textMuted,
+                  }}
+                >
+                  {trendText}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Insights (if any) */}
-      {insights.length > 0 && (
-        <div className="mb-6">
-          <h3
-            className="text-[13px] font-semibold mb-3"
-            style={{ color: tokens.textSecondary, fontFamily: fonts.heading }}
-          >
-            AI Recommendations
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {insights.map((insight) => (
-              <InsightCard
-                key={insight.id}
-                title={insight.title}
-                description={insight.description}
-                impact={
-                  insight.dollar_impact
-                    ? `$${insight.dollar_impact.toLocaleString("en-US")} potential impact`
-                    : undefined
-                }
-                category="cost"
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Sections: tables and insight panels */}
+      {(data.sections || []).map((section) => {
+        if (section.type === "insights" && section.items) {
+          return (
+            <CollapsibleSection key={section.id} title={section.title}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {section.items.map((item, idx) => (
+                  <InsightCard
+                    key={idx}
+                    title={item.title}
+                    description={item.description}
+                    impact={
+                      item.dollar_impact
+                        ? `$${item.dollar_impact.toLocaleString("en-US")} potential impact`
+                        : undefined
+                    }
+                    category={item.category}
+                  />
+                ))}
+              </div>
+            </CollapsibleSection>
+          );
+        }
 
-      {/* Data tables */}
-      {data.tables.map((table) => (
-        <div key={table.title} className="mb-6">
-          <h3
-            className="text-[13px] font-semibold mb-3"
-            style={{ color: tokens.textSecondary, fontFamily: fonts.heading }}
-          >
-            {table.title}
-          </h3>
-          <div
-            className="rounded-[10px] border overflow-hidden"
-            style={{ borderColor: tokens.border }}
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr style={{ background: tokens.surfaceAlt }}>
-                    {table.columns.map((col) => (
-                      <th
-                        key={col}
-                        className="text-left px-4 py-2.5 font-semibold"
-                        style={{ color: tokens.textSecondary, fontFamily: fonts.heading }}
-                      >
-                        {col}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {table.rows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={table.columns.length}
-                        className="px-4 py-6 text-center"
-                        style={{ color: tokens.textMuted }}
-                      >
-                        No data available
-                      </td>
-                    </tr>
-                  ) : (
-                    table.rows.map((row, idx) => {
-                      const values = Object.values(row);
-                      return (
-                        <tr
-                          key={idx}
-                          style={{
-                            borderTop: `1px solid ${tokens.borderSoft}`,
-                            background: idx % 2 === 0 ? tokens.surface : tokens.surfaceAlt,
-                          }}
-                        >
-                          {values.map((val, colIdx) => (
-                            <td
-                              key={colIdx}
-                              className="px-4 py-2.5"
-                              style={{
-                                color: tokens.text,
-                                fontFamily:
-                                  typeof val === "number" ? fonts.code : fonts.body,
-                              }}
-                            >
-                              {typeof val === "number" && (
-                                String(val).includes(".") || val >= 100
-                              )
-                                ? val.toLocaleString("en-US", {
-                                    maximumFractionDigits: 2,
-                                  })
-                                : formatCell(val)}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      ))}
+        if (section.type === "table" && section.columns) {
+          return (
+            <CollapsibleSection key={section.id} title={section.title}>
+              <DataTable
+                columns={section.columns}
+                rows={section.rows || []}
+              />
+            </CollapsibleSection>
+          );
+        }
+
+        return null;
+      })}
     </div>
   );
 }

@@ -58,6 +58,18 @@ def _pct(part: float, total: float) -> float:
     return round(part / total * 100, 1)
 
 
+def _fmt_dollar(v: float) -> str:
+    if v >= 1_000_000:
+        return f"${v / 1_000_000:.1f}M"
+    if v >= 1_000:
+        return f"${v:,.0f}"
+    return f"${v:.0f}"
+
+
+def _fmt_pct(v: float) -> str:
+    return f"{v:.1f}%"
+
+
 # ---------------------------------------------------------------------------
 # Overview
 # ---------------------------------------------------------------------------
@@ -133,11 +145,17 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Category Drill-downs
+# Category Drill-downs — deep, cross-module analysis
 # ---------------------------------------------------------------------------
 
 async def get_category_drilldown(db: AsyncSession, category: str) -> dict:
-    """Deep analysis for a specific service category."""
+    """Deep cross-module analysis for a specific service category.
+
+    Returns a structure with:
+      - kpis: list of {label, value, benchmark?, status?}
+      - sections: list of {id, title, type, columns?, rows?, items?}
+        where type is 'table' or 'insights'
+    """
 
     member_count_result = await db.execute(select(func.count(Member.id)))
     member_count = max(_safe_int(member_count_result.scalar()), 1)
@@ -166,36 +184,43 @@ async def get_category_drilldown(db: AsyncSession, category: str) -> dict:
         "claim_count": claim_count,
         "unique_members": unique_members,
         "kpis": [],
-        "tables": [],
+        "sections": [],
     }
 
     # Category-specific analysis
     if category == "inpatient":
-        result = {**result, **(await _drilldown_inpatient(db, base_filter, member_count, total_spend))}
+        extra = await _drilldown_inpatient(db, base_filter, member_count, total_spend)
     elif category == "ed_observation":
-        result = {**result, **(await _drilldown_ed(db, base_filter, member_count, total_spend))}
+        extra = await _drilldown_ed(db, base_filter, member_count, total_spend)
     elif category == "professional":
-        result = {**result, **(await _drilldown_professional(db, base_filter, member_count, total_spend))}
+        extra = await _drilldown_professional(db, base_filter, member_count, total_spend)
     elif category == "snf_postacute":
-        result = {**result, **(await _drilldown_snf(db, base_filter, member_count, total_spend))}
+        extra = await _drilldown_snf(db, base_filter, member_count, total_spend)
     elif category == "pharmacy":
-        result = {**result, **(await _drilldown_pharmacy(db, base_filter, member_count, total_spend))}
+        extra = await _drilldown_pharmacy(db, base_filter, member_count, total_spend)
     elif category in ("home_health", "dme"):
-        result = {**result, **(await _drilldown_home_dme(db, base_filter, member_count, total_spend, category))}
+        extra = await _drilldown_home_dme(db, base_filter, member_count, total_spend, category)
     else:
-        result["kpis"] = [
-            {"label": "Total Spend", "value": f"${total_spend:,.0f}"},
-            {"label": "Claims", "value": f"{claim_count:,}"},
-            {"label": "Unique Members", "value": f"{unique_members:,}"},
-        ]
+        extra = {
+            "kpis": [
+                {"label": "Total Spend", "value": _fmt_dollar(total_spend)},
+                {"label": "Claims", "value": f"{claim_count:,}"},
+                {"label": "Unique Members", "value": f"{unique_members:,}"},
+            ],
+            "sections": [],
+        }
 
+    result["kpis"] = extra.get("kpis", [])
+    result["sections"] = extra.get("sections", [])
     return result
 
 
-async def _drilldown_inpatient(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
-    """Inpatient: facility breakdown, top DRGs, KPIs."""
+# ---------------------------------------------------------------------------
+# Inpatient — facility, provider patterns, DRG analysis, AI recs
+# ---------------------------------------------------------------------------
 
-    # Facility breakdown
+async def _drilldown_inpatient(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
+    # --- Facility breakdown ---
     facility_query = (
         select(
             Claim.facility_name,
@@ -211,18 +236,21 @@ async def _drilldown_inpatient(db: AsyncSession, base_filter, member_count: int,
         .limit(10)
     )
     fac_result = await db.execute(facility_query)
-    facilities = []
+    facility_rows = []
     for row in fac_result.all():
         admits = max(_safe_int(row.admits), 1)
-        facilities.append({
+        cost = _safe_float(row.total_cost)
+        facility_rows.append({
             "name": row.facility_name or "Unknown",
             "admits": admits,
-            "total_cost": _safe_float(row.total_cost),
-            "cost_per_admit": round(_safe_float(row.total_cost) / admits, 0),
-            "unique_patients": _safe_int(row.unique_patients),
+            "alos": 0.0,  # Would come from admission/discharge dates
+            "cost_per_admit": round(cost / admits, 0),
+            "readmit_rate": 0.0,  # Would come from readmission logic
+            "hcc_capture_rate": 0.0,  # Would come from HCC engine cross-reference
+            "top_drgs": "",
         })
 
-    # Top DRGs
+    # --- Top DRGs ---
     drg_query = (
         select(
             Claim.drg_code,
@@ -236,16 +264,45 @@ async def _drilldown_inpatient(db: AsyncSession, base_filter, member_count: int,
         .limit(10)
     )
     drg_result = await db.execute(drg_query)
-    drgs = []
+    drg_rows = []
     for row in drg_result.all():
-        drgs.append({
-            "code": row.drg_code,
+        avg = round(_safe_float(row.avg_cost), 0)
+        drg_rows.append({
+            "drg": row.drg_code,
+            "description": "",  # Would come from DRG reference table
             "cases": _safe_int(row.cases),
-            "total_cost": _safe_float(row.total_cost),
-            "avg_cost": round(_safe_float(row.avg_cost), 0),
+            "avg_cost": avg,
+            "benchmark_cost": round(avg * 0.85, 0),  # Placeholder benchmark
+            "excess_spend": round(avg * 0.15 * _safe_int(row.cases), 0),
         })
 
-    # KPIs
+    # --- Provider patterns (admitting PCP breakdown) ---
+    provider_query = (
+        select(
+            Claim.rendering_provider_id,
+            func.count(distinct(Claim.claim_id)).label("admits"),
+            func.sum(Claim.paid_amount).label("total_cost"),
+            func.count(distinct(Claim.member_id)).label("patients"),
+        )
+        .where(and_(base_filter, Claim.rendering_provider_id.isnot(None)))
+        .group_by(Claim.rendering_provider_id)
+        .order_by(func.count(distinct(Claim.claim_id)).desc())
+        .limit(10)
+    )
+    prov_result = await db.execute(provider_query)
+    provider_rows = []
+    for row in prov_result.all():
+        admits = max(_safe_int(row.admits), 1)
+        provider_rows.append({
+            "pcp": f"Provider #{row.rendering_provider_id}",
+            "panel_size": 0,  # Would come from provider panel data
+            "admits": admits,
+            "admit_rate_per_1k": 0.0,
+            "preferred_facility": "",
+            "avg_cost_per_admit": round(_safe_float(row.total_cost) / admits, 0),
+            "readmit_rate": 0.0,
+        })
+
     total_admits_result = await db.execute(
         select(func.count(distinct(Claim.claim_id))).where(base_filter)
     )
@@ -255,21 +312,92 @@ async def _drilldown_inpatient(db: AsyncSession, base_filter, member_count: int,
 
     return {
         "kpis": [
-            {"label": "Admits / 1K", "value": f"{admits_per_1k}"},
-            {"label": "Cost / Admit", "value": f"${cost_per_admit:,.0f}"},
-            {"label": "Total Admits", "value": f"{total_admits:,}"},
-            {"label": "Total Spend", "value": f"${total_spend:,.0f}"},
+            {"label": "Admits / 1K", "value": str(admits_per_1k), "benchmark": "72.0", "status": "over" if admits_per_1k > 72 else None},
+            {"label": "Cost / Admit", "value": _fmt_dollar(cost_per_admit), "benchmark": "$12,800", "status": "over" if cost_per_admit > 12800 else None},
+            {"label": "ALOS", "value": "-- days"},
+            {"label": "Readmit Rate (30d)", "value": "--%"},
+            {"label": "HCC Capture During Admit", "value": "--%"},
+            {"label": "Total Spend", "value": _fmt_dollar(total_spend)},
         ],
-        "tables": [
-            {"title": "Top Facilities", "columns": ["Facility", "Admits", "Total Cost", "Cost/Admit", "Patients"], "rows": facilities},
-            {"title": "Top DRGs", "columns": ["DRG Code", "Cases", "Total Cost", "Avg Cost"], "rows": drgs},
+        "sections": [
+            {
+                "id": "facilities",
+                "title": "Facility Comparison",
+                "type": "table",
+                "columns": [
+                    {"key": "name", "label": "Facility"},
+                    {"key": "admits", "label": "Admits", "numeric": True},
+                    {"key": "alos", "label": "ALOS", "numeric": True},
+                    {"key": "cost_per_admit", "label": "Cost/Admit", "numeric": True, "format": "dollar"},
+                    {"key": "readmit_rate", "label": "Readmit %", "numeric": True, "format": "pct", "benchmark": 11.0},
+                    {"key": "hcc_capture_rate", "label": "HCC Capture %", "numeric": True, "format": "pct", "benchmark": 75.0, "invertBenchmark": True},
+                    {"key": "top_drgs", "label": "Top DRGs"},
+                ],
+                "rows": facility_rows,
+            },
+            {
+                "id": "provider_patterns",
+                "title": "Admitting Provider Patterns",
+                "type": "table",
+                "columns": [
+                    {"key": "pcp", "label": "PCP"},
+                    {"key": "panel_size", "label": "Panel", "numeric": True},
+                    {"key": "admits", "label": "Admits", "numeric": True},
+                    {"key": "admit_rate_per_1k", "label": "Admits/1K", "numeric": True, "benchmark": 72.0},
+                    {"key": "preferred_facility", "label": "Primary Facility"},
+                    {"key": "avg_cost_per_admit", "label": "Avg Cost", "numeric": True, "format": "dollar"},
+                    {"key": "readmit_rate", "label": "Readmit %", "numeric": True, "format": "pct", "benchmark": 11.0},
+                ],
+                "rows": provider_rows,
+            },
+            {
+                "id": "drg_analysis",
+                "title": "Top DRGs by Cost",
+                "type": "table",
+                "columns": [
+                    {"key": "drg", "label": "DRG"},
+                    {"key": "description", "label": "Description"},
+                    {"key": "cases", "label": "Cases", "numeric": True},
+                    {"key": "avg_cost", "label": "Avg Cost", "numeric": True, "format": "dollar"},
+                    {"key": "benchmark_cost", "label": "Benchmark", "numeric": True, "format": "dollar"},
+                    {"key": "excess_spend", "label": "Excess Spend", "numeric": True, "format": "dollar"},
+                ],
+                "rows": drg_rows,
+            },
+            {
+                "id": "ai_recommendations",
+                "title": "AI Recommendations",
+                "type": "insights",
+                "items": [
+                    {
+                        "title": "Facility redirection opportunity",
+                        "description": "Analyze facility cost variance and redirect non-emergent admissions to lower-cost, higher-quality facilities. Cross-reference with HCC capture rates during admission.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "Readmission reduction program",
+                        "description": "Target high-readmission DRGs with post-discharge care transition programs. Focus on CHF and COPD patients.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "HCC capture during inpatient stays",
+                        "description": "Embed coding review during discharge to capture documented but uncoded HCCs. Cross-reference with suspect inventory.",
+                        "dollar_impact": None,
+                        "category": "revenue",
+                    },
+                ],
+            },
         ],
     }
 
 
-async def _drilldown_ed(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
-    """ED / Observation drilldown."""
+# ---------------------------------------------------------------------------
+# ED / Observation
+# ---------------------------------------------------------------------------
 
+async def _drilldown_ed(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
     visits_result = await db.execute(
         select(
             func.count(distinct(Claim.claim_id)).label("visits"),
@@ -278,7 +406,6 @@ async def _drilldown_ed(db: AsyncSession, base_filter, member_count: int, total_
     )
     row = visits_result.one()
     visits = max(_safe_int(row.visits), 1)
-    unique_members = _safe_int(row.unique_members)
     cost_per_visit = round(total_spend / visits, 0)
     visits_per_1k = round(visits / member_count * 1000, 1)
 
@@ -293,30 +420,81 @@ async def _drilldown_ed(db: AsyncSession, base_filter, member_count: int, total_
         .group_by(Claim.member_id)
         .having(func.count(distinct(Claim.claim_id)) >= 3)
         .order_by(func.count(distinct(Claim.claim_id)).desc())
-        .limit(10)
+        .limit(20)
     )
     freq_result = await db.execute(freq_query)
-    frequent_utilizers = [
-        {"member_id": r.member_id, "visits": _safe_int(r.visit_count), "total_cost": _safe_float(r.total_cost)}
+    freq_rows = [
+        {
+            "member_name": f"Member #{r.member_id}",
+            "member_id": str(r.member_id),
+            "visits": _safe_int(r.visit_count),
+            "total_cost": _safe_float(r.total_cost),
+            "top_diagnoses": "",
+            "pcp": "",
+            "has_care_plan": "Unknown",
+        }
         for r in freq_result.all()
     ]
 
     return {
         "kpis": [
-            {"label": "ED Visits / 1K", "value": f"{visits_per_1k}"},
-            {"label": "Cost / Visit", "value": f"${cost_per_visit:,.0f}"},
-            {"label": "Total Visits", "value": f"{visits:,}"},
-            {"label": "Frequent Utilizers", "value": f"{len(frequent_utilizers)}"},
+            {"label": "ED Visits / 1K", "value": str(visits_per_1k), "benchmark": "310.0", "status": "over" if visits_per_1k > 310 else None},
+            {"label": "Cost / Visit", "value": _fmt_dollar(cost_per_visit), "benchmark": "$1,280", "status": "over" if cost_per_visit > 1280 else None},
+            {"label": "Avoidable ED %", "value": "--%"},
+            {"label": "Obs Rate", "value": "--%"},
+            {"label": "2-Midnight Compliance", "value": "--%"},
+            {"label": "Total Spend", "value": _fmt_dollar(total_spend)},
         ],
-        "tables": [
-            {"title": "Frequent Utilizers (3+ visits)", "columns": ["Member ID", "Visits", "Total Cost"], "rows": frequent_utilizers},
+        "sections": [
+            {
+                "id": "frequent_utilizers",
+                "title": "Frequent ED Utilizers (3+ visits)",
+                "type": "table",
+                "columns": [
+                    {"key": "member_name", "label": "Member"},
+                    {"key": "member_id", "label": "ID"},
+                    {"key": "visits", "label": "ED Visits", "numeric": True},
+                    {"key": "total_cost", "label": "Total Cost", "numeric": True, "format": "dollar"},
+                    {"key": "top_diagnoses", "label": "Top Diagnoses"},
+                    {"key": "pcp", "label": "PCP"},
+                    {"key": "has_care_plan", "label": "Care Plan"},
+                ],
+                "rows": freq_rows,
+            },
+            {
+                "id": "ai_recommendations",
+                "title": "AI Recommendations",
+                "type": "insights",
+                "items": [
+                    {
+                        "title": "Nurse triage line for high-ED PCP panels",
+                        "description": "PCPs without after-hours access drive higher ED utilization. Implement a shared nurse triage line to divert avoidable visits.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "Frequent utilizer care management",
+                        "description": "Assign dedicated care coordinators to top ED utilizers with ED alert notifications.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "Urgent care steerage for avoidable diagnoses",
+                        "description": "URI, UTI, and back pain ED visits could be managed in urgent care settings at 85% lower cost.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                ],
+            },
         ],
     }
 
 
-async def _drilldown_professional(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
-    """Professional services drilldown."""
+# ---------------------------------------------------------------------------
+# Professional / Specialist
+# ---------------------------------------------------------------------------
 
+async def _drilldown_professional(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
     provider_query = (
         select(
             Claim.facility_name,
@@ -330,12 +508,15 @@ async def _drilldown_professional(db: AsyncSession, base_filter, member_count: i
         .limit(10)
     )
     prov_result = await db.execute(provider_query)
-    providers = [
+    specialty_rows = [
         {
-            "name": r.facility_name,
+            "specialty": r.facility_name,  # In real system, from provider specialty field
             "total_spend": _safe_float(r.total_spend),
-            "claims": _safe_int(r.claims),
+            "visits": _safe_int(r.claims),
+            "avg_cost_per_visit": round(_safe_float(r.total_spend) / max(_safe_int(r.claims), 1), 0),
+            "benchmark_cost": 0,
             "unique_members": _safe_int(r.unique_members),
+            "oon_pct": 0.0,
         }
         for r in prov_result.all()
     ]
@@ -344,28 +525,69 @@ async def _drilldown_professional(db: AsyncSession, base_filter, member_count: i
         select(func.count(distinct(Claim.rendering_provider_id))).where(base_filter)
     )
     unique_providers = _safe_int(unique_providers_result.scalar())
-
-    total_claims_result = await db.execute(
-        select(func.count(Claim.id)).where(base_filter)
-    )
+    total_claims_result = await db.execute(select(func.count(Claim.id)).where(base_filter))
     total_claims = max(_safe_int(total_claims_result.scalar()), 1)
+    avg_cost = round(total_spend / total_claims, 0)
 
     return {
         "kpis": [
-            {"label": "Total Spend", "value": f"${total_spend:,.0f}"},
-            {"label": "PMPM", "value": f"${round(total_spend / max(member_count * 12, 1), 2):,.2f}"},
+            {"label": "Total Spend", "value": _fmt_dollar(total_spend)},
+            {"label": "PMPM", "value": _fmt_dollar(round(total_spend / max(member_count * 12, 1), 2)), "benchmark": "$195", "status": "over" if round(total_spend / max(member_count * 12, 1), 2) > 195 else None},
             {"label": "Unique Providers", "value": f"{unique_providers:,}"},
-            {"label": "Avg Cost / Claim", "value": f"${round(total_spend / total_claims, 0):,.0f}"},
+            {"label": "Avg Cost / Visit", "value": _fmt_dollar(avg_cost), "benchmark": "$198", "status": "over" if avg_cost > 198 else None},
+            {"label": "OON Leakage", "value": "--%"},
+            {"label": "Referral Loop Closure", "value": "--%"},
         ],
-        "tables": [
-            {"title": "Top Providers by Spend", "columns": ["Provider", "Total Spend", "Claims", "Patients"], "rows": providers},
+        "sections": [
+            {
+                "id": "specialty_spend",
+                "title": "Spend by Specialty",
+                "type": "table",
+                "columns": [
+                    {"key": "specialty", "label": "Specialty"},
+                    {"key": "total_spend", "label": "Total Spend", "numeric": True, "format": "dollar"},
+                    {"key": "visits", "label": "Visits", "numeric": True},
+                    {"key": "avg_cost_per_visit", "label": "Avg/Visit", "numeric": True, "format": "dollar"},
+                    {"key": "benchmark_cost", "label": "Benchmark", "numeric": True, "format": "dollar"},
+                    {"key": "unique_members", "label": "Members", "numeric": True},
+                    {"key": "oon_pct", "label": "OON %", "numeric": True, "format": "pct", "benchmark": 10.0},
+                ],
+                "rows": specialty_rows,
+            },
+            {
+                "id": "ai_recommendations",
+                "title": "AI Recommendations",
+                "type": "insights",
+                "items": [
+                    {
+                        "title": "Specialist steerage to preferred in-network providers",
+                        "description": "Reduce OON leakage by steering referrals to high-value in-network specialists. Focus on cardiology and orthopedics.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "eConsult program for low-acuity referrals",
+                        "description": "Many specialty referrals result in a single visit with no procedure. An eConsult platform could resolve these virtually.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "Referral loop closure automation",
+                        "description": "Implement automated consult note routing to improve PCP-specialist coordination and reduce duplicate testing.",
+                        "dollar_impact": None,
+                        "category": "quality",
+                    },
+                ],
+            },
         ],
     }
 
 
-async def _drilldown_snf(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
-    """SNF / Post-Acute drilldown."""
+# ---------------------------------------------------------------------------
+# SNF / Post-Acute
+# ---------------------------------------------------------------------------
 
+async def _drilldown_snf(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
     facility_query = (
         select(
             Claim.facility_name,
@@ -379,38 +601,85 @@ async def _drilldown_snf(db: AsyncSession, base_filter, member_count: int, total
         .limit(10)
     )
     fac_result = await db.execute(facility_query)
-    facilities = []
+    facility_rows = []
     for r in fac_result.all():
         episodes = max(_safe_int(r.episodes), 1)
-        facilities.append({
+        cost = _safe_float(r.total_cost)
+        facility_rows.append({
             "name": r.facility_name,
             "episodes": episodes,
-            "total_cost": _safe_float(r.total_cost),
-            "cost_per_episode": round(_safe_float(r.total_cost) / episodes, 0),
-            "unique_patients": _safe_int(r.unique_patients),
+            "avg_los": 0.0,  # Would come from admission/discharge dates
+            "cost_per_episode": round(cost / episodes, 0),
+            "rehospitalization_rate": 0.0,  # Would come from readmission logic
+            "discharge_home_pct": 0.0,  # Would come from discharge disposition
+            "hcc_capture_rate": 0.0,  # Would come from HCC engine
         })
 
     total_episodes_result = await db.execute(
         select(func.count(distinct(Claim.claim_id))).where(base_filter)
     )
     total_episodes = max(_safe_int(total_episodes_result.scalar()), 1)
+    cost_per_episode = round(total_spend / total_episodes, 0)
 
     return {
         "kpis": [
             {"label": "Total Episodes", "value": f"{total_episodes:,}"},
-            {"label": "Cost / Episode", "value": f"${round(total_spend / total_episodes, 0):,.0f}"},
-            {"label": "Total Spend", "value": f"${total_spend:,.0f}"},
-            {"label": "PMPM", "value": f"${round(total_spend / max(member_count * 12, 1), 2):,.2f}"},
+            {"label": "Cost / Episode", "value": _fmt_dollar(cost_per_episode), "benchmark": "$5,800", "status": "over" if cost_per_episode > 5800 else None},
+            {"label": "Avg LOS", "value": "-- days"},
+            {"label": "Rehospitalization Rate", "value": "--%"},
+            {"label": "Discharge to Home %", "value": "--%"},
+            {"label": "HCC Capture Rate", "value": "--%"},
         ],
-        "tables": [
-            {"title": "Facility Comparison", "columns": ["Facility", "Episodes", "Total Cost", "Cost/Episode", "Patients"], "rows": facilities},
+        "sections": [
+            {
+                "id": "facility_comparison",
+                "title": "SNF Facility Comparison",
+                "type": "table",
+                "columns": [
+                    {"key": "name", "label": "Facility"},
+                    {"key": "episodes", "label": "Episodes", "numeric": True},
+                    {"key": "avg_los", "label": "Avg LOS", "numeric": True, "benchmark": 18.0},
+                    {"key": "cost_per_episode", "label": "Cost/Episode", "numeric": True, "format": "dollar"},
+                    {"key": "rehospitalization_rate", "label": "Rehosp %", "numeric": True, "format": "pct", "benchmark": 14.0},
+                    {"key": "discharge_home_pct", "label": "Home %", "numeric": True, "format": "pct", "benchmark": 72.0, "invertBenchmark": True},
+                    {"key": "hcc_capture_rate", "label": "HCC Capture %", "numeric": True, "format": "pct", "benchmark": 65.0, "invertBenchmark": True},
+                ],
+                "rows": facility_rows,
+            },
+            {
+                "id": "ai_recommendations",
+                "title": "AI Recommendations",
+                "type": "insights",
+                "items": [
+                    {
+                        "title": "Preferred SNF network with quality tiers",
+                        "description": "Steer patients to SNFs with lower rehospitalization rates, shorter LOS, and higher HCC capture rates.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "Home health diversion for eligible patients",
+                        "description": "Identify SNF patients who could safely go home with home health services instead. Focus on functional joint replacement and stable chronic conditions.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "HCC capture improvement at SNF facilities",
+                        "description": "SNF stays are an opportunity to capture documented but uncoded HCCs. Embed coding support at high-volume SNFs.",
+                        "dollar_impact": None,
+                        "category": "revenue",
+                    },
+                ],
+            },
         ],
     }
 
 
-async def _drilldown_pharmacy(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
-    """Pharmacy drilldown."""
+# ---------------------------------------------------------------------------
+# Pharmacy
+# ---------------------------------------------------------------------------
 
+async def _drilldown_pharmacy(db: AsyncSession, base_filter, member_count: int, total_spend: float) -> dict:
     # By drug class
     class_query = (
         select(
@@ -425,12 +694,15 @@ async def _drilldown_pharmacy(db: AsyncSession, base_filter, member_count: int, 
         .limit(10)
     )
     class_result = await db.execute(class_query)
-    drug_classes = [
+    drug_class_rows = [
         {
             "drug_class": r.drug_class,
             "total_spend": _safe_float(r.total_spend),
-            "claims": _safe_int(r.claims),
+            "fills": _safe_int(r.claims),
             "unique_members": _safe_int(r.unique_members),
+            "avg_cost_per_fill": round(_safe_float(r.total_spend) / max(_safe_int(r.claims), 1), 0),
+            "brand_pct": 0.0,  # Would come from brand/generic flag on claims
+            "trend_vs_prior": 0.0,
         }
         for r in class_result.all()
     ]
@@ -449,12 +721,15 @@ async def _drilldown_pharmacy(db: AsyncSession, base_filter, member_count: int, 
         .limit(10)
     )
     drug_result = await db.execute(drug_query)
-    top_drugs = [
+    brand_generic_rows = [
         {
-            "drug_name": r.drug_name,
-            "total_spend": _safe_float(r.total_spend),
-            "fills": _safe_int(r.fills),
-            "avg_cost": round(_safe_float(r.avg_cost), 2),
+            "brand_drug": r.drug_name,
+            "generic_alternative": "",  # Would come from formulary data
+            "members_on_brand": 0,
+            "annual_brand_cost": round(_safe_float(r.avg_cost) * 12, 0),
+            "annual_generic_cost": 0,
+            "savings_per_member": 0,
+            "total_potential_savings": 0,
         }
         for r in drug_result.all()
     ]
@@ -464,21 +739,69 @@ async def _drilldown_pharmacy(db: AsyncSession, base_filter, member_count: int, 
 
     return {
         "kpis": [
-            {"label": "Total Spend", "value": f"${total_spend:,.0f}"},
-            {"label": "PMPM", "value": f"${round(total_spend / max(member_count * 12, 1), 2):,.2f}"},
+            {"label": "Total Spend", "value": _fmt_dollar(total_spend)},
+            {"label": "PMPM", "value": _fmt_dollar(round(total_spend / max(member_count * 12, 1), 2)), "benchmark": "$175", "status": "over" if round(total_spend / max(member_count * 12, 1), 2) > 175 else None},
+            {"label": "Generic Dispense Rate", "value": "--%"},
             {"label": "Total Fills", "value": f"{total_fills:,}"},
-            {"label": "Avg Cost / Fill", "value": f"${round(total_spend / total_fills, 2):,.2f}"},
+            {"label": "Members Below 80% PDC", "value": "--"},
+            {"label": "Rx Without Matching Dx", "value": "--"},
         ],
-        "tables": [
-            {"title": "Spend by Drug Class", "columns": ["Drug Class", "Total Spend", "Claims", "Members"], "rows": drug_classes},
-            {"title": "Top Cost Drugs", "columns": ["Drug Name", "Total Spend", "Fills", "Avg Cost"], "rows": top_drugs},
+        "sections": [
+            {
+                "id": "drug_class_spend",
+                "title": "Top Drug Classes by Spend",
+                "type": "table",
+                "columns": [
+                    {"key": "drug_class", "label": "Drug Class"},
+                    {"key": "total_spend", "label": "Total Spend", "numeric": True, "format": "dollar"},
+                    {"key": "fills", "label": "Fills", "numeric": True},
+                    {"key": "unique_members", "label": "Members", "numeric": True},
+                    {"key": "avg_cost_per_fill", "label": "Avg/Fill", "numeric": True, "format": "dollar"},
+                    {"key": "brand_pct", "label": "Brand %", "numeric": True, "format": "pct"},
+                    {"key": "trend_vs_prior", "label": "Trend", "numeric": True, "format": "pct"},
+                ],
+                "rows": drug_class_rows,
+            },
+            {
+                "id": "ai_recommendations",
+                "title": "AI Recommendations",
+                "type": "insights",
+                "items": [
+                    {
+                        "title": "Generic substitution campaign",
+                        "description": "Identify brand drugs with available generic/biosimilar alternatives for pharmacy-led therapeutic interchange.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "Statin adherence intervention for Stars",
+                        "description": "Monitor PDC for statin adherence measures and target pharmacist outreach to members below 80% PDC threshold.",
+                        "dollar_impact": None,
+                        "category": "quality",
+                    },
+                    {
+                        "title": "Drug-diagnosis gap capture for HCC revenue",
+                        "description": "Flag members on medications without matching diagnoses as HCC suspects. Cross-reference with the suspect inventory.",
+                        "dollar_impact": None,
+                        "category": "revenue",
+                    },
+                    {
+                        "title": "90-day supply and mail order optimization",
+                        "description": "Convert chronic medication fills from 30-day retail to 90-day mail order for cost and adherence improvement.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                ],
+            },
         ],
     }
 
 
-async def _drilldown_home_dme(db: AsyncSession, base_filter, member_count: int, total_spend: float, category: str) -> dict:
-    """Home Health / DME drilldown."""
+# ---------------------------------------------------------------------------
+# Home Health / DME
+# ---------------------------------------------------------------------------
 
+async def _drilldown_home_dme(db: AsyncSession, base_filter, member_count: int, total_spend: float, category: str) -> dict:
     vendor_query = (
         select(
             Claim.facility_name,
@@ -492,16 +815,40 @@ async def _drilldown_home_dme(db: AsyncSession, base_filter, member_count: int, 
         .limit(10)
     )
     vendor_result = await db.execute(vendor_query)
-    vendors = []
+    vendor_rows = []
     for r in vendor_result.all():
         episodes = max(_safe_int(r.episodes), 1)
-        vendors.append({
+        vendor_rows.append({
             "name": r.facility_name,
-            "total_spend": _safe_float(r.total_spend),
-            "episodes": episodes,
-            "cost_per_episode": round(_safe_float(r.total_spend) / episodes, 0),
-            "unique_members": _safe_int(r.unique_members),
+            "episodes" if category == "home_health" else "claims": episodes,
+            "cost_per_episode" if category == "home_health" else "total_spend": round(_safe_float(r.total_spend) / episodes, 0) if category == "home_health" else _safe_float(r.total_spend),
+            "avg_visits" if category == "home_health" else "avg_cost_per_claim": 0,
+            "readmission_rate" if category == "home_health" else "top_items": 0.0 if category == "home_health" else "",
         })
+
+    # Provider ordering patterns
+    provider_query = (
+        select(
+            Claim.rendering_provider_id,
+            func.count(distinct(Claim.claim_id)).label("orders"),
+            func.sum(Claim.paid_amount).label("total_cost"),
+        )
+        .where(and_(base_filter, Claim.rendering_provider_id.isnot(None)))
+        .group_by(Claim.rendering_provider_id)
+        .order_by(func.count(distinct(Claim.claim_id)).desc())
+        .limit(10)
+    )
+    prov_result = await db.execute(provider_query)
+    provider_rows = [
+        {
+            "provider": f"Provider #{r.rendering_provider_id}",
+            "orders": _safe_int(r.orders),
+            "total_cost": _safe_float(r.total_cost),
+            "avg_cost": round(_safe_float(r.total_cost) / max(_safe_int(r.orders), 1), 0),
+            "preferred_vendor": "",
+        }
+        for r in prov_result.all()
+    ]
 
     total_episodes_result = await db.execute(
         select(func.count(distinct(Claim.claim_id))).where(base_filter)
@@ -509,15 +856,59 @@ async def _drilldown_home_dme(db: AsyncSession, base_filter, member_count: int, 
     total_episodes = max(_safe_int(total_episodes_result.scalar()), 1)
 
     label = "Home Health" if category == "home_health" else "DME"
+    cost_per_ep = round(total_spend / total_episodes, 0)
+
     return {
         "kpis": [
-            {"label": "Total Spend", "value": f"${total_spend:,.0f}"},
-            {"label": "Episodes", "value": f"{total_episodes:,}"},
-            {"label": "Cost / Episode", "value": f"${round(total_spend / total_episodes, 0):,.0f}"},
-            {"label": "PMPM", "value": f"${round(total_spend / max(member_count * 12, 1), 2):,.2f}"},
+            {"label": "Total Spend", "value": _fmt_dollar(total_spend)},
+            {"label": "Episodes" if category == "home_health" else "Claims", "value": f"{total_episodes:,}"},
+            {"label": "Cost / Episode" if category == "home_health" else "Avg Cost / Claim", "value": _fmt_dollar(cost_per_ep)},
+            {"label": "PMPM", "value": _fmt_dollar(round(total_spend / max(member_count * 12, 1), 2))},
         ],
-        "tables": [
-            {"title": f"{label} Vendor Comparison", "columns": ["Vendor", "Total Spend", "Episodes", "Cost/Episode", "Members"], "rows": vendors},
+        "sections": [
+            {
+                "id": "vendor_comparison",
+                "title": f"{label} Vendor Comparison",
+                "type": "table",
+                "columns": [
+                    {"key": "name", "label": "Vendor"},
+                    {"key": "episodes" if category == "home_health" else "claims", "label": "Episodes" if category == "home_health" else "Claims", "numeric": True},
+                    {"key": "cost_per_episode" if category == "home_health" else "total_spend", "label": "Cost/Episode" if category == "home_health" else "Total Spend", "numeric": True, "format": "dollar"},
+                ],
+                "rows": vendor_rows,
+            },
+            {
+                "id": "ordering_providers",
+                "title": "Ordering Provider Patterns",
+                "type": "table",
+                "columns": [
+                    {"key": "provider", "label": "Provider"},
+                    {"key": "orders", "label": "Orders", "numeric": True},
+                    {"key": "total_cost", "label": "Total Cost", "numeric": True, "format": "dollar"},
+                    {"key": "avg_cost", "label": "Avg Cost", "numeric": True, "format": "dollar"},
+                    {"key": "preferred_vendor", "label": "Preferred Vendor"},
+                ],
+                "rows": provider_rows,
+            },
+            {
+                "id": "ai_recommendations",
+                "title": "AI Recommendations",
+                "type": "insights",
+                "items": [
+                    {
+                        "title": f"Preferred vendor network for {label.lower()}",
+                        "description": f"Compare vendor costs, outcomes, and satisfaction scores. Steer orders to higher-value {label.lower()} vendors.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                    {
+                        "title": "Utilization review for high-ordering providers",
+                        "description": f"Identify providers ordering significantly more {label.lower()} services than peers. Implement concurrent utilization review.",
+                        "dollar_impact": None,
+                        "category": "cost",
+                    },
+                ],
+            },
         ],
     }
 

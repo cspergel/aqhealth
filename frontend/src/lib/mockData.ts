@@ -187,6 +187,709 @@ export const mockExpenditure = {
   ],
 };
 
+// ---- Expenditure Drill-Down (Deep) ----
+// Each category returns: kpis[], sections[] where sections can be table or insights type
+
+export const mockExpenditureDrillDowns: Record<string, {
+  category: string;
+  label: string;
+  total_spend: number;
+  pmpm: number;
+  claim_count: number;
+  unique_members: number;
+  kpis: { label: string; value: string; benchmark?: string; status?: string }[];
+  sections: {
+    id: string;
+    title: string;
+    type: "table" | "insights";
+    columns?: { key: string; label: string; numeric?: boolean; format?: string; benchmark?: number; invertBenchmark?: boolean }[];
+    rows?: Record<string, unknown>[];
+    items?: { title: string; description: string; dollar_impact: number | null; category: "cost" | "revenue" | "quality" }[];
+  }[];
+}> = {
+  inpatient: {
+    category: "inpatient",
+    label: "Inpatient",
+    total_spend: 5940000,
+    pmpm: 412,
+    claim_count: 412,
+    unique_members: 247,
+    kpis: [
+      { label: "Admits / 1K", value: "85.3", benchmark: "72.0", status: "over" },
+      { label: "Cost / Admit", value: "$14,417", benchmark: "$12,800", status: "over" },
+      { label: "ALOS", value: "4.8 days", benchmark: "4.2 days", status: "over" },
+      { label: "Readmit Rate (30d)", value: "14.2%", benchmark: "11.0%", status: "over" },
+      { label: "HCC Capture During Admit", value: "62.4%", benchmark: "75.0%", status: "under" },
+      { label: "Total Spend", value: "$5.9M" },
+    ],
+    sections: [
+      {
+        id: "facilities",
+        title: "Facility Comparison",
+        type: "table",
+        columns: [
+          { key: "name", label: "Facility" },
+          { key: "admits", label: "Admits", numeric: true },
+          { key: "alos", label: "ALOS", numeric: true },
+          { key: "cost_per_admit", label: "Cost/Admit", numeric: true, format: "dollar" },
+          { key: "readmit_rate", label: "Readmit %", numeric: true, format: "pct", benchmark: 11.0 },
+          { key: "hcc_capture_rate", label: "HCC Capture %", numeric: true, format: "pct", benchmark: 75.0, invertBenchmark: true },
+          { key: "top_drgs", label: "Top DRGs" },
+        ],
+        rows: [
+          { name: "Memorial Regional Medical Center", admits: 98, alos: 5.4, cost_per_admit: 18200, readmit_rate: 16.2, hcc_capture_rate: 54.1, top_drgs: "DRG 291, 470, 392" },
+          { name: "St. Joseph Hospital", admits: 84, alos: 4.6, cost_per_admit: 14800, readmit_rate: 12.8, hcc_capture_rate: 68.3, top_drgs: "DRG 470, 291, 766" },
+          { name: "University Health System", admits: 72, alos: 5.1, cost_per_admit: 16400, readmit_rate: 11.2, hcc_capture_rate: 71.2, top_drgs: "DRG 291, 871, 470" },
+          { name: "Community General Hospital", admits: 64, alos: 4.2, cost_per_admit: 12100, readmit_rate: 10.4, hcc_capture_rate: 72.8, top_drgs: "DRG 392, 470, 291" },
+          { name: "Mercy Medical Center", admits: 52, alos: 4.0, cost_per_admit: 11500, readmit_rate: 9.8, hcc_capture_rate: 76.4, top_drgs: "DRG 470, 766, 392" },
+          { name: "Lakeside Health", admits: 42, alos: 4.8, cost_per_admit: 13200, readmit_rate: 14.7, hcc_capture_rate: 58.9, top_drgs: "DRG 871, 291, 190" },
+        ],
+      },
+      {
+        id: "provider_patterns",
+        title: "Admitting Provider Patterns",
+        type: "table",
+        columns: [
+          { key: "pcp", label: "PCP" },
+          { key: "panel_size", label: "Panel", numeric: true },
+          { key: "admits", label: "Admits", numeric: true },
+          { key: "admit_rate_per_1k", label: "Admits/1K", numeric: true, benchmark: 72.0 },
+          { key: "preferred_facility", label: "Primary Facility" },
+          { key: "avg_cost_per_admit", label: "Avg Cost", numeric: true, format: "dollar" },
+          { key: "readmit_rate", label: "Readmit %", numeric: true, format: "pct", benchmark: 11.0 },
+        ],
+        rows: [
+          { pcp: "Dr. Robert Kim", panel_size: 234, admits: 38, admit_rate_per_1k: 162.4, preferred_facility: "Memorial Regional", avg_cost_per_admit: 17800, readmit_rate: 18.4 },
+          { pcp: "Dr. Karen Murphy", panel_size: 291, admits: 42, admit_rate_per_1k: 144.3, preferred_facility: "Memorial Regional", avg_cost_per_admit: 16200, readmit_rate: 16.7 },
+          { pcp: "Dr. David Wilson", panel_size: 178, admits: 22, admit_rate_per_1k: 123.6, preferred_facility: "St. Joseph", avg_cost_per_admit: 14100, readmit_rate: 13.6 },
+          { pcp: "Dr. Sarah Patel", panel_size: 342, admits: 24, admit_rate_per_1k: 70.2, preferred_facility: "Mercy Medical", avg_cost_per_admit: 11800, readmit_rate: 8.3 },
+          { pcp: "Dr. James Rivera", panel_size: 289, admits: 18, admit_rate_per_1k: 62.3, preferred_facility: "Community General", avg_cost_per_admit: 12400, readmit_rate: 11.1 },
+          { pcp: "Dr. Lisa Chen", panel_size: 198, admits: 14, admit_rate_per_1k: 70.7, preferred_facility: "University Health", avg_cost_per_admit: 15200, readmit_rate: 7.1 },
+        ],
+      },
+      {
+        id: "drg_analysis",
+        title: "Top DRGs by Cost",
+        type: "table",
+        columns: [
+          { key: "drg", label: "DRG" },
+          { key: "description", label: "Description" },
+          { key: "cases", label: "Cases", numeric: true },
+          { key: "avg_cost", label: "Avg Cost", numeric: true, format: "dollar" },
+          { key: "benchmark_cost", label: "Benchmark", numeric: true, format: "dollar" },
+          { key: "excess_spend", label: "Excess Spend", numeric: true, format: "dollar" },
+        ],
+        rows: [
+          { drg: "291", description: "Heart Failure & Shock w/ MCC", cases: 48, avg_cost: 18400, benchmark_cost: 15200, excess_spend: 153600 },
+          { drg: "470", description: "Major Hip/Knee Joint Replacement", cases: 42, avg_cost: 22100, benchmark_cost: 19500, excess_spend: 109200 },
+          { drg: "392", description: "Esophagitis & GI Misc w/o MCC", cases: 38, avg_cost: 8200, benchmark_cost: 7100, excess_spend: 41800 },
+          { drg: "871", description: "Septicemia w/o MV >96hrs w/ MCC", cases: 32, avg_cost: 24800, benchmark_cost: 22000, excess_spend: 89600 },
+          { drg: "766", description: "Cesarean Section w/o CC/MCC", cases: 28, avg_cost: 12400, benchmark_cost: 11800, excess_spend: 16800 },
+          { drg: "190", description: "COPD w/ MCC", cases: 26, avg_cost: 14200, benchmark_cost: 12600, excess_spend: 41600 },
+          { drg: "689", description: "Kidney & UTI w/o MCC", cases: 24, avg_cost: 7800, benchmark_cost: 7200, excess_spend: 14400 },
+          { drg: "683", description: "Renal Failure w/ CC", cases: 22, avg_cost: 11200, benchmark_cost: 10100, excess_spend: 24200 },
+          { drg: "194", description: "Simple Pneumonia w/ CC", cases: 20, avg_cost: 9600, benchmark_cost: 8800, excess_spend: 16000 },
+          { drg: "378", description: "GI Hemorrhage w/ CC", cases: 18, avg_cost: 10400, benchmark_cost: 9200, excess_spend: 21600 },
+        ],
+      },
+      {
+        id: "ai_recommendations",
+        title: "AI Recommendations",
+        type: "insights",
+        items: [
+          { title: "Redirect Memorial Regional admissions to lower-cost facilities", description: "Memorial Regional's cost/admit is $18,200 vs $11,500 at Mercy Medical. Redirecting 40 non-emergent admits could save $268K/year. Memorial also has the lowest HCC capture rate (54.1%).", dollar_impact: 268000, category: "cost" },
+          { title: "Readmission reduction program for CHF patients", description: "DRG 291 (Heart Failure) has 48 cases with a 16.2% readmission rate at Memorial. A post-discharge care transition program targeting CHF patients could reduce readmissions by 30%, saving $154K.", dollar_impact: 154000, category: "cost" },
+          { title: "HCC capture opportunity during inpatient stays", description: "Inpatient HCC capture rate is only 62.4% vs 75% benchmark. 98 admits at Memorial had missed HCC coding opportunities. Embedding a coder reviewer during discharge could capture an estimated $340K in RAF value.", dollar_impact: 340000, category: "revenue" },
+          { title: "Clinical pathway optimization for DRG 470", description: "Joint replacement cases average $22,100 vs $19,500 benchmark. Implementing a standardized clinical pathway with same-day mobilization and home discharge could reduce ALOS by 0.8 days.", dollar_impact: 109200, category: "cost" },
+        ],
+      },
+    ],
+  },
+
+  ed_observation: {
+    category: "ed_observation",
+    label: "ED / Observation",
+    total_spend: 2695000,
+    pmpm: 187,
+    claim_count: 1840,
+    unique_members: 1104,
+    kpis: [
+      { label: "ED Visits / 1K", value: "380.8", benchmark: "310.0", status: "over" },
+      { label: "Cost / Visit", value: "$1,464", benchmark: "$1,280", status: "over" },
+      { label: "Avoidable ED %", value: "34.2%", benchmark: "25.0%", status: "over" },
+      { label: "Obs Rate", value: "18.4%", benchmark: "15.0%", status: "over" },
+      { label: "2-Midnight Compliance", value: "71.2%", benchmark: "85.0%", status: "under" },
+      { label: "Total Spend", value: "$2.7M" },
+    ],
+    sections: [
+      {
+        id: "avoidable_ed",
+        title: "Avoidable ED Visits",
+        type: "table",
+        columns: [
+          { key: "diagnosis_group", label: "Diagnosis Group" },
+          { key: "ed_visits", label: "ED Visits", numeric: true },
+          { key: "total_cost", label: "Total Cost", numeric: true, format: "dollar" },
+          { key: "avg_cost", label: "Avg Cost", numeric: true, format: "dollar" },
+          { key: "uc_avg_cost", label: "Urgent Care Avg", numeric: true, format: "dollar" },
+          { key: "potential_savings", label: "Potential Savings", numeric: true, format: "dollar" },
+        ],
+        rows: [
+          { diagnosis_group: "Upper Respiratory Infection", ed_visits: 142, total_cost: 184600, avg_cost: 1300, uc_avg_cost: 185, potential_savings: 158370 },
+          { diagnosis_group: "Urinary Tract Infection", ed_visits: 98, total_cost: 137200, avg_cost: 1400, uc_avg_cost: 210, potential_savings: 116620 },
+          { diagnosis_group: "Back Pain (non-traumatic)", ed_visits: 87, total_cost: 113100, avg_cost: 1300, uc_avg_cost: 195, potential_savings: 96135 },
+          { diagnosis_group: "Headache / Migraine", ed_visits: 64, total_cost: 89600, avg_cost: 1400, uc_avg_cost: 175, potential_savings: 78400 },
+          { diagnosis_group: "Skin Infection / Abscess", ed_visits: 52, total_cost: 67600, avg_cost: 1300, uc_avg_cost: 220, potential_savings: 56160 },
+          { diagnosis_group: "Otitis / Sinusitis", ed_visits: 46, total_cost: 55200, avg_cost: 1200, uc_avg_cost: 160, potential_savings: 47840 },
+          { diagnosis_group: "Minor Laceration", ed_visits: 40, total_cost: 52000, avg_cost: 1300, uc_avg_cost: 280, potential_savings: 40800 },
+          { diagnosis_group: "Sprain / Strain", ed_visits: 38, total_cost: 49400, avg_cost: 1300, uc_avg_cost: 240, potential_savings: 40280 },
+        ],
+      },
+      {
+        id: "frequent_utilizers",
+        title: "Frequent ED Utilizers (Top 20)",
+        type: "table",
+        columns: [
+          { key: "member_name", label: "Member" },
+          { key: "member_id", label: "ID" },
+          { key: "visits", label: "ED Visits", numeric: true },
+          { key: "total_cost", label: "Total Cost", numeric: true, format: "dollar" },
+          { key: "top_diagnoses", label: "Top Diagnoses" },
+          { key: "pcp", label: "PCP" },
+          { key: "has_care_plan", label: "Care Plan" },
+        ],
+        rows: [
+          { member_name: "Gerald Foster", member_id: "M1006", visits: 14, total_cost: 28400, top_diagnoses: "CHF exacerbation, COPD, Chest pain", pcp: "Dr. Rivera", has_care_plan: "No" },
+          { member_name: "Frank Nguyen", member_id: "M1008", visits: 11, total_cost: 22100, top_diagnoses: "Chest pain, AFib, Anxiety", pcp: "Dr. Kim", has_care_plan: "No" },
+          { member_name: "Helen Washington", member_id: "M1007", visits: 9, total_cost: 18900, top_diagnoses: "Fall, UTI, Confusion", pcp: "Dr. Patel", has_care_plan: "Yes" },
+          { member_name: "William Davis", member_id: "M1010", visits: 8, total_cost: 16800, top_diagnoses: "COPD, Pneumonia, Back pain", pcp: "Dr. Wilson", has_care_plan: "No" },
+          { member_name: "Barbara Johnson", member_id: "M1009", visits: 7, total_cost: 13300, top_diagnoses: "Diabetes crisis, UTI, Cellulitis", pcp: "Dr. Chen", has_care_plan: "Yes" },
+          { member_name: "Margaret Chen", member_id: "M1001", visits: 6, total_cost: 12600, top_diagnoses: "CHF, Shortness of breath", pcp: "Dr. Rivera", has_care_plan: "Yes" },
+          { member_name: "Robert Williams", member_id: "M1002", visits: 6, total_cost: 11400, top_diagnoses: "Depression crisis, Chest pain", pcp: "Dr. Patel", has_care_plan: "No" },
+          { member_name: "Dorothy Martinez", member_id: "M1003", visits: 5, total_cost: 10500, top_diagnoses: "CKD complications, Fall", pcp: "Dr. Chen", has_care_plan: "Yes" },
+        ],
+      },
+      {
+        id: "pcp_ed_rates",
+        title: "PCP Panel ED Utilization",
+        type: "table",
+        columns: [
+          { key: "pcp", label: "PCP" },
+          { key: "panel_size", label: "Panel", numeric: true },
+          { key: "ed_visits", label: "ED Visits", numeric: true },
+          { key: "ed_rate_per_1k", label: "ED/1K", numeric: true, benchmark: 310.0 },
+          { key: "avoidable_pct", label: "Avoidable %", numeric: true, format: "pct", benchmark: 25.0 },
+          { key: "after_hours_access", label: "After-Hrs Access" },
+        ],
+        rows: [
+          { pcp: "Dr. Robert Kim", panel_size: 234, ed_visits: 148, ed_rate_per_1k: 632.5, avoidable_pct: 42.1, after_hours_access: "None" },
+          { pcp: "Dr. David Wilson", panel_size: 178, ed_visits: 98, ed_rate_per_1k: 550.6, avoidable_pct: 38.8, after_hours_access: "None" },
+          { pcp: "Dr. Karen Murphy", panel_size: 291, ed_visits: 124, ed_rate_per_1k: 426.1, avoidable_pct: 36.3, after_hours_access: "Nurse line" },
+          { pcp: "Dr. Thomas Lee", panel_size: 156, ed_visits: 58, ed_rate_per_1k: 371.8, avoidable_pct: 31.0, after_hours_access: "Nurse line" },
+          { pcp: "Dr. Angela Brooks", panel_size: 312, ed_visits: 98, ed_rate_per_1k: 314.1, avoidable_pct: 28.6, after_hours_access: "On-call MD" },
+          { pcp: "Dr. Sarah Patel", panel_size: 342, ed_visits: 82, ed_rate_per_1k: 239.8, avoidable_pct: 22.0, after_hours_access: "On-call MD" },
+          { pcp: "Dr. James Rivera", panel_size: 289, ed_visits: 64, ed_rate_per_1k: 221.5, avoidable_pct: 20.3, after_hours_access: "On-call MD" },
+          { pcp: "Dr. Lisa Chen", panel_size: 198, ed_visits: 38, ed_rate_per_1k: 191.9, avoidable_pct: 18.4, after_hours_access: "On-call MD" },
+        ],
+      },
+      {
+        id: "ai_recommendations",
+        title: "AI Recommendations",
+        type: "insights",
+        items: [
+          { title: "Implement 24/7 nurse triage line for high-ED PCPs", description: "Dr. Kim and Dr. Wilson have no after-hours access and ED rates 2x the benchmark. A shared nurse triage line could divert 40% of avoidable visits, saving $198K/year.", dollar_impact: 198000, category: "cost" },
+          { title: "Frequent utilizer care management program", description: "Top 20 ED utilizers account for 152 visits ($284K). Assigning dedicated care coordinators with ED alert notifications could reduce visits by 50%.", dollar_impact: 142000, category: "cost" },
+          { title: "Urgent care network expansion for URI/UTI", description: "240 ED visits for URI and UTI could have been managed at urgent care. Expanding the preferred urgent care network and member education could save $275K.", dollar_impact: 275000, category: "cost" },
+          { title: "Observation status review program", description: "2-midnight rule compliance is only 71.2%. Implementing concurrent review could reclassify 48 observation stays to outpatient, reducing denied claims by $86K.", dollar_impact: 86000, category: "cost" },
+        ],
+      },
+    ],
+  },
+
+  professional: {
+    category: "professional",
+    label: "Professional",
+    total_spend: 3225000,
+    pmpm: 224,
+    claim_count: 14200,
+    unique_members: 3840,
+    kpis: [
+      { label: "Total Spend", value: "$3.2M" },
+      { label: "PMPM", value: "$224", benchmark: "$195", status: "over" },
+      { label: "Unique Providers", value: "284" },
+      { label: "Avg Cost / Visit", value: "$227", benchmark: "$198", status: "over" },
+      { label: "OON Leakage", value: "18.4%", benchmark: "10.0%", status: "over" },
+      { label: "Referral Loop Closure", value: "42.1%", benchmark: "75.0%", status: "under" },
+    ],
+    sections: [
+      {
+        id: "specialty_spend",
+        title: "Spend by Specialty",
+        type: "table",
+        columns: [
+          { key: "specialty", label: "Specialty" },
+          { key: "total_spend", label: "Total Spend", numeric: true, format: "dollar" },
+          { key: "visits", label: "Visits", numeric: true },
+          { key: "avg_cost_per_visit", label: "Avg/Visit", numeric: true, format: "dollar" },
+          { key: "benchmark_cost", label: "Benchmark", numeric: true, format: "dollar" },
+          { key: "unique_members", label: "Members", numeric: true },
+          { key: "oon_pct", label: "OON %", numeric: true, format: "pct", benchmark: 10.0 },
+        ],
+        rows: [
+          { specialty: "Cardiology", total_spend: 624000, visits: 1840, avg_cost_per_visit: 339, benchmark_cost: 285, unique_members: 620, oon_pct: 22.4 },
+          { specialty: "Orthopedics", total_spend: 518000, visits: 1420, avg_cost_per_visit: 365, benchmark_cost: 310, unique_members: 480, oon_pct: 18.1 },
+          { specialty: "Gastroenterology", total_spend: 412000, visits: 1680, avg_cost_per_visit: 245, benchmark_cost: 218, unique_members: 540, oon_pct: 14.2 },
+          { specialty: "Nephrology", total_spend: 342000, visits: 1240, avg_cost_per_visit: 276, benchmark_cost: 242, unique_members: 380, oon_pct: 8.4 },
+          { specialty: "Pulmonology", total_spend: 298000, visits: 1120, avg_cost_per_visit: 266, benchmark_cost: 235, unique_members: 340, oon_pct: 12.8 },
+          { specialty: "Neurology", total_spend: 264000, visits: 980, avg_cost_per_visit: 269, benchmark_cost: 248, unique_members: 310, oon_pct: 24.1 },
+          { specialty: "Endocrinology", total_spend: 218000, visits: 1420, avg_cost_per_visit: 154, benchmark_cost: 142, unique_members: 480, oon_pct: 6.2 },
+          { specialty: "Dermatology", total_spend: 186000, visits: 1480, avg_cost_per_visit: 126, benchmark_cost: 118, unique_members: 620, oon_pct: 28.4 },
+          { specialty: "Ophthalmology", total_spend: 168000, visits: 1240, avg_cost_per_visit: 135, benchmark_cost: 128, unique_members: 540, oon_pct: 16.8 },
+          { specialty: "Psychiatry", total_spend: 195000, visits: 780, avg_cost_per_visit: 250, benchmark_cost: 220, unique_members: 280, oon_pct: 32.1 },
+        ],
+      },
+      {
+        id: "referral_patterns",
+        title: "PCP Referral Patterns",
+        type: "table",
+        columns: [
+          { key: "pcp", label: "PCP" },
+          { key: "total_referrals", label: "Referrals", numeric: true },
+          { key: "in_network_pct", label: "In-Network %", numeric: true, format: "pct", benchmark: 90.0, invertBenchmark: true },
+          { key: "oon_pct", label: "OON %", numeric: true, format: "pct", benchmark: 10.0 },
+          { key: "loop_closure_pct", label: "Loop Closure %", numeric: true, format: "pct", benchmark: 75.0, invertBenchmark: true },
+          { key: "top_oon_specialty", label: "Top OON Specialty" },
+        ],
+        rows: [
+          { pcp: "Dr. Robert Kim", total_referrals: 342, in_network_pct: 72.8, oon_pct: 27.2, loop_closure_pct: 31.4, top_oon_specialty: "Cardiology" },
+          { pcp: "Dr. Karen Murphy", total_referrals: 418, in_network_pct: 78.4, oon_pct: 21.6, loop_closure_pct: 38.2, top_oon_specialty: "Orthopedics" },
+          { pcp: "Dr. David Wilson", total_referrals: 248, in_network_pct: 80.2, oon_pct: 19.8, loop_closure_pct: 42.8, top_oon_specialty: "Neurology" },
+          { pcp: "Dr. Thomas Lee", total_referrals: 198, in_network_pct: 82.4, oon_pct: 17.6, loop_closure_pct: 48.1, top_oon_specialty: "Dermatology" },
+          { pcp: "Dr. Angela Brooks", total_referrals: 384, in_network_pct: 88.2, oon_pct: 11.8, loop_closure_pct: 52.4, top_oon_specialty: "Psychiatry" },
+          { pcp: "Dr. Sarah Patel", total_referrals: 412, in_network_pct: 94.2, oon_pct: 5.8, loop_closure_pct: 68.4, top_oon_specialty: "Dermatology" },
+          { pcp: "Dr. James Rivera", total_referrals: 348, in_network_pct: 92.8, oon_pct: 7.2, loop_closure_pct: 72.1, top_oon_specialty: "Psychiatry" },
+          { pcp: "Dr. Lisa Chen", total_referrals: 264, in_network_pct: 96.2, oon_pct: 3.8, loop_closure_pct: 78.4, top_oon_specialty: "Ophthalmology" },
+        ],
+      },
+      {
+        id: "high_cost_outliers",
+        title: "High-Cost Specialist Outliers",
+        type: "table",
+        columns: [
+          { key: "provider", label: "Specialist" },
+          { key: "specialty", label: "Specialty" },
+          { key: "total_spend", label: "Total Spend", numeric: true, format: "dollar" },
+          { key: "visits", label: "Visits", numeric: true },
+          { key: "avg_cost", label: "Avg Cost", numeric: true, format: "dollar" },
+          { key: "peer_avg", label: "Peer Avg", numeric: true, format: "dollar" },
+          { key: "pct_above_peers", label: "% Above Peers", numeric: true, format: "pct" },
+        ],
+        rows: [
+          { provider: "Dr. A. Hernandez", specialty: "Cardiology", total_spend: 142000, visits: 280, avg_cost: 507, peer_avg: 339, pct_above_peers: 49.6 },
+          { provider: "Dr. B. Okonkwo", specialty: "Orthopedics", total_spend: 118000, visits: 210, avg_cost: 562, peer_avg: 365, pct_above_peers: 54.0 },
+          { provider: "Dr. C. Zhang", specialty: "Gastroenterology", total_spend: 98000, visits: 320, avg_cost: 306, peer_avg: 245, pct_above_peers: 24.9 },
+          { provider: "Dr. D. Patel", specialty: "Neurology", total_spend: 84000, visits: 240, avg_cost: 350, peer_avg: 269, pct_above_peers: 30.1 },
+          { provider: "Dr. E. Washington", specialty: "Pulmonology", total_spend: 72000, visits: 180, avg_cost: 400, peer_avg: 266, pct_above_peers: 50.4 },
+        ],
+      },
+      {
+        id: "ai_recommendations",
+        title: "AI Recommendations",
+        type: "insights",
+        items: [
+          { title: "Specialist steerage program for Cardiology and Orthopedics", description: "22.4% of Cardiology and 18.1% of Orthopedics visits are OON. Steering to preferred in-network specialists could save $186K from lower unit costs plus eliminate OON balance billing.", dollar_impact: 186000, category: "cost" },
+          { title: "eConsult program for low-acuity referrals", description: "Analysis shows 34% of specialty referrals result in a single visit with no procedure. An eConsult platform could resolve these without an in-person visit, saving $124K and improving access.", dollar_impact: 124000, category: "cost" },
+          { title: "Referral loop closure automation", description: "Only 42.1% of referrals result in a consult note back to the PCP. Implementing automated consult note routing could improve care coordination and reduce duplicate testing.", dollar_impact: 68000, category: "quality" },
+          { title: "High-cost specialist engagement for Dr. Hernandez and Dr. Okonkwo", description: "These two specialists are 50%+ above peer averages. Peer comparison data sharing and utilization review could normalize costs, saving $142K.", dollar_impact: 142000, category: "cost" },
+        ],
+      },
+    ],
+  },
+
+  snf_postacute: {
+    category: "snf_postacute",
+    label: "SNF / Post-Acute",
+    total_spend: 2246000,
+    pmpm: 156,
+    claim_count: 320,
+    unique_members: 192,
+    kpis: [
+      { label: "Total Episodes", value: "320" },
+      { label: "Cost / Episode", value: "$7,019", benchmark: "$5,800", status: "over" },
+      { label: "Avg LOS", value: "22.4 days", benchmark: "18.0 days", status: "over" },
+      { label: "Rehospitalization Rate", value: "18.8%", benchmark: "14.0%", status: "over" },
+      { label: "Discharge to Home %", value: "62.4%", benchmark: "72.0%", status: "under" },
+      { label: "HCC Capture Rate", value: "38.2%", benchmark: "65.0%", status: "under" },
+    ],
+    sections: [
+      {
+        id: "facility_comparison",
+        title: "SNF Facility Comparison",
+        type: "table",
+        columns: [
+          { key: "name", label: "Facility" },
+          { key: "episodes", label: "Episodes", numeric: true },
+          { key: "avg_los", label: "Avg LOS", numeric: true, benchmark: 18.0 },
+          { key: "cost_per_episode", label: "Cost/Episode", numeric: true, format: "dollar" },
+          { key: "rehospitalization_rate", label: "Rehosp %", numeric: true, format: "pct", benchmark: 14.0 },
+          { key: "discharge_home_pct", label: "Home %", numeric: true, format: "pct", benchmark: 72.0, invertBenchmark: true },
+          { key: "hcc_capture_rate", label: "HCC Capture %", numeric: true, format: "pct", benchmark: 65.0, invertBenchmark: true },
+        ],
+        rows: [
+          { name: "Sunrise Skilled Nursing", episodes: 72, avg_los: 28.4, cost_per_episode: 9200, rehospitalization_rate: 24.3, discharge_home_pct: 48.6, hcc_capture_rate: 28.4 },
+          { name: "Valley Care Center", episodes: 64, avg_los: 24.1, cost_per_episode: 7800, rehospitalization_rate: 19.5, discharge_home_pct: 56.3, hcc_capture_rate: 34.2 },
+          { name: "Greenwood Rehabilitation", episodes: 58, avg_los: 20.2, cost_per_episode: 6400, rehospitalization_rate: 15.5, discharge_home_pct: 65.5, hcc_capture_rate: 42.1 },
+          { name: "Heritage Health Center", episodes: 52, avg_los: 18.8, cost_per_episode: 5900, rehospitalization_rate: 13.5, discharge_home_pct: 71.2, hcc_capture_rate: 48.8 },
+          { name: "Oakview Nursing & Rehab", episodes: 42, avg_los: 17.2, cost_per_episode: 5200, rehospitalization_rate: 11.9, discharge_home_pct: 78.6, hcc_capture_rate: 52.4 },
+          { name: "Pinecrest Care Facility", episodes: 32, avg_los: 16.4, cost_per_episode: 4800, rehospitalization_rate: 12.5, discharge_home_pct: 81.3, hcc_capture_rate: 44.1 },
+        ],
+      },
+      {
+        id: "hospital_snf_patterns",
+        title: "Hospital-to-SNF Referral Patterns",
+        type: "table",
+        columns: [
+          { key: "hospital", label: "Admitting Hospital" },
+          { key: "primary_snf", label: "Primary SNF" },
+          { key: "episodes", label: "Episodes", numeric: true },
+          { key: "avg_snf_los", label: "Avg SNF LOS", numeric: true },
+          { key: "avg_total_cost", label: "Avg Total Cost", numeric: true, format: "dollar" },
+        ],
+        rows: [
+          { hospital: "Memorial Regional", primary_snf: "Sunrise Skilled Nursing", episodes: 42, avg_snf_los: 28.8, avg_total_cost: 9400 },
+          { hospital: "Memorial Regional", primary_snf: "Valley Care Center", episodes: 28, avg_snf_los: 24.2, avg_total_cost: 7600 },
+          { hospital: "St. Joseph Hospital", primary_snf: "Greenwood Rehabilitation", episodes: 34, avg_snf_los: 19.8, avg_total_cost: 6200 },
+          { hospital: "University Health", primary_snf: "Heritage Health Center", episodes: 26, avg_snf_los: 18.4, avg_total_cost: 5800 },
+          { hospital: "Community General", primary_snf: "Oakview Nursing & Rehab", episodes: 22, avg_snf_los: 17.0, avg_total_cost: 5100 },
+        ],
+      },
+      {
+        id: "hh_alternative",
+        title: "Home Health Alternative Analysis",
+        type: "table",
+        columns: [
+          { key: "category", label: "Patient Category" },
+          { key: "snf_episodes", label: "SNF Episodes", numeric: true },
+          { key: "hh_eligible", label: "HH Eligible", numeric: true },
+          { key: "avg_snf_cost", label: "Avg SNF Cost", numeric: true, format: "dollar" },
+          { key: "avg_hh_cost", label: "Avg HH Cost", numeric: true, format: "dollar" },
+          { key: "potential_savings", label: "Potential Savings", numeric: true, format: "dollar" },
+        ],
+        rows: [
+          { category: "Joint Replacement (functional)", snf_episodes: 38, hh_eligible: 28, avg_snf_cost: 6200, avg_hh_cost: 2400, potential_savings: 106400 },
+          { category: "CHF (stable at discharge)", snf_episodes: 32, hh_eligible: 18, avg_snf_cost: 7800, avg_hh_cost: 3200, potential_savings: 82800 },
+          { category: "Pneumonia (ambulatory)", snf_episodes: 24, hh_eligible: 16, avg_snf_cost: 5400, avg_hh_cost: 2100, potential_savings: 52800 },
+          { category: "COPD (stable)", snf_episodes: 18, hh_eligible: 12, avg_snf_cost: 6100, avg_hh_cost: 2800, potential_savings: 39600 },
+        ],
+      },
+      {
+        id: "ai_recommendations",
+        title: "AI Recommendations",
+        type: "insights",
+        items: [
+          { title: "Preferred SNF network with quality tiers", description: "Sunrise Skilled Nursing has 28.4-day ALOS, 24.3% rehospitalization, and only 28.4% HCC capture. Steering to Oakview and Heritage could save $312K/year with better outcomes.", dollar_impact: 312000, category: "cost" },
+          { title: "Home health diversion for eligible SNF patients", description: "74 SNF episodes involved patients eligible for home health. Diverting these could save $282K while maintaining outcomes. Joint replacement patients are the best candidates.", dollar_impact: 282000, category: "cost" },
+          { title: "HCC capture improvement at SNF facilities", description: "SNF HCC capture is only 38.2% vs 65% benchmark. Embedding coding support at the top 3 SNFs could capture an additional $180K in RAF value from documented but uncoded conditions.", dollar_impact: 180000, category: "revenue" },
+          { title: "Memorial Regional discharge planning intervention", description: "Memorial sends 70 patients to the two worst-performing SNFs. Joint discharge planning with preferred SNF selection criteria could improve outcomes and reduce total episode costs.", dollar_impact: 148000, category: "cost" },
+        ],
+      },
+    ],
+  },
+
+  pharmacy: {
+    category: "pharmacy",
+    label: "Pharmacy",
+    total_spend: 2851000,
+    pmpm: 198,
+    claim_count: 9200,
+    unique_members: 3420,
+    kpis: [
+      { label: "Total Spend", value: "$2.9M" },
+      { label: "PMPM", value: "$198", benchmark: "$175", status: "over" },
+      { label: "Generic Dispense Rate", value: "78.4%", benchmark: "88.0%", status: "under" },
+      { label: "Total Fills", value: "9,200" },
+      { label: "Members Below 80% PDC", value: "412", status: "over" },
+      { label: "Rx Without Matching Dx", value: "186", status: "over" },
+    ],
+    sections: [
+      {
+        id: "drug_class_spend",
+        title: "Top Drug Classes by Spend",
+        type: "table",
+        columns: [
+          { key: "drug_class", label: "Drug Class" },
+          { key: "total_spend", label: "Total Spend", numeric: true, format: "dollar" },
+          { key: "fills", label: "Fills", numeric: true },
+          { key: "unique_members", label: "Members", numeric: true },
+          { key: "avg_cost_per_fill", label: "Avg/Fill", numeric: true, format: "dollar" },
+          { key: "brand_pct", label: "Brand %", numeric: true, format: "pct" },
+          { key: "trend_vs_prior", label: "Trend", numeric: true, format: "pct" },
+        ],
+        rows: [
+          { drug_class: "GLP-1 Receptor Agonists", total_spend: 624000, fills: 480, unique_members: 142, avg_cost_per_fill: 1300, brand_pct: 100.0, trend_vs_prior: 34.2 },
+          { drug_class: "Anticoagulants (DOACs)", total_spend: 412000, fills: 1240, unique_members: 380, avg_cost_per_fill: 332, brand_pct: 82.4, trend_vs_prior: 8.1 },
+          { drug_class: "Insulin Products", total_spend: 348000, fills: 1680, unique_members: 420, avg_cost_per_fill: 207, brand_pct: 64.2, trend_vs_prior: -2.4 },
+          { drug_class: "Biologic DMARDs", total_spend: 298000, fills: 180, unique_members: 48, avg_cost_per_fill: 1656, brand_pct: 100.0, trend_vs_prior: 12.8 },
+          { drug_class: "Statins", total_spend: 186000, fills: 2400, unique_members: 1240, avg_cost_per_fill: 78, brand_pct: 12.4, trend_vs_prior: -1.2 },
+          { drug_class: "ACE Inhibitors / ARBs", total_spend: 142000, fills: 2100, unique_members: 980, avg_cost_per_fill: 68, brand_pct: 8.1, trend_vs_prior: 0.4 },
+          { drug_class: "Antidepressants (SSRI/SNRI)", total_spend: 124000, fills: 1420, unique_members: 620, avg_cost_per_fill: 87, brand_pct: 14.8, trend_vs_prior: 3.2 },
+          { drug_class: "Beta Blockers", total_spend: 98000, fills: 1800, unique_members: 840, avg_cost_per_fill: 54, brand_pct: 6.2, trend_vs_prior: -0.8 },
+          { drug_class: "PPI / H2 Blockers", total_spend: 84000, fills: 1240, unique_members: 580, avg_cost_per_fill: 68, brand_pct: 18.4, trend_vs_prior: 1.4 },
+          { drug_class: "Bronchodilators / Inhalers", total_spend: 162000, fills: 980, unique_members: 420, avg_cost_per_fill: 165, brand_pct: 42.1, trend_vs_prior: 6.8 },
+        ],
+      },
+      {
+        id: "brand_generic",
+        title: "Brand-to-Generic Substitution Opportunities",
+        type: "table",
+        columns: [
+          { key: "brand_drug", label: "Brand Drug" },
+          { key: "generic_alternative", label: "Generic Alternative" },
+          { key: "members_on_brand", label: "Members", numeric: true },
+          { key: "annual_brand_cost", label: "Brand Cost/Yr", numeric: true, format: "dollar" },
+          { key: "annual_generic_cost", label: "Generic Cost/Yr", numeric: true, format: "dollar" },
+          { key: "savings_per_member", label: "Savings/Member", numeric: true, format: "dollar" },
+          { key: "total_potential_savings", label: "Total Savings", numeric: true, format: "dollar" },
+        ],
+        rows: [
+          { brand_drug: "Eliquis 5mg", generic_alternative: "Apixaban (authorized generic)", members_on_brand: 248, annual_brand_cost: 6200, annual_generic_cost: 1800, savings_per_member: 4400, total_potential_savings: 1091200 },
+          { brand_drug: "Lantus SoloStar", generic_alternative: "Insulin Glargine (Semglee)", members_on_brand: 142, annual_brand_cost: 4800, annual_generic_cost: 1400, savings_per_member: 3400, total_potential_savings: 482800 },
+          { brand_drug: "Symbicort", generic_alternative: "Budesonide/Formoterol", members_on_brand: 98, annual_brand_cost: 3600, annual_generic_cost: 1200, savings_per_member: 2400, total_potential_savings: 235200 },
+          { brand_drug: "Nexium 40mg", generic_alternative: "Esomeprazole", members_on_brand: 84, annual_brand_cost: 2400, annual_generic_cost: 240, savings_per_member: 2160, total_potential_savings: 181440 },
+          { brand_drug: "Crestor 20mg", generic_alternative: "Rosuvastatin", members_on_brand: 62, annual_brand_cost: 3200, annual_generic_cost: 180, savings_per_member: 3020, total_potential_savings: 187240 },
+        ],
+      },
+      {
+        id: "adherence",
+        title: "Medication Adherence (PDC by Class)",
+        type: "table",
+        columns: [
+          { key: "drug_class", label: "Drug Class" },
+          { key: "eligible_members", label: "Eligible", numeric: true },
+          { key: "avg_pdc", label: "Avg PDC", numeric: true, format: "pct", benchmark: 80.0, invertBenchmark: true },
+          { key: "below_80_pct", label: "Below 80%", numeric: true },
+          { key: "stars_measure", label: "Stars Measure" },
+          { key: "stars_impact", label: "Stars Impact" },
+        ],
+        rows: [
+          { drug_class: "Statins (Diabetes)", eligible_members: 780, avg_pdc: 78.3, below_80_pct: 147, stars_measure: "SPD (D12)", stars_impact: "At risk: 2pts from 4-star drop" },
+          { drug_class: "Statins (Cardiovascular)", eligible_members: 460, avg_pdc: 81.2, below_80_pct: 89, stars_measure: "SPC (D12)", stars_impact: "Meets 4-star threshold" },
+          { drug_class: "ACE/ARB (Diabetes)", eligible_members: 620, avg_pdc: 82.4, below_80_pct: 74, stars_measure: "N/A", stars_impact: "Quality indicator" },
+          { drug_class: "Oral Diabetes Medications", eligible_members: 540, avg_pdc: 76.8, below_80_pct: 142, stars_measure: "N/A", stars_impact: "Clinical concern" },
+          { drug_class: "Antidepressants", eligible_members: 380, avg_pdc: 68.4, below_80_pct: 186, stars_measure: "AMM", stars_impact: "Below 3-star threshold" },
+        ],
+      },
+      {
+        id: "drug_dx_gaps",
+        title: "Drug-Diagnosis Alignment Gaps (HCC Suspects)",
+        type: "table",
+        columns: [
+          { key: "medication", label: "Medication" },
+          { key: "expected_diagnosis", label: "Expected Diagnosis" },
+          { key: "hcc_code", label: "HCC" },
+          { key: "members_without_dx", label: "Members w/o Dx", numeric: true },
+          { key: "potential_raf_value", label: "RAF Value", numeric: true, format: "dollar" },
+        ],
+        rows: [
+          { medication: "Warfarin / Apixaban", expected_diagnosis: "Atrial Fibrillation (I48.x)", hcc_code: "HCC 96", members_without_dx: 142, potential_raf_value: 86000 },
+          { medication: "Furosemide + Carvedilol", expected_diagnosis: "Heart Failure (I50.x)", hcc_code: "HCC 85", members_without_dx: 38, potential_raf_value: 42000 },
+          { medication: "Insulin", expected_diagnosis: "Diabetes w/ Complications", hcc_code: "HCC 18", members_without_dx: 24, potential_raf_value: 28000 },
+          { medication: "Albuterol + ICS", expected_diagnosis: "COPD (J44.x)", hcc_code: "HCC 111", members_without_dx: 18, potential_raf_value: 16000 },
+          { medication: "Donepezil / Memantine", expected_diagnosis: "Dementia (F03.x)", hcc_code: "HCC 51", members_without_dx: 12, potential_raf_value: 38000 },
+        ],
+      },
+      {
+        id: "ai_recommendations",
+        title: "AI Recommendations",
+        type: "insights",
+        items: [
+          { title: "Generic substitution campaign for Eliquis and Lantus", description: "390 members are on brand drugs with available generic/biosimilar alternatives. A pharmacy-led therapeutic interchange program could save $1.57M in the first year.", dollar_impact: 1574000, category: "cost" },
+          { title: "Statin adherence intervention to protect Stars rating", description: "SPD measure PDC dropped to 78.3%, just 2 points above the 4-star drop threshold. Pharmacist outreach to 147 members below 80% PDC is critical. This is a triple-weighted measure.", dollar_impact: null, category: "quality" },
+          { title: "Drug-diagnosis gap capture for HCC revenue", description: "186 members are on medications without matching diagnoses. Converting these to HCC suspect flags could capture $210K in RAF value. Warfarin/apixaban without AFib is the largest group.", dollar_impact: 210000, category: "revenue" },
+          { title: "90-day supply and mail order optimization", description: "62% of chronic medication fills are still 30-day retail. Converting to 90-day mail order could save $148K in dispensing fees and improve adherence.", dollar_impact: 148000, category: "cost" },
+        ],
+      },
+    ],
+  },
+
+  home_health: {
+    category: "home_health",
+    label: "Home Health",
+    total_spend: 842000,
+    pmpm: 58,
+    claim_count: 480,
+    unique_members: 186,
+    kpis: [
+      { label: "Total Spend", value: "$842K" },
+      { label: "Episodes", value: "480" },
+      { label: "Cost / Episode", value: "$1,754", benchmark: "$1,520", status: "over" },
+      { label: "PMPM", value: "$58", benchmark: "$48", status: "over" },
+      { label: "Unique Members", value: "186" },
+      { label: "Avg Visits / Episode", value: "14.2", benchmark: "12.0", status: "over" },
+    ],
+    sections: [
+      {
+        id: "vendor_comparison",
+        title: "Home Health Vendor Comparison",
+        type: "table",
+        columns: [
+          { key: "name", label: "Vendor" },
+          { key: "episodes", label: "Episodes", numeric: true },
+          { key: "cost_per_episode", label: "Cost/Episode", numeric: true, format: "dollar" },
+          { key: "avg_visits", label: "Avg Visits", numeric: true },
+          { key: "readmission_rate", label: "Readmit %", numeric: true, format: "pct", benchmark: 12.0 },
+          { key: "patient_satisfaction", label: "Satisfaction", numeric: true },
+        ],
+        rows: [
+          { name: "ABC Home Health", episodes: 142, cost_per_episode: 2100, avg_visits: 18.4, readmission_rate: 16.2, patient_satisfaction: 3.2 },
+          { name: "CareFirst Home Services", episodes: 118, cost_per_episode: 1800, avg_visits: 14.8, readmission_rate: 12.4, patient_satisfaction: 4.1 },
+          { name: "Premier Home Care", episodes: 98, cost_per_episode: 1520, avg_visits: 12.1, readmission_rate: 10.8, patient_satisfaction: 4.4 },
+          { name: "Comfort Care Agency", episodes: 72, cost_per_episode: 1400, avg_visits: 11.2, readmission_rate: 9.2, patient_satisfaction: 4.6 },
+          { name: "HealthBridge Home", episodes: 50, cost_per_episode: 1340, avg_visits: 10.4, readmission_rate: 8.8, patient_satisfaction: 4.5 },
+        ],
+      },
+      {
+        id: "referral_patterns",
+        title: "Ordering Provider Patterns",
+        type: "table",
+        columns: [
+          { key: "provider", label: "Provider" },
+          { key: "orders", label: "HH Orders", numeric: true },
+          { key: "avg_episodes_per_patient", label: "Avg Episodes/Pt", numeric: true },
+          { key: "preferred_vendor", label: "Preferred Vendor" },
+          { key: "avg_cost", label: "Avg Cost", numeric: true, format: "dollar" },
+        ],
+        rows: [
+          { provider: "Dr. Robert Kim", orders: 48, avg_episodes_per_patient: 2.4, preferred_vendor: "ABC Home Health", avg_cost: 2200 },
+          { provider: "Dr. Karen Murphy", orders: 42, avg_episodes_per_patient: 2.1, preferred_vendor: "ABC Home Health", avg_cost: 1980 },
+          { provider: "Dr. Lisa Chen", orders: 38, avg_episodes_per_patient: 1.8, preferred_vendor: "Premier Home Care", avg_cost: 1520 },
+          { provider: "Dr. Sarah Patel", orders: 32, avg_episodes_per_patient: 1.4, preferred_vendor: "Comfort Care Agency", avg_cost: 1380 },
+          { provider: "Dr. James Rivera", orders: 28, avg_episodes_per_patient: 1.6, preferred_vendor: "CareFirst Home Services", avg_cost: 1640 },
+        ],
+      },
+      {
+        id: "ai_recommendations",
+        title: "AI Recommendations",
+        type: "insights",
+        items: [
+          { title: "Preferred vendor network for home health", description: "ABC Home Health has the highest cost/episode ($2,100), most visits (18.4), worst readmission rate (16.2%), and lowest satisfaction (3.2). Steering to Premier or Comfort Care could save $168K.", dollar_impact: 168000, category: "cost" },
+          { title: "Utilization review for high-ordering providers", description: "Dr. Kim and Dr. Murphy order 2.2x more HH episodes per patient than peers and predominantly use the most expensive vendor. Concurrent utilization review could reduce unnecessary episodes.", dollar_impact: 84000, category: "cost" },
+        ],
+      },
+    ],
+  },
+
+  dme: {
+    category: "dme",
+    label: "DME",
+    total_spend: 441000,
+    pmpm: 31,
+    claim_count: 1420,
+    unique_members: 680,
+    kpis: [
+      { label: "Total Spend", value: "$441K" },
+      { label: "PMPM", value: "$31", benchmark: "$24", status: "over" },
+      { label: "Claims", value: "1,420" },
+      { label: "Unique Members", value: "680" },
+      { label: "Avg Cost / Claim", value: "$311", benchmark: "$265", status: "over" },
+      { label: "Rental vs Purchase", value: "42% rental" },
+    ],
+    sections: [
+      {
+        id: "vendor_comparison",
+        title: "DME Vendor Comparison",
+        type: "table",
+        columns: [
+          { key: "name", label: "Vendor" },
+          { key: "claims", label: "Claims", numeric: true },
+          { key: "total_spend", label: "Total Spend", numeric: true, format: "dollar" },
+          { key: "avg_cost_per_claim", label: "Avg/Claim", numeric: true, format: "dollar" },
+          { key: "top_items", label: "Top Items" },
+        ],
+        rows: [
+          { name: "National DME Supply", claims: 420, total_spend: 148000, avg_cost_per_claim: 352, top_items: "CPAP, Wheelchairs, Walkers" },
+          { name: "MedEquip Solutions", claims: 340, total_spend: 112000, avg_cost_per_claim: 329, top_items: "CPAP, Oxygen, Hospital beds" },
+          { name: "HomeCare Medical", claims: 280, total_spend: 82000, avg_cost_per_claim: 293, top_items: "Walkers, Braces, CPAP" },
+          { name: "LifeCare DME", claims: 220, total_spend: 58000, avg_cost_per_claim: 264, top_items: "Oxygen, Wheelchairs" },
+          { name: "Valley Medical Supply", claims: 160, total_spend: 41000, avg_cost_per_claim: 256, top_items: "Braces, Walkers, Canes" },
+        ],
+      },
+      {
+        id: "ordering_providers",
+        title: "Ordering Provider Patterns",
+        type: "table",
+        columns: [
+          { key: "provider", label: "Provider" },
+          { key: "dme_orders", label: "Orders", numeric: true },
+          { key: "total_cost", label: "Total Cost", numeric: true, format: "dollar" },
+          { key: "avg_cost", label: "Avg Cost", numeric: true, format: "dollar" },
+          { key: "preferred_vendor", label: "Preferred Vendor" },
+        ],
+        rows: [
+          { provider: "Dr. Robert Kim", dme_orders: 84, total_cost: 32000, avg_cost: 381, preferred_vendor: "National DME Supply" },
+          { provider: "Dr. Karen Murphy", dme_orders: 72, total_cost: 26000, avg_cost: 361, preferred_vendor: "National DME Supply" },
+          { provider: "Dr. Thomas Lee", dme_orders: 48, total_cost: 14400, avg_cost: 300, preferred_vendor: "MedEquip Solutions" },
+          { provider: "Dr. Sarah Patel", dme_orders: 42, total_cost: 11200, avg_cost: 267, preferred_vendor: "LifeCare DME" },
+          { provider: "Dr. Lisa Chen", dme_orders: 38, total_cost: 9800, avg_cost: 258, preferred_vendor: "HomeCare Medical" },
+        ],
+      },
+      {
+        id: "ai_recommendations",
+        title: "AI Recommendations",
+        type: "insights",
+        items: [
+          { title: "DME vendor optimization", description: "National DME Supply charges 37% more per claim than Valley Medical Supply for comparable items. Steering CPAP and wheelchair orders to lower-cost vendors could save $62K.", dollar_impact: 62000, category: "cost" },
+          { title: "Competitive bidding for CPAP supplies", description: "CPAP supplies account for 34% of DME spend. Implementing competitive bidding for CPAP equipment and supplies could reduce costs by 18%.", dollar_impact: 28000, category: "cost" },
+        ],
+      },
+    ],
+  },
+
+  other: {
+    category: "other",
+    label: "Ancillary / Other",
+    total_spend: 1283000,
+    pmpm: 70,
+    claim_count: 3100,
+    unique_members: 2480,
+    kpis: [
+      { label: "Total Spend", value: "$1.3M" },
+      { label: "PMPM", value: "$70" },
+      { label: "Claims", value: "3,100" },
+      { label: "Unique Members", value: "2,480" },
+    ],
+    sections: [
+      {
+        id: "subcategory_spend",
+        title: "Spend by Subcategory",
+        type: "table",
+        columns: [
+          { key: "subcategory", label: "Subcategory" },
+          { key: "total_spend", label: "Total Spend", numeric: true, format: "dollar" },
+          { key: "claims", label: "Claims", numeric: true },
+          { key: "avg_cost", label: "Avg Cost", numeric: true, format: "dollar" },
+        ],
+        rows: [
+          { subcategory: "Lab / Pathology", total_spend: 412000, claims: 1240, avg_cost: 332 },
+          { subcategory: "Radiology / Imaging", total_spend: 348000, claims: 620, avg_cost: 561 },
+          { subcategory: "Ambulance / Transport", total_spend: 186000, claims: 280, avg_cost: 664 },
+          { subcategory: "Dialysis", total_spend: 218000, claims: 480, avg_cost: 454 },
+          { subcategory: "Other Ancillary", total_spend: 119000, claims: 480, avg_cost: 248 },
+        ],
+      },
+      {
+        id: "ai_recommendations",
+        title: "AI Recommendations",
+        type: "insights",
+        items: [
+          { title: "Lab utilization review for duplicate testing", description: "Analysis identified 180 instances of duplicate lab orders within 14 days. Implementing a duplicate check at the PCP level could save $42K.", dollar_impact: 42000, category: "cost" },
+          { title: "Advanced imaging prior authorization", description: "38% of advanced imaging (MRI/CT) did not have a prior conservative treatment trial. Implementing clinical decision support could reduce unnecessary imaging by 20%.", dollar_impact: 68000, category: "cost" },
+        ],
+      },
+    ],
+  },
+};
+
 // ---- Providers Page ----
 // ProviderTable ProviderRow: id, npi, name, specialty, panel_size, capture_rate, recapture_rate, avg_raf, panel_pmpm, gap_closure_rate, tier
 
@@ -259,6 +962,63 @@ export const mockCareGapMeasures: {
   { id: 9, code: "MRP", name: "Medication Reconciliation Post-Discharge", description: "Percentage of discharges with medication reconciliation within 30 days", category: "Transitions", stars_weight: 1, target_rate: 75.0, star_3_cutpoint: 55.0, star_4_cutpoint: 67.0, star_5_cutpoint: 78.0, is_custom: false, is_active: true, detection_logic: null },
   { id: 10, code: "FMC", name: "Follow-Up After ED Visit (Chronic)", description: "Percentage of ED visits for chronic conditions with follow-up within 7 days", category: "Transitions", stars_weight: 1, target_rate: 65.0, star_3_cutpoint: 42.0, star_4_cutpoint: 55.0, star_5_cutpoint: 68.0, is_custom: false, is_active: true, detection_logic: null },
 ];
+
+// ---- Groups / Offices ----
+
+export const mockGroups: {
+  id: number;
+  name: string;
+  client_code: string;
+  city: string;
+  state: string;
+  provider_count: number;
+  total_panel_size: number;
+  avg_capture_rate: number;
+  avg_recapture_rate: number;
+  avg_raf: number;
+  group_pmpm: number;
+  gap_closure_rate: number;
+  tier: "green" | "amber" | "red";
+  provider_ids: number[];
+}[] = [
+  { id: 1, name: "ISG Tampa", client_code: "ISG-TPA", city: "Tampa", state: "FL", provider_count: 4, total_panel_size: 1096, avg_capture_rate: 78.1, avg_recapture_rate: 84.6, avg_raf: 1.36, group_pmpm: 1150, gap_closure_rate: 71.5, tier: "green", provider_ids: [1, 2, 4, 5] },
+  { id: 2, name: "FMG St. Petersburg", client_code: "FMG-SPB", city: "St. Petersburg", state: "FL", provider_count: 3, total_panel_size: 723, avg_capture_rate: 62.4, avg_recapture_rate: 68.1, avg_raf: 1.22, group_pmpm: 1280, gap_closure_rate: 58.7, tier: "amber", provider_ids: [6, 9, 10] },
+  { id: 3, name: "ISG Brandon", client_code: "ISG-BDN", city: "Brandon", state: "FL", provider_count: 2, total_panel_size: 512, avg_capture_rate: 47.2, avg_recapture_rate: 53.8, avg_raf: 1.15, group_pmpm: 1420, gap_closure_rate: 45.0, tier: "red", provider_ids: [7, 8] },
+  { id: 4, name: "FMG Clearwater", client_code: "FMG-CLW", city: "Clearwater", state: "FL", provider_count: 3, total_panel_size: 834, avg_capture_rate: 65.3, avg_recapture_rate: 71.4, avg_raf: 1.29, group_pmpm: 1190, gap_closure_rate: 62.4, tier: "amber", provider_ids: [3, 5, 10] },
+  { id: 5, name: "TPSG Downtown", client_code: "TPSG-DT", city: "Tampa", state: "FL", provider_count: 2, total_panel_size: 445, avg_capture_rate: 81.0, avg_recapture_rate: 87.2, avg_raf: 1.52, group_pmpm: 1080, gap_closure_rate: 76.8, tier: "green", provider_ids: [1, 3] },
+];
+
+export const mockGroupInsights = [
+  {
+    id: 1, category: "group" as const,
+    title: "TPSG Downtown leads in capture rate by 33.8 percentage points",
+    description: "TPSG Downtown achieves 81.0% capture rate vs ISG Brandon's 47.2%. Consider sharing TPSG Downtown's coding workflows with underperforming offices.",
+    recommended_action: "Arrange a best-practices session between TPSG Downtown and ISG Brandon.",
+    confidence: 0.87,
+  },
+  {
+    id: 2, category: "cost" as const,
+    title: "$340 PMPM gap between most and least efficient offices",
+    description: "TPSG Downtown runs at $1,080 PMPM while ISG Brandon is at $1,420. Investigate referral patterns and utilization differences.",
+    recommended_action: "Deep-dive into ISG Brandon's ED and inpatient utilization.",
+    confidence: 0.91,
+  },
+  {
+    id: 3, category: "quality" as const,
+    title: "TPSG Downtown leads gap closure at 76.8%",
+    description: "TPSG Downtown has the highest gap closure rate across all offices. Their care coordination model should be documented and replicated.",
+    recommended_action: "Document and standardize top-performing group's gap closure workflow.",
+    confidence: 0.85,
+  },
+];
+
+export const mockGroupTrends = {
+  quarters: ["Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025", "Q1 2026"],
+  capture_rate: [72.1, 74.3, 75.8, 77.2, 78.1],
+  recapture_rate: [79.4, 81.2, 82.5, 83.8, 84.6],
+  group_pmpm: [1210, 1195, 1180, 1165, 1150],
+  gap_closure_rate: [64.2, 66.1, 68.3, 70.0, 71.5],
+};
 
 // Mock member-level care gaps for the detail view
 // MemberGap: id, member_id, member_name, measure_code, measure_name, status, due_date, closed_date, measurement_year, stars_weight, provider_name

@@ -6,7 +6,11 @@ import {
   mockSuspectsData,
   mockMemberDetails,
   mockExpenditure,
+  mockExpenditureDrillDowns,
   mockProviders,
+  mockGroups,
+  mockGroupInsights,
+  mockGroupTrends,
   mockCareGapSummaries,
   mockCareGapMeasures,
   mockMemberGaps,
@@ -54,6 +58,10 @@ function mockComparisonFor(id: number) {
 }
 
 function mockExpenditureDrillDown(category: string) {
+  if (mockExpenditureDrillDowns[category]) {
+    return mockExpenditureDrillDowns[category];
+  }
+  // Fallback for unknown categories
   const cat = mockExpenditure.categories.find((c) => c.key === category) || mockExpenditure.categories[0];
   return {
     category: cat.key,
@@ -63,11 +71,11 @@ function mockExpenditureDrillDown(category: string) {
     claim_count: cat.claim_count,
     unique_members: Math.round(cat.claim_count * 0.6),
     kpis: [
-      { label: "Avg Cost per Claim", value: `$${Math.round(cat.total_spend / cat.claim_count).toLocaleString()}` },
-      { label: "Claims per Member", value: (cat.claim_count / 4832).toFixed(1) },
-      { label: "Trend vs Prior Year", value: `${cat.trend_vs_prior > 0 ? "+" : ""}${cat.trend_vs_prior}%` },
+      { label: "Total Spend", value: `$${(cat.total_spend / 1000000).toFixed(1)}M` },
+      { label: "PMPM", value: `$${cat.pmpm}` },
+      { label: "Claims", value: cat.claim_count.toLocaleString() },
     ],
-    tables: [] as { title: string; columns: string[]; rows: Record<string, unknown>[] }[],
+    sections: [],
   };
 }
 
@@ -137,6 +145,61 @@ export function enableDemoMode() {
       // Expenditure overview
       else if (url.includes("/api/expenditure")) {
         mockResponse = mockExpenditure;
+      }
+
+      // Group insights: /api/groups/insights
+      else if (url.includes("/api/groups/insights")) {
+        mockResponse = mockGroupInsights;
+      }
+      // Group compare: /api/groups/compare?a=X&b=Y
+      else if (url.includes("/api/groups/compare")) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        const aId = parseInt(params.get("a") || "1");
+        const bId = parseInt(params.get("b") || "2");
+        const ga = mockGroups.find((g) => g.id === aId) || mockGroups[0];
+        const gb = mockGroups.find((g) => g.id === bId) || mockGroups[1];
+        const compareKeys = ["provider_count", "total_panel_size", "avg_capture_rate", "avg_recapture_rate", "avg_raf", "group_pmpm", "gap_closure_rate"] as const;
+        const metrics = compareKeys.map((key) => {
+          const va = (ga as any)[key];
+          const vb = (gb as any)[key];
+          const winner = key === "group_pmpm" ? (va <= vb ? "a" : "b") : (va >= vb ? "a" : "b");
+          return { key, value_a: va, value_b: vb, winner };
+        });
+        mockResponse = { group_a: ga, group_b: gb, metrics };
+      }
+      // Group trends: /api/groups/:id/trends
+      else if (/\/api\/groups\/\d+\/trends/.test(url)) {
+        const gid = parseInt(url.match(/\/api\/groups\/(\d+)/)![1]);
+        const g = mockGroups.find((x) => x.id === gid) || mockGroups[0];
+        mockResponse = { group_id: g.id, group_name: g.name, ...mockGroupTrends };
+      }
+      // Group providers: /api/groups/:id/providers
+      else if (/\/api\/groups\/\d+\/providers/.test(url)) {
+        const gid = parseInt(url.match(/\/api\/groups\/(\d+)/)![1]);
+        const g = mockGroups.find((x) => x.id === gid) || mockGroups[0];
+        mockResponse = mockProviders.filter((p) => g.provider_ids.includes(p.id));
+      }
+      // Group scorecard: /api/groups/:id
+      else if (/\/api\/groups\/\d+$/.test(url)) {
+        const gid = parseInt(url.match(/\/api\/groups\/(\d+)/)![1]);
+        const g = mockGroups.find((x) => x.id === gid) || mockGroups[0];
+        const metricKeys = [
+          { key: "provider_count", label: "Provider Count" },
+          { key: "total_panel_size", label: "Total Panel Size" },
+          { key: "avg_capture_rate", label: "Avg Capture Rate" },
+          { key: "avg_recapture_rate", label: "Avg Recapture Rate" },
+          { key: "avg_raf", label: "Avg RAF Score" },
+          { key: "group_pmpm", label: "Group PMPM" },
+          { key: "gap_closure_rate", label: "Gap Closure Rate" },
+        ];
+        const metrics = metricKeys.map(({ key, label }) => ({
+          key, label, value: (g as any)[key], target: null, tier: g.tier,
+        }));
+        mockResponse = { ...g, metrics };
+      }
+      // Group list: /api/groups
+      else if (url.includes("/api/groups")) {
+        mockResponse = mockGroups;
       }
 
       // Provider scorecard comparison: /api/providers/:id/comparison

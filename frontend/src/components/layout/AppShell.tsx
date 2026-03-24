@@ -7,12 +7,14 @@ import { SuspectsPage } from "../../pages/SuspectsPage";
 import { ExpenditurePage } from "../../pages/ExpenditurePage";
 import { ProvidersPage } from "../../pages/ProvidersPage";
 import { CareGapsPage } from "../../pages/CareGapsPage";
+import { GroupsPage } from "../../pages/GroupsPage";
 
 const navItems = [
   { path: "/", label: "Dashboard" },
   { path: "/suspects", label: "Suspect HCCs" },
   { path: "/expenditure", label: "Expenditure" },
   { path: "/providers", label: "Providers" },
+  { path: "/groups", label: "Groups" },
   { path: "/care-gaps", label: "Care Gaps" },
   { path: "/ingestion", label: "Data" },
 ];
@@ -81,6 +83,7 @@ export function AppShell() {
           <Route path="/suspects" element={<SuspectsPage />} />
           <Route path="/expenditure" element={<ExpenditurePage />} />
           <Route path="/providers/*" element={<ProvidersPage />} />
+          <Route path="/groups/*" element={<GroupsPage />} />
           <Route path="/care-gaps" element={<CareGapsPage />} />
           <Route path="/ingestion" element={<IngestionPage />} />
         </Routes>

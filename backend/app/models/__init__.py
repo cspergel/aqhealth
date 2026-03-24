@@ -3,6 +3,7 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.member import Member
 from app.models.claim import Claim
+from app.models.practice_group import PracticeGroup
 from app.models.provider import Provider
 from app.models.hcc import HccSuspect, RafHistory
 from app.models.care_gap import GapMeasure, MemberGap
