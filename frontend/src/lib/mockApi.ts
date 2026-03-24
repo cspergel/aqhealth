@@ -14,6 +14,10 @@ import {
   mockCareGapSummaries,
   mockCareGapMeasures,
   mockMemberGaps,
+  mockPlaybooks,
+  mockCodeUtilization,
+  mockSuccessStories,
+  mockBenchmarks,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -244,6 +248,26 @@ export function enableDemoMode() {
       // Care gap summaries list
       else if (url.includes("/api/care-gaps")) {
         mockResponse = mockCareGapSummaries;
+      }
+
+      // Patterns / Intelligence
+      else if (url.includes("/api/patterns/playbooks")) {
+        mockResponse = mockPlaybooks;
+      }
+      else if (url.includes("/api/patterns/code-utilization")) {
+        mockResponse = mockCodeUtilization;
+      }
+      else if (url.includes("/api/patterns/outcomes")) {
+        mockResponse = mockSuccessStories;
+      }
+      else if (url.includes("/api/patterns/benchmarks")) {
+        mockResponse = mockBenchmarks;
+      }
+      else if (url.includes("/api/patterns/success")) {
+        mockResponse = [
+          { id: "coding_specificity", title: "Higher Coding Specificity", description: "Top performers use specific diagnosis codes 78% of the time vs 51% for bottom performers.", metric: "specificity_rate", top_value: 78, bottom_value: 51, gap: 27, evidence_count: 1247, category: "coding" },
+          { id: "hcc_code_breadth", title: "Broader HCC Code Utilization", description: "Top performers document HCC-relevant codes in 34% of claims vs 18% for bottom performers.", metric: "hcc_code_rate", top_value: 34, bottom_value: 18, gap: 16, evidence_count: 24, category: "hcc_capture" },
+        ];
       }
 
       // Generic insights
