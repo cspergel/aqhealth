@@ -54,7 +54,7 @@ function formatDollars(n: number): string {
 
 export function ExpenditurePage() {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [insights, setInsights] = useState<InsightData[]>([]);
+  const [insights, _setInsights] = useState<InsightData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

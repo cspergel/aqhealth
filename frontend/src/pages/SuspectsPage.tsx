@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import api from "../lib/api";
 import { tokens, fonts } from "../lib/tokens";
 import { MetricCard } from "../components/ui/MetricCard";
-import { ChaseList, SuspectRow } from "../components/suspects/ChaseList";
+import { ChaseList, type SuspectRow } from "../components/suspects/ChaseList";
 
 interface Summary {
   total_suspects: number;

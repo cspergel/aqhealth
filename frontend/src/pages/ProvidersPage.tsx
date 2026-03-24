@@ -47,7 +47,6 @@ function ProviderListView() {
   };
 
   const handleExport = () => {
-    const token = localStorage.getItem("access_token");
     const baseUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:8080";
     window.open(`${baseUrl}/api/providers/export?sort_by=${sortBy}&order=${order}`, "_blank");
   };

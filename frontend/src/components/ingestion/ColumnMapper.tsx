@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
