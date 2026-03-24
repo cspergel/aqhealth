@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find 'C:\\\\Users\\\\drcra\\\\Documents\\\\Coding Projects\\\\AQSoft Health Platform' -type f \\\\\\(-iname *vision* -o -iname *overview* -o -iname *guide* -o -iname *about* \\\\\\))",
+      "Bash(grep -E \"\\\\.\\(md|txt|markdown\\)$\")",
+      "Bash(python -c \":*)",
+      "Bash(for f:*)",
+      "Bash(do touch:*)",
+      "Bash(done)",
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/app/services/snf_client.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
+      "Bash(python -m py_compile app/services/dashboard_service.py)",
+      "Bash(python -m py_compile app/routers/dashboard.py)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''app/services/expenditure_service.py''\\).read\\(\\)\\); ast.parse\\(open\\(''app/routers/expenditure.py''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(ls backend/app/routers/*.py)",
+      "Bash(xargs -I{} basename {})",
+      "Bash(ls backend/app/services/*.py)",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:5174)",
+      "Bash(curl -s http://localhost:5173)"
+    ]
+  }
+}

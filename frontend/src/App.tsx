@@ -10,12 +10,18 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LoginRoute() {
+  const { user } = useAuth();
+  if (user) return <Navigate to="/" />;
+  return <LoginPage />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<LoginRoute />} />
           <Route
             path="/*"
             element={

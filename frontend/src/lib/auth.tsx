@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import api from "./api";
+import { enableDemoMode } from "./mockApi";
 
 interface User {
   id: number;
@@ -13,15 +14,43 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  isDemo: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const DEMO_USER: User = {
+  id: 1,
+  email: "demo@aqsoft.ai",
+  full_name: "Demo User (MSO Admin)",
+  role: "mso_admin",
+};
+
+let demoModeInitialized = false;
+
+function isDemoMode(): boolean {
+  return new URLSearchParams(window.location.search).get("demo") === "true"
+    || localStorage.getItem("demo_mode") === "true";
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
+    if (isDemoMode()) {
+      if (!demoModeInitialized) {
+        enableDemoMode();
+        demoModeInitialized = true;
+      }
+      localStorage.setItem("demo_mode", "true");
+      setUser(DEMO_USER);
+      setIsDemo(true);
+      setIsLoading(false);
+      return;
+    }
+
     const token = localStorage.getItem("access_token");
     const userData = localStorage.getItem("user");
     if (token && userData) {
@@ -42,11 +71,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
+    localStorage.removeItem("demo_mode");
     setUser(null);
+    setIsDemo(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, isDemo }}>
       {children}
     </AuthContext.Provider>
   );
