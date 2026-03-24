@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, care_gaps, dashboard, expenditure, groups, hcc, ingestion, insights, patterns, providers
+from app.routers import auth, care_gaps, dashboard, expenditure, groups, hcc, ingestion, insights, patterns, providers, query
 
 app = FastAPI(
     title="AQSoft Health Platform",
@@ -30,6 +30,7 @@ app.include_router(groups.router)
 app.include_router(care_gaps.router)
 app.include_router(insights.router)
 app.include_router(patterns.router)
+app.include_router(query.router)
 
 
 @app.get("/api/health")

@@ -1,6 +1,7 @@
-import { Routes, Route, NavLink } from "react-router-dom";
+import { Routes, Route, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../lib/auth";
 import { tokens, fonts } from "../../lib/tokens";
+import { AskBar } from "../query/AskBar";
 import { DashboardPage } from "../../pages/DashboardPage";
 import { IngestionPage } from "../../pages/IngestionPage";
 import { SuspectsPage } from "../../pages/SuspectsPage";
@@ -23,6 +24,7 @@ const navItems = [
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const location = useLocation();
 
   return (
     <div className="min-h-screen" style={{ background: tokens.bg, fontFamily: fonts.body }}>
@@ -91,6 +93,9 @@ export function AppShell() {
           <Route path="/ingestion" element={<IngestionPage />} />
         </Routes>
       </main>
+
+      {/* Conversational AI Query Bar */}
+      <AskBar pageContext={location.pathname} />
     </div>
   );
 }

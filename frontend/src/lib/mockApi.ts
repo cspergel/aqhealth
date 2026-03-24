@@ -18,6 +18,8 @@ import {
   mockCodeUtilization,
   mockSuccessStories,
   mockBenchmarks,
+  mockQuerySuggestions,
+  mockQueryAnswers,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -100,7 +102,40 @@ export function enableDemoMode() {
 
     // ---------- POST endpoints ----------
     else if (method === "post") {
-      if (url.includes("/api/care-gaps/measures")) {
+      if (url.includes("/api/query/ask")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const q = (body?.question || "").toLowerCase();
+        // Match by keyword
+        if (q.includes("readmission") || q.includes("memorial")) {
+          mockResponse = mockQueryAnswers.readmission;
+        } else if (q.includes("diabetic") || q.includes("eye exam") || q.includes("retinal")) {
+          mockResponse = mockQueryAnswers.diabetic;
+        } else if (q.includes("pharmacy") || q.includes("drug") || q.includes("medication") || q.includes("glp")) {
+          mockResponse = mockQueryAnswers.pharmacy;
+        } else {
+          // Default fallback answer
+          mockResponse = {
+            answer: `Based on your population of 4,832 members, here's what I found regarding "${body?.question}":\n\nYour network shows a weighted average RAF of 1.247 with a recapture rate of 68.4%. Total PMPM is $1,247 against an MLR of 84.2%. There are 1,847 suspect HCC opportunities worth an estimated $3.4M in annual revenue.\n\nI'd recommend focusing on the highest-value suspect conditions and providers with the lowest capture rates to maximize impact.`,
+            data_points: [
+              { label: "Total Lives", value: "4,832" },
+              { label: "Avg RAF", value: "1.247" },
+              { label: "Recapture Rate", value: "68.4%" },
+              { label: "Suspect Opportunities", value: "1,847" },
+            ],
+            related_members: [],
+            recommended_actions: [
+              "Review suspect HCC opportunities with highest RAF value",
+              "Schedule provider education sessions for bottom-quartile performers",
+              "Prioritize care gap closure for HEDIS measures below 3 stars",
+            ],
+            follow_up_questions: [
+              "Which providers have the most suspect HCCs?",
+              "What's driving our highest cost categories?",
+              "Show me patients with the highest RAF scores",
+            ],
+          };
+        }
+      } else if (url.includes("/api/care-gaps/measures")) {
         mockResponse = { id: 999, code: "CUSTOM-01", name: "Custom Measure", success: true };
       } else {
         mockResponse = { success: true };
@@ -110,8 +145,17 @@ export function enableDemoMode() {
     // ---------- GET endpoints (order: most specific first) ----------
     else if (method === "get") {
 
+      // Query suggestions
+      if (url.includes("/api/query/suggestions")) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        const ctx = params.get("context") || "/";
+        // Find best matching context
+        const matchedKey = Object.keys(mockQuerySuggestions).find((k) => ctx.startsWith(k) && k !== "/") || "/";
+        mockResponse = mockQuerySuggestions[matchedKey] || mockQuerySuggestions["/"];
+      }
+
       // Dashboard insights
-      if (url.includes("/api/dashboard/insights")) {
+      else if (url.includes("/api/dashboard/insights")) {
         mockResponse = mockInsights;
       }
       // Dashboard overview
