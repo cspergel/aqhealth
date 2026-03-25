@@ -49,6 +49,8 @@ import {
   mockReconciliationReport,
   mockIbnrEstimate,
   mockMembers,
+  mockFilterFields,
+  mockSavedFilters,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -68,6 +70,37 @@ mockProviders.forEach((p) => {
   const shortName = `${parts[0]} ${parts[parts.length - 1]}`;
   pcpShortNameToId[shortName] = p.id;
 });
+
+/** Apply universal filter conditions to a member record */
+function applyConditionToMember(member: any, rule: { field: string; operator: string; value: any }): boolean {
+  const val = member[rule.field];
+  if (val === undefined) return true;
+  switch (rule.operator) {
+    case ">=": return typeof val === "number" && val >= Number(rule.value);
+    case "<=": return typeof val === "number" && val <= Number(rule.value);
+    case "=": return val == rule.value;
+    case "!=": return val != rule.value;
+    case "between": return Array.isArray(rule.value) && typeof val === "number" && val >= rule.value[0] && val <= rule.value[1];
+    case "contains": return typeof val === "string" && val.toLowerCase().includes(String(rule.value).toLowerCase());
+    case "equals": return String(val).toLowerCase() === String(rule.value).toLowerCase();
+    case "starts_with": return typeof val === "string" && val.toLowerCase().startsWith(String(rule.value).toLowerCase());
+    case "not_contains": return typeof val === "string" && !val.toLowerCase().includes(String(rule.value).toLowerCase());
+    case "is": return String(val).toLowerCase() === String(rule.value).toLowerCase();
+    case "is_not": return String(val).toLowerCase() !== String(rule.value).toLowerCase();
+    case "is_true": return val === true || val > 0;
+    case "is_false": return val === false || val === 0;
+    default: return true;
+  }
+}
+
+function applyUniversalConditions(members: any[], conditions: { logic?: string; rules?: any[] } | null): any[] {
+  if (!conditions || !conditions.rules || conditions.rules.length === 0) return members;
+  const logic = conditions.logic || "AND";
+  return members.filter((m) => {
+    if (logic === "AND") return conditions.rules!.every((r: any) => applyConditionToMember(m, r));
+    return conditions.rules!.some((r: any) => applyConditionToMember(m, r));
+  });
+}
 
 function getFilterIds(config: { params?: Record<string, string> }): { groupId: number | null; providerId: number | null; providerIds: number[] } {
   const params = config.params || {};
@@ -191,6 +224,15 @@ export function enableDemoMode() {
       }
     }
 
+    // ---------- DELETE endpoints ----------
+    else if (method === "delete") {
+      if (url.includes("/api/filters/")) {
+        mockResponse = { deleted: true };
+      } else {
+        mockResponse = { deleted: true };
+      }
+    }
+
     // ---------- POST endpoints ----------
     else if (method === "post") {
       if (url.includes("/api/adt/webhook")) {
@@ -247,6 +289,17 @@ export function enableDemoMode() {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         const scenarioType = body?.type || "capture_improvement";
         mockResponse = mockScenarioResults[scenarioType] || mockScenarioResults["capture_improvement"];
+      } else if (url.includes("/api/filters/apply")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        mockResponse = { applied: true, conditions: body?.conditions || {}, context: body?.page_context || "members" };
+      } else if (url.includes("/api/filters")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        mockResponse = {
+          id: Date.now(), name: body?.name || "New Filter", description: body?.description || null,
+          page_context: body?.page_context || "members", conditions: body?.conditions || {},
+          created_by: 1, is_shared: body?.is_shared || false, is_system: false,
+          use_count: 0, last_used: null,
+        };
       } else if (url.includes("/api/reconciliation/run")) {
         mockResponse = { total_signals: 23, matched: 18, unmatched: 5, avg_accuracy: 91.3, accuracy_by_category: { inpatient: { count: 10, avg_error: 10.3, avg_bias: -2.4 }, ed_observation: { count: 5, avg_error: 5.9, avg_bias: -1.1 }, snf_postacute: { count: 3, avg_error: 6.4, avg_bias: 1.4 } } };
       } else if (url.includes("/api/care-gaps/measures")) {
@@ -261,8 +314,21 @@ export function enableDemoMode() {
       const { groupId, providerId, providerIds } = getFilterIds(config as { params?: Record<string, string> });
       const hasFilter = groupId !== null || providerId !== null;
 
+      // Filter fields
+      if (url.includes("/api/filters/fields")) {
+        const params = config.params || {};
+        const context = params.context || "members";
+        mockResponse = mockFilterFields[context] || mockFilterFields["members"];
+      }
+      // Saved filters list
+      else if (url.match(/\/api\/filters\/?$/) || url.match(/\/api\/filters\?/)) {
+        const params = config.params || {};
+        const context = params.context || "members";
+        mockResponse = mockSavedFilters.filter((f) => f.page_context === context);
+      }
+
       // Query suggestions
-      if (url.includes("/api/query/suggestions")) {
+      else if (url.includes("/api/query/suggestions")) {
         const params = new URLSearchParams(url.split("?")[1] || "");
         const ctx = params.get("context") || "/";
         // Find best matching context
@@ -605,6 +671,10 @@ export function enableDemoMode() {
       else if (url.includes("/api/members/stats")) {
         const params = config.params || {};
         let filtered = [...mockMembers];
+        // Apply universal filter conditions if present
+        if (params.conditions) {
+          try { filtered = applyUniversalConditions(filtered, JSON.parse(params.conditions)); } catch (_e) { /* ignore */ }
+        }
         if (params.raf_min) filtered = filtered.filter((m) => m.current_raf >= parseFloat(params.raf_min));
         if (params.raf_max) filtered = filtered.filter((m) => m.current_raf <= parseFloat(params.raf_max));
         if (params.days_not_seen) filtered = filtered.filter((m) => m.days_since_visit >= parseInt(params.days_not_seen));
@@ -637,6 +707,10 @@ export function enableDemoMode() {
         // Apply global filters
         if (hasFilter && providerIds.length > 0) {
           filtered = filtered.filter((m) => providerIds.includes(m.pcp_id));
+        }
+        // Apply universal filter conditions if present
+        if (params.conditions) {
+          try { filtered = applyUniversalConditions(filtered, JSON.parse(params.conditions)); } catch (_e) { /* ignore */ }
         }
         // Apply member-specific filters
         if (params.raf_min) filtered = filtered.filter((m) => m.current_raf >= parseFloat(params.raf_min));

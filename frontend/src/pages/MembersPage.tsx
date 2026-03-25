@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { tokens, fonts } from "../lib/tokens";
 import api from "../lib/api";
-import { MemberFilters, type MemberFilterState } from "../components/members/MemberFilters";
+import { UniversalFilterBuilder, type FilterConditions } from "../components/filters/UniversalFilterBuilder";
+import type { SavedFilter } from "../components/filters/SavedFiltersList";
 import { MemberTable } from "../components/members/MemberTable";
 import type { MockMember } from "../lib/mockData";
 
@@ -25,31 +26,15 @@ interface MemberStats {
 }
 
 /* ------------------------------------------------------------------ */
-/* Default filter state                                                */
-/* ------------------------------------------------------------------ */
-
-const defaultFilters: MemberFilterState = {
-  raf_min: 0,
-  raf_max: 5,
-  days_not_seen: null,
-  risk_tier: null,
-  has_suspects: false,
-  has_gaps: false,
-  search: "",
-  min_er_visits: null,
-  min_admissions: null,
-  frequent_utilizers: false,
-};
-
-/* ------------------------------------------------------------------ */
 /* Page Component                                                      */
 /* ------------------------------------------------------------------ */
 
 export function MembersPage() {
-  const [filters, setFilters] = useState<MemberFilterState>(defaultFilters);
+  const [filterConditions, setFilterConditions] = useState<FilterConditions | null>(null);
   const [sortBy, setSortBy] = useState("raf");
   const [order, setOrder] = useState("desc");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
 
   const [members, setMembers] = useState<MockMember[]>([]);
   const [totalPages, setTotalPages] = useState(1);
@@ -57,7 +42,18 @@ export function MembersPage() {
   const [stats, setStats] = useState<MemberStats>({ count: 0, avg_raf: 0, total_suspects: 0, total_gaps: 0 });
   const [loading, setLoading] = useState(true);
 
-  /* Build query params from filters */
+  // Saved filters state
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+
+  // Fetch saved filters on mount
+  useEffect(() => {
+    api
+      .get("/api/filters", { params: { context: "members" } })
+      .then((res) => setSavedFilters(res.data as SavedFilter[]))
+      .catch(() => {});
+  }, []);
+
+  /* Build query params from current state */
   const buildParams = useCallback(() => {
     const params: Record<string, string> = {
       sort_by: sortBy,
@@ -65,18 +61,12 @@ export function MembersPage() {
       page: String(page),
       page_size: "25",
     };
-    if (filters.raf_min > 0) params.raf_min = String(filters.raf_min);
-    if (filters.raf_max < 5) params.raf_max = String(filters.raf_max);
-    if (filters.days_not_seen) params.days_not_seen = String(filters.days_not_seen);
-    if (filters.risk_tier) params.risk_tier = filters.risk_tier;
-    if (filters.has_suspects) params.has_suspects = "true";
-    if (filters.has_gaps) params.has_gaps = "true";
-    if (filters.search) params.search = filters.search;
-    if (filters.min_er_visits) params.min_er_visits = String(filters.min_er_visits);
-    if (filters.min_admissions) params.min_admissions = String(filters.min_admissions);
-    if (filters.frequent_utilizers) params.frequent_utilizers = "true";
+    if (search) params.search = search;
+    if (filterConditions) {
+      params.conditions = JSON.stringify(filterConditions);
+    }
     return params;
-  }, [filters, sortBy, order, page]);
+  }, [filterConditions, sortBy, order, page, search]);
 
   /* Fetch member list and stats */
   useEffect(() => {
@@ -112,66 +102,42 @@ export function MembersPage() {
     setPage(1);
   };
 
-  /* Handle filter change */
-  const handleFilterChange = (f: MemberFilterState) => {
-    setFilters(f);
+  /* Handle filter apply from UniversalFilterBuilder */
+  const handleFilterApply = (conditions: FilterConditions | null) => {
+    setFilterConditions(conditions);
     setPage(1);
   };
 
-  /* Handle presets */
-  const handlePreset = (preset: string) => {
-    switch (preset) {
-      case "high_raf_not_seen":
-        setFilters({ ...defaultFilters, raf_min: 1.5, days_not_seen: 90 });
-        setSortBy("raf");
-        setOrder("desc");
-        break;
-      case "all_suspects":
-        setFilters({ ...defaultFilters, has_suspects: true });
-        setSortBy("suspect_count");
-        setOrder("desc");
-        break;
-      case "all_gaps":
-        setFilters({ ...defaultFilters, has_gaps: true });
-        setSortBy("gap_count");
-        setOrder("desc");
-        break;
-      case "low_raf_undercoded":
-        // RAF < 1.0 AND (has_suspects OR has_gaps) — likely undercoded
-        setFilters({ ...defaultFilters, raf_max: 1.0, has_suspects: true });
-        setSortBy("suspect_count");
-        setOrder("desc");
-        break;
-      case "healthy_keep_well":
-        // RAF < 0.5, no suspects, no gaps, seen recently
-        setFilters({ ...defaultFilters, raf_max: 0.5 });
-        setSortBy("raf");
-        setOrder("asc");
-        break;
-      case "rising_risk":
-        setFilters({ ...defaultFilters, risk_tier: "rising" });
-        setSortBy("raf");
-        setOrder("desc");
-        break;
-      case "not_seen_6mo":
-        setFilters({ ...defaultFilters, days_not_seen: 180 });
-        setSortBy("days_since_visit");
-        setOrder("desc");
-        break;
-      case "complex_active":
-        // risk_tier = "complex" OR RAF > 3.0 — use complex tier as primary
-        setFilters({ ...defaultFilters, risk_tier: "complex" });
-        setSortBy("raf");
-        setOrder("desc");
-        break;
-      case "frequent_utilizers":
-        // er_visits >= 3 OR admissions >= 2 — cost drivers for care management
-        setFilters({ ...defaultFilters, frequent_utilizers: true });
-        setSortBy("er_visits_12mo");
-        setOrder("desc");
-        break;
-    }
-    setPage(1);
+  /* Handle save filter */
+  const handleSaveFilter = (
+    name: string,
+    description: string,
+    conditions: FilterConditions,
+    isShared: boolean
+  ) => {
+    api
+      .post("/api/filters", {
+        name,
+        description: description || null,
+        page_context: "members",
+        conditions,
+        is_shared: isShared,
+      })
+      .then((res) => {
+        const newFilter = res.data as SavedFilter;
+        setSavedFilters((prev) => [...prev, newFilter]);
+      })
+      .catch(() => {});
+  };
+
+  /* Handle delete filter */
+  const handleDeleteFilter = (filterId: number) => {
+    api
+      .delete(`/api/filters/${filterId}`)
+      .then(() => {
+        setSavedFilters((prev) => prev.filter((f) => f.id !== filterId));
+      })
+      .catch(() => {});
   };
 
   /* Export CSV */
@@ -209,29 +175,54 @@ export function MembersPage() {
             Panel management &mdash; filter, sort, and drill into member detail
           </p>
         </div>
-        <button
-          onClick={handleExport}
-          style={{
-            padding: "8px 18px",
-            borderRadius: 6,
-            border: `1px solid ${tokens.border}`,
-            background: tokens.surface,
-            color: tokens.textSecondary,
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: "pointer",
-            fontFamily: fonts.body,
-            transition: "background 150ms",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = tokens.surfaceAlt; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = tokens.surface; }}
-        >
-          Export CSV
-        </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {/* Search */}
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Search name or ID..."
+            style={{
+              width: 200,
+              padding: "7px 12px",
+              borderRadius: 6,
+              border: `1px solid ${tokens.border}`,
+              fontSize: 13,
+              fontFamily: fonts.body,
+              outline: "none",
+              background: tokens.surface,
+            }}
+          />
+          <button
+            onClick={handleExport}
+            style={{
+              padding: "8px 18px",
+              borderRadius: 6,
+              border: `1px solid ${tokens.border}`,
+              background: tokens.surface,
+              color: tokens.textSecondary,
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
+              fontFamily: fonts.body,
+              transition: "background 150ms",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = tokens.surfaceAlt; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = tokens.surface; }}
+          >
+            Export CSV
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <MemberFilters filters={filters} onChange={handleFilterChange} onPreset={handlePreset} />
+      {/* Universal Filter Builder (replaces old MemberFilters) */}
+      <UniversalFilterBuilder
+        pageContext="members"
+        onApply={handleFilterApply}
+        savedFilters={savedFilters}
+        onSaveFilter={handleSaveFilter}
+        onDeleteFilter={handleDeleteFilter}
+      />
 
       {/* Stats bar */}
       <div
@@ -249,6 +240,22 @@ export function MembersPage() {
         <StatItem label="Avg RAF" value={stats.avg_raf.toFixed(3)} mono />
         <StatItem label="Total Suspects" value={stats.total_suspects.toLocaleString()} color={stats.total_suspects > 0 ? tokens.amber : undefined} />
         <StatItem label="Total Gaps" value={stats.total_gaps.toLocaleString()} color={stats.total_gaps > 0 ? tokens.red : undefined} />
+        {filterConditions && (
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: tokens.accentText,
+                background: tokens.accentSoft,
+                padding: "3px 10px",
+                borderRadius: 9999,
+              }}
+            >
+              Filtered: {filterConditions.rules.length} rule{filterConditions.rules.length > 1 ? "s" : ""} ({filterConditions.logic})
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Table */}

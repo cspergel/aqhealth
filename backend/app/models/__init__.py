@@ -11,3 +11,4 @@ from app.models.ingestion import UploadJob, MappingTemplate, MappingRule
 from app.models.insight import Insight
 from app.models.learning import PredictionOutcome, LearningMetric, UserInteraction
 from app.models.adt import ADTSource, ADTEvent, CareAlert
+from app.models.saved_filter import SavedFilter

@@ -3125,3 +3125,182 @@ export const mockMembers: MockMember[] = [
   { member_id: "M1029", name: "Judith Reed", dob: "1945-04-11", pcp: "Dr. Lisa Chen", pcp_id: 3, group: "FMG Clearwater", group_id: 4, current_raf: 1.234, risk_tier: "rising", last_visit_date: "2026-03-19", days_since_visit: 5, suspect_count: 1, gap_count: 1, total_spend_12mo: 16700, plan: "Humana Gold Plus", has_suspects: true, has_gaps: true, er_visits_12mo: 0, admissions_12mo: 0, snf_days_12mo: 0 },
   { member_id: "M1030", name: "Carl Morris", dob: "1958-09-06", pcp: "Dr. David Wilson", pcp_id: 9, group: "FMG St. Petersburg", group_id: 2, current_raf: 0.345, risk_tier: "low", last_visit_date: "2026-03-21", days_since_visit: 3, suspect_count: 0, gap_count: 0, total_spend_12mo: 2800, plan: "Aetna Medicare Advantage", has_suspects: false, has_gaps: false, er_visits_12mo: 0, admissions_12mo: 0, snf_days_12mo: 0 },
 ];
+
+// ---------------------------------------------------------------------------
+// ---- Universal Filter System ----
+// ---------------------------------------------------------------------------
+
+export interface MockFilterField {
+  field: string;
+  label: string;
+  type: "number" | "enum" | "string" | "boolean";
+  operators: string[];
+  options?: string[];
+}
+
+export const mockFilterFields: Record<string, MockFilterField[]> = {
+  members: [
+    { field: "current_raf", label: "RAF Score", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "risk_tier", label: "Risk Tier", type: "enum", operators: ["is", "is_not", "in"], options: ["low", "rising", "high", "complex"] },
+    { field: "days_since_visit", label: "Days Since Last Visit", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "er_visits_12mo", label: "ER Visits (12mo)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "admissions_12mo", label: "Admissions (12mo)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "snf_days_12mo", label: "SNF Days (12mo)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "plan", label: "Plan", type: "enum", operators: ["is", "is_not", "in"], options: ["Humana Gold Plus", "Aetna Medicare Advantage"] },
+    { field: "pcp", label: "Provider (PCP)", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "group", label: "Practice Group", type: "enum", operators: ["is", "is_not", "in"], options: ["ISG Tampa", "FMG St. Petersburg", "ISG Brandon", "FMG Clearwater"] },
+    { field: "suspect_count", label: "Suspect Count", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "gap_count", label: "Gap Count", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "total_spend_12mo", label: "12mo Spend ($)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "has_suspects", label: "Has Suspects", type: "boolean", operators: ["is_true", "is_false"] },
+    { field: "has_gaps", label: "Has Open Gaps", type: "boolean", operators: ["is_true", "is_false"] },
+  ],
+  suspects: [
+    { field: "raf_value", label: "RAF Value", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "suspect_type", label: "Suspect Type", type: "enum", operators: ["is", "is_not", "in"], options: ["historical", "clinical", "nlp"] },
+    { field: "status", label: "Status", type: "enum", operators: ["is", "is_not", "in"], options: ["open", "accepted", "rejected", "captured"] },
+    { field: "hcc_code", label: "HCC Code", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "confidence", label: "Confidence", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "days_open", label: "Days Open", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "provider", label: "Provider", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "group", label: "Practice Group", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+  ],
+  expenditure: [
+    { field: "service_category", label: "Service Category", type: "enum", operators: ["is", "is_not", "in"], options: ["inpatient", "ed_observation", "pharmacy", "outpatient", "professional", "snf_postacute"] },
+    { field: "facility", label: "Facility", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "provider", label: "Provider", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "paid_amount", label: "Paid Amount ($)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "diagnosis", label: "Diagnosis", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "drg_code", label: "DRG Code", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+  ],
+  providers: [
+    { field: "capture_rate", label: "Capture Rate (%)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "recapture_rate", label: "Recapture Rate (%)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "panel_size", label: "Panel Size", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "avg_raf", label: "Avg RAF", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "panel_pmpm", label: "PMPM ($)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "gap_closure_rate", label: "Gap Closure Rate (%)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "specialty", label: "Specialty", type: "enum", operators: ["is", "is_not", "in"], options: ["Internal Medicine", "Family Medicine", "Geriatrics"] },
+    { field: "tier", label: "Tier", type: "enum", operators: ["is", "is_not", "in"], options: ["green", "amber", "red"] },
+  ],
+  care_gaps: [
+    { field: "measure", label: "Measure", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "status", label: "Status", type: "enum", operators: ["is", "is_not", "in"], options: ["open", "closed", "excluded"] },
+    { field: "weight", label: "Weight", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "closure_rate", label: "Closure Rate (%)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "provider", label: "Provider", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+  ],
+  census: [
+    { field: "facility", label: "Facility", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "patient_class", label: "Patient Class", type: "enum", operators: ["is", "is_not", "in"], options: ["inpatient", "observation", "ed", "snf"] },
+    { field: "los_days", label: "Length of Stay (Days)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "daily_cost", label: "Daily Cost ($)", type: "number", operators: [">=", "<=", "=", "!=", "between"] },
+    { field: "diagnosis", label: "Diagnosis", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+    { field: "provider", label: "Provider", type: "string", operators: ["contains", "equals", "starts_with", "not_contains"] },
+  ],
+};
+
+export interface MockSavedFilter {
+  id: number;
+  name: string;
+  description: string | null;
+  page_context: string;
+  conditions: { logic: "AND" | "OR"; rules: { field: string; operator: string; value: any }[] };
+  created_by: number;
+  is_shared: boolean;
+  is_system: boolean;
+  use_count: number;
+  last_used: string | null;
+  category?: string;
+  category_color?: string;
+  category_soft_color?: string;
+}
+
+export const mockSavedFilters: MockSavedFilter[] = [
+  // System presets — Revenue category
+  {
+    id: 1001, name: "High RAF Not Seen 90+", description: "Members with RAF >= 1.5 not seen in 90+ days",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "current_raf", operator: ">=", value: 1.5 }, { field: "days_since_visit", operator: ">=", value: 90 }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 142, last_used: "2026-03-24",
+    category: "Revenue", category_color: "#15803d", category_soft_color: "#dcfce7",
+  },
+  {
+    id: 1002, name: "Open Suspects", description: "Members with at least one open suspect HCC",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "has_suspects", operator: "is_true", value: true }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 198, last_used: "2026-03-24",
+    category: "Revenue", category_color: "#15803d", category_soft_color: "#dcfce7",
+  },
+  // System presets — Quality category
+  {
+    id: 1003, name: "Open Gaps", description: "Members with at least one open care gap",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "has_gaps", operator: "is_true", value: true }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 167, last_used: "2026-03-23",
+    category: "Quality", category_color: "#2563eb", category_soft_color: "#dbeafe",
+  },
+  {
+    id: 1004, name: "Low RAF Likely Undercoded", description: "Members with RAF < 1.0 and open suspects",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "current_raf", operator: "<=", value: 1.0 }, { field: "has_suspects", operator: "is_true", value: true }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 89, last_used: "2026-03-22",
+    category: "Quality", category_color: "#2563eb", category_soft_color: "#dbeafe",
+  },
+  // System presets — Care Mgmt category
+  {
+    id: 1005, name: "Rising Risk", description: "Members in rising risk tier",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "risk_tier", operator: "is", value: "rising" }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 74, last_used: "2026-03-21",
+    category: "Care Mgmt", category_color: "#d97706", category_soft_color: "#fef3c7",
+  },
+  {
+    id: 1006, name: "Complex Active Mgmt", description: "Members in complex risk tier",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "risk_tier", operator: "is", value: "complex" }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 56, last_used: "2026-03-20",
+    category: "Care Mgmt", category_color: "#d97706", category_soft_color: "#fef3c7",
+  },
+  {
+    id: 1007, name: "Not Seen 6+ Mo", description: "Members not seen in 180+ days",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "days_since_visit", operator: ">=", value: 180 }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 103, last_used: "2026-03-23",
+    category: "Care Mgmt", category_color: "#d97706", category_soft_color: "#fef3c7",
+  },
+  {
+    id: 1008, name: "Frequent Utilizers", description: "Members with 3+ ER visits or 2+ admissions in 12 months",
+    page_context: "members",
+    conditions: { logic: "OR", rules: [{ field: "er_visits_12mo", operator: ">=", value: 3 }, { field: "admissions_12mo", operator: ">=", value: 2 }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 91, last_used: "2026-03-22",
+    category: "Care Mgmt", category_color: "#d97706", category_soft_color: "#fef3c7",
+  },
+  // System presets — Wellness
+  {
+    id: 1009, name: "Healthy Keep Well", description: "Low RAF, healthy members for wellness outreach",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "current_raf", operator: "<=", value: 0.5 }] },
+    created_by: 0, is_shared: true, is_system: true, use_count: 42, last_used: "2026-03-19",
+    category: "Wellness", category_color: "#7c3aed", category_soft_color: "#f3e8ff",
+  },
+  // User-created saved filters
+  {
+    id: 2001, name: "My CHF Patients", description: "High RAF complex patients with frequent admissions — likely CHF",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "risk_tier", operator: "is", value: "complex" }, { field: "admissions_12mo", operator: ">=", value: 2 }, { field: "current_raf", operator: ">=", value: 2.0 }] },
+    created_by: 1, is_shared: false, is_system: false, use_count: 28, last_used: "2026-03-24",
+  },
+  {
+    id: 2002, name: "FMG St. Pete High Risk", description: "High and complex risk members in FMG St. Petersburg group",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "group", operator: "is", value: "FMG St. Petersburg" }, { field: "current_raf", operator: ">=", value: 1.5 }] },
+    created_by: 1, is_shared: true, is_system: false, use_count: 15, last_used: "2026-03-23",
+  },
+  {
+    id: 2003, name: "ER Frequent + Gaps", description: "Frequent ER utilizers who also have open care gaps",
+    page_context: "members",
+    conditions: { logic: "AND", rules: [{ field: "er_visits_12mo", operator: ">=", value: 3 }, { field: "has_gaps", operator: "is_true", value: true }] },
+    created_by: 1, is_shared: false, is_system: false, use_count: 8, last_used: "2026-03-21",
+  },
+];
