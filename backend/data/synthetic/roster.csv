@@ -1,0 +1,501 @@
+member_id,first_name,last_name,date_of_birth,gender,zip_code,health_plan,plan_product,coverage_start,coverage_end,pcp_npi,pcp_name,medicaid_status,disability_status
+H250165258,Robert,Perez,1953-03-24,M,33601,Humana Gold Plus,MAPD,2023-03-31,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U875935868,Carl,Collins,1952-04-25,M,34747,Humana Gold Plus,MAPD,2024-01-25,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+U136760652,William,Garcia,1945-05-03,M,34207,Cigna Medicare Select,MA,2024-01-25,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C229836394,Sandra,Price,1953-06-27,F,33702,UnitedHealthcare AARP,MAPD,2023-08-23,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A500167403,Paul,Price,1948-12-19,M,34207,Aetna Medicare Advantage,MA,2024-02-13,2026-12-31,5678901235,Dr. William Foster,false,false
+H982519826,Mary,White,1945-09-25,F,34748,Humana Gold Plus,MAPD,2023-04-25,2026-12-31,3456789013,Dr. James Wilson,false,false
+U883089040,Charles,Cook,1943-09-25,M,32836,Cigna Medicare Select,MA,2024-09-05,2026-12-31,1234567890,Dr. Sarah Chen,false,true
+A736384200,Thomas,Diaz,1937-03-09,M,34741,Aetna Medicare Advantage,MA,2024-03-09,2026-12-31,5678901235,Dr. William Foster,false,false
+U621954781,Henry,Smith,1957-11-02,M,33611,Humana Gold Plus,MAPD,2025-05-30,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+H214422948,Frances,Bell,1950-12-02,F,34741,UnitedHealthcare AARP,MAPD,2023-03-04,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C910397267,Michael,Cruz,1941-02-25,M,34741,UnitedHealthcare AARP,MAPD,2024-02-21,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C581901562,Margaret,Allen,1952-01-19,F,33611,UnitedHealthcare AARP,MAPD,2025-02-04,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U362370499,John,Anderson,1950-10-19,M,33609,Aetna Medicare Advantage,MA,2023-07-29,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U696082691,Howard,Carter,1955-06-03,M,33611,Cigna Medicare Select,MA,2023-10-19,2026-12-31,3456789013,Dr. James Wilson,false,false
+H042076275,Charles,Mitchell,1952-04-23,M,34201,Humana Gold Plus,MAPD,2024-06-01,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H387882217,Joseph,Martinez,1937-12-05,M,34201,Aetna Medicare Advantage,MA,2024-08-19,2026-12-31,3456789013,Dr. James Wilson,false,false
+A271882843,Paul,Lewis,1935-03-14,M,33701,Humana Gold Plus,MAPD,2025-03-12,2026-12-31,3456789013,Dr. James Wilson,false,false
+U919192147,Robert,Allen,1950-05-28,M,33716,Humana Gold Plus,MAPD,2023-12-26,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A306338733,Alice,White,1950-10-07,F,34201,Humana Gold Plus,MAPD,2023-01-02,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U483276346,Shirley,Turner,1947-04-14,F,34236,UnitedHealthcare AARP,MAPD,2024-11-24,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U210248046,Dorothy,Anderson,1952-11-21,F,33629,Aetna Medicare Advantage,MA,2025-04-18,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C028486959,Phyllis,Cooper,1953-11-23,F,34207,Humana Gold Plus,MAPD,2025-03-08,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C620223512,Jean,Lewis,1944-08-15,F,32806,Humana Gold Plus,MAPD,2025-05-10,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H873037894,George,Rodriguez,1950-06-18,M,32819,Aetna Medicare Advantage,MA,2023-07-31,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A959560481,Jack,Scott,1952-08-01,M,33702,Humana Gold Plus,MAPD,2025-01-11,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H470920900,Diane,Wright,1949-06-25,F,33701,Cigna Medicare Select,MA,2025-02-09,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A697713595,Robert,Clark,1953-08-22,M,34108,Humana Gold Plus,MAPD,2024-04-21,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H343538819,Helen,Martinez,1947-11-08,F,32801,Humana Gold Plus,MAPD,2025-05-20,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U329247563,Margaret,Gomez,1954-09-21,F,34231,Humana Gold Plus,MAPD,2025-03-04,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A074766470,Nancy,Wood,1953-05-11,F,33701,Humana Gold Plus,MAPD,2024-12-19,2026-12-31,5678901235,Dr. William Foster,false,false
+U722111571,Ruth,Campbell,1945-06-16,F,33629,Aetna Medicare Advantage,MA,2024-03-11,2026-12-31,3456789013,Dr. James Wilson,false,false
+A295618485,Sandra,James,1947-02-27,F,34231,Humana Gold Plus,MAPD,2024-01-05,2026-12-31,2345678902,Dr. Robert Kim,false,true
+H561890254,Jean,Collins,1954-01-09,F,34748,Cigna Medicare Select,MA,2023-04-27,2026-12-31,4567890124,Dr. David Chang,false,false
+H922611004,Fred,Rogers,1949-08-10,M,34748,Cigna Medicare Select,MA,2023-11-09,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A456980137,Donna,Jones,1953-12-10,F,34747,UnitedHealthcare AARP,MAPD,2023-03-14,2026-12-31,4567890124,Dr. David Chang,false,false
+H876026850,Jean,Harris,1949-05-23,F,32836,Aetna Medicare Advantage,MA,2024-05-27,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H443114464,Jennifer,Walker,1949-11-15,F,32836,Cigna Medicare Select,MA,2024-08-22,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C413767259,Albert,Taylor,1951-06-04,M,34207,Cigna Medicare Select,MA,2024-06-10,2026-12-31,4567890123,Dr. Maria Santos,false,true
+H281961927,Jessica,Brown,1935-10-26,F,34201,Humana Gold Plus,MAPD,2023-11-15,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H274958225,Martha,Baker,1949-03-13,F,32803,Humana Gold Plus,MAPD,2024-06-04,2026-12-31,5678901235,Dr. William Foster,false,false
+A923843493,Margaret,Howard,1948-06-11,F,32803,Aetna Medicare Advantage,MA,2024-01-22,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A461493668,Jack,Jones,1955-10-11,M,32803,Cigna Medicare Select,MA,2023-04-13,2026-12-31,4567890124,Dr. David Chang,false,false
+H771120303,Diane,Wood,1940-01-20,F,34201,Humana Gold Plus,MAPD,2023-08-21,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A452646842,Paul,James,1950-11-26,M,34741,Humana Gold Plus,MAPD,2023-03-22,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A981332608,William,Kelly,1937-10-10,M,34108,Aetna Medicare Advantage,MA,2024-12-07,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U212776106,Mary,Miller,1939-12-16,F,33602,UnitedHealthcare AARP,MAPD,2025-03-05,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A783521999,Jean,Jones,1947-12-05,F,33710,Humana Gold Plus,MAPD,2023-12-01,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C054665891,Jessica,Cox,1936-03-25,F,33701,Cigna Medicare Select,MA,2025-05-16,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A009125339,Patricia,Price,1951-10-08,F,32806,Aetna Medicare Advantage,MA,2024-12-18,2026-12-31,4567890124,Dr. David Chang,false,false
+C980659331,Margaret,Bailey,1946-08-20,F,33611,Aetna Medicare Advantage,MA,2023-02-03,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A072283190,Elizabeth,Wright,1946-10-01,F,33614,Humana Gold Plus,MAPD,2023-09-07,2026-12-31,3456789013,Dr. James Wilson,false,false
+U021410435,Walter,Nelson,1942-02-22,M,34207,Cigna Medicare Select,MA,2023-01-16,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C748311657,John,Gray,1952-11-01,M,34108,Humana Gold Plus,MAPD,2025-05-17,2026-12-31,4567890124,Dr. David Chang,false,false
+A483733296,Cheryl,Brooks,1946-02-26,F,34231,UnitedHealthcare AARP,MAPD,2025-01-08,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U648949023,David,Anderson,1956-02-24,M,33611,UnitedHealthcare AARP,MAPD,2024-07-23,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C898660982,Charles,Richardson,1953-02-12,M,33626,UnitedHealthcare AARP,MAPD,2023-04-28,2026-12-31,3456789013,Dr. James Wilson,false,false
+H053413395,Virginia,Collins,1951-03-28,F,33602,Humana Gold Plus,MAPD,2023-03-13,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H316553290,Daniel,Miller,1945-05-15,M,33629,UnitedHealthcare AARP,MAPD,2024-09-13,2026-12-31,4567890124,Dr. David Chang,false,false
+A588080098,Betty,Thompson,1943-05-11,F,34747,Humana Gold Plus,MAPD,2025-02-03,2026-12-31,4567890124,Dr. David Chang,false,false
+U082553333,Shirley,Bailey,1952-07-01,F,33626,Cigna Medicare Select,MA,2025-03-31,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A676174774,Howard,White,1948-04-25,M,34747,Humana Gold Plus,MAPD,2023-08-30,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U403269053,Diane,Clark,1949-08-15,F,34747,Aetna Medicare Advantage,MA,2024-08-28,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U906079563,Ralph,Allen,1951-08-17,M,33710,Humana Gold Plus,MAPD,2024-04-06,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C276983513,Gloria,Collins,1945-01-26,F,32801,Aetna Medicare Advantage,MA,2023-03-09,2026-12-31,3456789013,Dr. James Wilson,false,false
+H643312942,Sarah,Anderson,1951-07-21,F,33614,UnitedHealthcare AARP,MAPD,2024-11-17,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A511669703,William,Turner,1941-02-17,M,32819,UnitedHealthcare AARP,MAPD,2023-02-08,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A399423598,Ralph,Roberts,1943-08-08,M,34748,Aetna Medicare Advantage,MA,2025-04-08,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A291492430,Donald,Miller,1946-06-18,M,33602,Cigna Medicare Select,MA,2025-05-21,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A128617400,Alice,Cook,1953-02-12,F,33702,Humana Gold Plus,MAPD,2023-04-12,2026-12-31,3456789013,Dr. James Wilson,false,false
+C660845657,Charles,Hughes,1937-10-17,M,33710,Aetna Medicare Advantage,MA,2023-09-01,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H346920737,Mary,Morris,1953-07-06,F,32801,UnitedHealthcare AARP,MAPD,2024-06-20,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C680742010,Larry,Thompson,1958-09-11,M,33710,UnitedHealthcare AARP,MAPD,2025-04-30,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U444931637,Martha,Nelson,1958-11-07,F,33702,Humana Gold Plus,MAPD,2024-11-02,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C646308392,Carl,Anderson,1950-03-18,M,33602,Humana Gold Plus,MAPD,2023-03-23,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C007335669,Roy,Murphy,1948-12-22,M,34102,Humana Gold Plus,MAPD,2023-05-27,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C917726692,Barbara,Thompson,1948-07-11,F,33614,Aetna Medicare Advantage,MA,2023-04-27,2026-12-31,2345678902,Dr. Robert Kim,true,false
+U887967512,Ralph,Walker,1939-08-03,M,33614,UnitedHealthcare AARP,MAPD,2024-11-14,2026-12-31,3456789013,Dr. James Wilson,false,false
+U374445130,Jack,Brown,1951-10-12,M,34207,Aetna Medicare Advantage,MA,2023-05-13,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H531929520,Sarah,Hughes,1946-03-25,F,33629,Cigna Medicare Select,MA,2024-05-29,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U858006567,Sarah,Phillips,1946-02-17,F,34201,Aetna Medicare Advantage,MA,2024-08-17,2026-12-31,5678901235,Dr. William Foster,false,false
+A442637789,Jack,Cruz,1952-05-16,M,33614,Humana Gold Plus,MAPD,2023-11-01,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C849989711,Alice,Price,1956-04-15,F,34236,Humana Gold Plus,MAPD,2023-09-11,2026-12-31,4567890124,Dr. David Chang,false,false
+U486458487,Phyllis,Campbell,1948-02-13,F,32836,Aetna Medicare Advantage,MA,2023-08-09,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U866103953,Joyce,Garcia,1950-10-18,F,33614,Humana Gold Plus,MAPD,2023-10-23,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A361972385,Howard,Cooper,1948-01-02,M,32806,Humana Gold Plus,MAPD,2025-04-03,2026-12-31,3456789013,Dr. James Wilson,false,false
+H526952045,Martha,Williams,1950-11-04,F,32819,Cigna Medicare Select,MA,2023-11-12,2026-12-31,5678901235,Dr. William Foster,false,false
+A479870123,Margaret,Baker,1958-12-04,F,32803,Humana Gold Plus,MAPD,2023-11-18,2026-12-31,4567890124,Dr. David Chang,false,false
+U612529222,Norma,Rogers,1951-03-15,F,32806,Cigna Medicare Select,MA,2024-07-13,2026-12-31,3456789013,Dr. James Wilson,false,false
+C898227342,Diane,Richardson,1951-12-09,F,34231,Humana Gold Plus,MAPD,2024-11-23,2026-12-31,5678901235,Dr. William Foster,false,false
+H656047170,Edward,Reyes,1952-09-23,M,34741,Humana Gold Plus,MAPD,2024-09-22,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H627809489,Harold,Diaz,1949-04-25,M,33602,Cigna Medicare Select,MA,2023-10-20,2026-12-31,3456789013,Dr. James Wilson,false,false
+U465815283,Phyllis,Hall,1938-05-02,F,32819,Humana Gold Plus,MAPD,2024-09-09,2026-12-31,5678901235,Dr. William Foster,false,false
+C850611322,Sharon,Hall,1959-06-26,F,33701,Humana Gold Plus,MAPD,2023-06-29,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C345873192,Sandra,Edwards,1952-12-19,F,34748,Humana Gold Plus,MAPD,2024-12-10,2026-12-31,3456789013,Dr. James Wilson,false,false
+A765755391,Henry,Thompson,1949-08-24,M,34741,Cigna Medicare Select,MA,2024-03-01,2026-12-31,3456789013,Dr. James Wilson,false,false
+C845404873,Walter,Clark,1954-09-15,M,33601,Humana Gold Plus,MAPD,2025-01-04,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U477964938,William,Garcia,1950-12-03,M,34108,Aetna Medicare Advantage,MA,2023-03-12,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A879474324,Elizabeth,Cruz,1955-06-04,F,33614,Humana Gold Plus,MAPD,2024-02-07,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H468204577,Helen,White,1958-11-14,F,33614,Aetna Medicare Advantage,MA,2023-09-04,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C309896449,Carol,Parker,1947-11-27,F,32801,Humana Gold Plus,MAPD,2023-05-27,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A378959512,Norma,Parker,1945-07-05,F,33629,Humana Gold Plus,MAPD,2025-02-11,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H817754839,Elizabeth,Howard,1941-02-18,F,33601,UnitedHealthcare AARP,MAPD,2023-02-22,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U353254094,Edward,Harris,1944-08-08,M,33716,UnitedHealthcare AARP,MAPD,2024-02-11,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C212525937,Eugene,Parker,1950-10-28,M,34231,Humana Gold Plus,MAPD,2023-01-17,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H580800160,Cheryl,Lee,1944-06-06,F,33614,Humana Gold Plus,MAPD,2024-05-15,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C052908689,George,Brooks,1949-01-20,M,33611,Aetna Medicare Advantage,MA,2024-05-09,2026-12-31,5678901235,Dr. William Foster,false,true
+C426280960,Fred,Clark,1953-10-17,M,34108,Humana Gold Plus,MAPD,2023-10-01,2026-12-31,3456789013,Dr. James Wilson,false,false
+U580502884,Janet,Hughes,1949-11-01,F,33602,UnitedHealthcare AARP,MAPD,2024-05-26,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C925586537,Kenneth,Cruz,1947-01-06,M,32806,Cigna Medicare Select,MA,2023-01-17,2026-12-31,3456789013,Dr. James Wilson,false,false
+C936742531,Howard,Stewart,1957-07-08,M,34747,UnitedHealthcare AARP,MAPD,2024-09-11,2026-12-31,3456789013,Dr. James Wilson,false,false
+C310332114,Elizabeth,Turner,1942-12-03,F,34741,Humana Gold Plus,MAPD,2024-01-25,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H759256122,Susan,Brown,1956-09-03,F,33614,Aetna Medicare Advantage,MA,2024-01-30,2026-12-31,3456789013,Dr. James Wilson,true,false
+C511393683,Daniel,Gomez,1952-05-16,M,33716,UnitedHealthcare AARP,MAPD,2023-09-15,2026-12-31,3456789013,Dr. James Wilson,false,false
+C973273919,Sarah,Phillips,1951-12-07,F,33626,Aetna Medicare Advantage,MA,2024-02-12,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A214345559,Albert,King,1949-05-27,M,32806,UnitedHealthcare AARP,MAPD,2024-11-20,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U165669371,Jennifer,Murphy,1945-09-20,F,33611,Aetna Medicare Advantage,MA,2023-04-22,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+A301491913,Carol,Bennett,1944-09-19,F,34207,UnitedHealthcare AARP,MAPD,2024-04-01,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H031897553,Fred,Richardson,1951-02-15,M,34201,UnitedHealthcare AARP,MAPD,2023-11-23,2026-12-31,4567890124,Dr. David Chang,false,false
+C537278018,Carol,Cooper,1946-03-21,F,33626,UnitedHealthcare AARP,MAPD,2023-01-30,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C538687260,Diane,Young,1949-05-22,F,33614,Cigna Medicare Select,MA,2024-10-16,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C445991121,Jessica,Adams,1951-03-12,F,34207,UnitedHealthcare AARP,MAPD,2024-02-02,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C484007225,Raymond,Johnson,1949-04-27,M,33626,Humana Gold Plus,MAPD,2024-06-01,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H742476280,Phyllis,Hughes,1948-10-04,F,33702,Humana Gold Plus,MAPD,2025-04-23,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C112203253,Elizabeth,Kelly,1940-02-25,F,32806,UnitedHealthcare AARP,MAPD,2025-04-10,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U818278764,Donna,Mitchell,1937-09-22,F,34747,UnitedHealthcare AARP,MAPD,2025-02-07,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U445880966,Gloria,Rogers,1949-11-26,F,33609,Cigna Medicare Select,MA,2024-02-17,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C787068091,Betty,Bell,1941-08-09,F,34207,Humana Gold Plus,MAPD,2023-12-12,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U660677400,Carl,Young,1933-03-21,M,33629,Humana Gold Plus,MAPD,2023-04-06,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C642081323,Barbara,Martin,1947-09-22,F,32836,Aetna Medicare Advantage,MA,2024-12-13,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A964281173,Charles,Rodriguez,1948-01-20,M,34201,UnitedHealthcare AARP,MAPD,2023-12-26,2026-12-31,4567890124,Dr. David Chang,false,false
+H863557208,Sarah,Baker,1952-02-08,F,33701,Aetna Medicare Advantage,MA,2025-01-08,2026-12-31,5678901235,Dr. William Foster,false,false
+C367970020,Janet,White,1953-11-20,F,33602,Humana Gold Plus,MAPD,2024-01-05,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A235285368,Alice,Roberts,1946-09-25,F,32803,Aetna Medicare Advantage,MA,2023-03-26,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U661010435,Arthur,Gomez,1944-04-02,M,32819,Humana Gold Plus,MAPD,2023-04-29,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H296450811,Dorothy,Cook,1955-05-24,F,32836,Cigna Medicare Select,MA,2023-12-10,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A190876229,Joseph,Green,1944-01-02,M,33716,Cigna Medicare Select,MA,2023-09-08,2026-12-31,1234567890,Dr. Sarah Chen,true,false
+C873043277,Barbara,Cook,1955-11-02,F,33701,Humana Gold Plus,MAPD,2023-02-17,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A566037373,Joyce,Watson,1933-04-24,F,33629,Cigna Medicare Select,MA,2023-06-04,2026-12-31,2345678902,Dr. Robert Kim,true,false
+U475563506,Harold,Wood,1936-03-23,M,33614,Humana Gold Plus,MAPD,2023-08-26,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A171143137,Ronald,Carter,1941-07-23,M,34207,UnitedHealthcare AARP,MAPD,2023-11-22,2026-12-31,3456789013,Dr. James Wilson,false,false
+A830235629,Cheryl,Carter,1941-02-06,F,33601,UnitedHealthcare AARP,MAPD,2025-04-26,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A183665280,Jean,Price,1943-04-04,F,33609,Aetna Medicare Advantage,MA,2023-05-05,2026-12-31,2345678901,Dr. Angela Patel,true,false
+C434392416,Ralph,Martin,1956-06-04,M,34748,Humana Gold Plus,MAPD,2023-02-21,2026-12-31,4567890124,Dr. David Chang,false,false
+A687973549,Ronald,Watson,1950-09-16,M,34236,Humana Gold Plus,MAPD,2024-01-28,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U799162890,Janet,Mitchell,1954-06-20,F,33701,Humana Gold Plus,MAPD,2023-03-01,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A519843402,Frances,Walker,1954-10-11,F,33701,UnitedHealthcare AARP,MAPD,2024-08-28,2026-12-31,3456789013,Dr. James Wilson,true,false
+U017115307,Fred,Richardson,1961-10-07,M,32803,UnitedHealthcare AARP,MAPD,2025-01-04,2026-12-31,3456789013,Dr. James Wilson,false,false
+U196972513,Susan,Collins,1952-03-06,F,32806,UnitedHealthcare AARP,MAPD,2025-03-21,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A614303369,Sarah,Walker,1944-12-19,F,32806,Humana Gold Plus,MAPD,2023-02-03,2026-12-31,5678901235,Dr. William Foster,false,false
+C441483387,Jean,Johnson,1952-04-23,F,34747,Humana Gold Plus,MAPD,2025-03-16,2026-12-31,3456789012,Dr. Lisa Thompson,false,true
+C109939874,Daniel,Howard,1957-01-10,M,32801,Humana Gold Plus,MAPD,2023-04-18,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U620354000,Carl,Lewis,1957-06-07,M,32803,Cigna Medicare Select,MA,2024-12-14,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C482633310,Helen,Thomas,1959-03-21,F,34207,Humana Gold Plus,MAPD,2024-04-29,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C955884584,Sharon,Scott,1941-10-02,F,33701,Humana Gold Plus,MAPD,2023-03-29,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+A171998149,Virginia,Anderson,1950-12-02,F,34201,Aetna Medicare Advantage,MA,2025-03-30,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U590757115,Charles,Carter,1951-12-26,M,34747,Humana Gold Plus,MAPD,2024-07-23,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C021660832,Richard,Thomas,1943-09-12,M,32819,Cigna Medicare Select,MA,2024-01-28,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A194824612,Sandra,Cook,1959-05-10,F,34201,Humana Gold Plus,MAPD,2025-05-28,2026-12-31,4567890124,Dr. David Chang,false,false
+H182000313,Norma,Cook,1942-09-26,F,34207,Humana Gold Plus,MAPD,2024-12-27,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U762315986,Jessica,Brown,1953-08-20,F,32803,Aetna Medicare Advantage,MA,2024-08-23,2026-12-31,4567890124,Dr. David Chang,false,false
+A283964332,Kenneth,Reed,1948-11-01,M,34207,Aetna Medicare Advantage,MA,2024-10-24,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U643232696,Norma,Peterson,1947-01-17,F,33629,Cigna Medicare Select,MA,2024-07-28,2026-12-31,3456789013,Dr. James Wilson,false,false
+U243075172,Fred,Adams,1939-10-13,M,34741,UnitedHealthcare AARP,MAPD,2025-01-08,2026-12-31,2345678901,Dr. Angela Patel,true,false
+U759986228,Frances,Brooks,1952-03-27,F,34201,UnitedHealthcare AARP,MAPD,2023-07-05,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H411654819,Joyce,Carter,1947-08-28,F,33716,Humana Gold Plus,MAPD,2024-10-11,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+H027174706,Cheryl,Robinson,1951-12-06,F,32801,UnitedHealthcare AARP,MAPD,2023-12-07,2026-12-31,4567890124,Dr. David Chang,false,false
+U750072831,Shirley,Bell,1936-07-01,F,34236,Humana Gold Plus,MAPD,2025-01-18,2026-12-31,2345678902,Dr. Robert Kim,false,true
+A393199427,Dorothy,Rodriguez,1942-05-10,F,33614,Aetna Medicare Advantage,MA,2024-09-02,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H501801412,Robert,Brooks,1954-06-23,M,32806,UnitedHealthcare AARP,MAPD,2024-01-20,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+H562746789,George,Johnson,1952-11-04,M,34102,UnitedHealthcare AARP,MAPD,2024-09-29,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H986105712,Donna,Lewis,1958-08-07,F,33701,UnitedHealthcare AARP,MAPD,2023-12-05,2026-12-31,4567890124,Dr. David Chang,false,true
+U418801638,Donna,Carter,1949-02-27,F,34748,Humana Gold Plus,MAPD,2025-05-22,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C767160914,Elizabeth,Cook,1942-03-04,F,34747,Aetna Medicare Advantage,MA,2023-10-06,2026-12-31,4567890124,Dr. David Chang,false,false
+C406085772,Jean,Hall,1946-06-20,F,32803,Humana Gold Plus,MAPD,2024-05-09,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C188609544,Norma,Gray,1945-10-04,F,33626,Aetna Medicare Advantage,MA,2024-05-08,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H484841461,Jack,Evans,1953-05-02,M,34201,Aetna Medicare Advantage,MA,2024-10-20,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U302456467,James,Taylor,1942-10-21,M,33611,Humana Gold Plus,MAPD,2024-07-29,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A487421182,Henry,Smith,1951-11-26,M,33629,Humana Gold Plus,MAPD,2024-01-18,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A907545979,Susan,Bailey,1958-11-27,F,32806,UnitedHealthcare AARP,MAPD,2025-03-01,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+A299414772,Thomas,Jackson,1950-10-20,M,32806,Cigna Medicare Select,MA,2024-01-29,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U775597685,Betty,Young,1953-12-10,F,34201,UnitedHealthcare AARP,MAPD,2024-12-28,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U610725346,Fred,Jackson,1959-03-02,M,32803,UnitedHealthcare AARP,MAPD,2023-10-01,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U907288426,Wayne,Adams,1948-12-10,M,32806,UnitedHealthcare AARP,MAPD,2024-01-26,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C221804909,Helen,Allen,1952-03-22,F,34748,Humana Gold Plus,MAPD,2025-01-22,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H715438632,Arthur,Wood,1942-09-12,M,32836,Humana Gold Plus,MAPD,2024-06-22,2026-12-31,3456789013,Dr. James Wilson,false,false
+U371270575,Mary,White,1945-08-08,F,34236,Cigna Medicare Select,MA,2024-09-28,2026-12-31,5678901235,Dr. William Foster,false,false
+H626268288,Phyllis,Garcia,1952-11-07,F,32819,Humana Gold Plus,MAPD,2023-04-09,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H522364065,Barbara,Clark,1959-12-11,F,32801,Humana Gold Plus,MAPD,2023-02-25,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C380127782,John,Martinez,1951-09-04,M,32801,Humana Gold Plus,MAPD,2024-09-13,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C593793465,Arthur,Cook,1936-01-18,M,33626,Cigna Medicare Select,MA,2023-05-07,2026-12-31,2345678901,Dr. Angela Patel,true,false
+C606215936,Henry,Nelson,1953-03-22,M,33701,UnitedHealthcare AARP,MAPD,2025-05-21,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U891377623,Ronald,Rodriguez,1939-06-16,M,32803,Aetna Medicare Advantage,MA,2024-11-06,2026-12-31,5678901235,Dr. William Foster,false,false
+A817678868,Martha,Cox,1949-05-16,F,34747,Aetna Medicare Advantage,MA,2024-10-23,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U150302996,Betty,Jones,1947-09-18,F,32836,Aetna Medicare Advantage,MA,2024-01-10,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H240302934,Ralph,Lewis,1954-10-22,M,34207,Cigna Medicare Select,MA,2025-01-23,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C368539538,John,Evans,1956-09-21,M,34231,UnitedHealthcare AARP,MAPD,2024-08-15,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A371287442,Mary,Brooks,1940-08-06,F,33626,Humana Gold Plus,MAPD,2024-10-20,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A219550762,Patricia,Baker,1958-10-19,F,33609,Humana Gold Plus,MAPD,2023-02-10,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A651695031,Ralph,Diaz,1940-03-08,M,33601,UnitedHealthcare AARP,MAPD,2023-05-27,2026-12-31,5678901235,Dr. William Foster,false,false
+H069509644,Fred,Brooks,1945-03-20,M,33602,Humana Gold Plus,MAPD,2024-09-21,2026-12-31,4567890124,Dr. David Chang,false,false
+A905520705,Carol,Richardson,1942-07-12,F,34236,Aetna Medicare Advantage,MA,2023-04-11,2026-12-31,5678901235,Dr. William Foster,false,false
+C569325515,Wayne,King,1945-06-14,M,34231,Humana Gold Plus,MAPD,2024-03-12,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A157866036,Virginia,Stewart,1943-07-24,F,33609,Humana Gold Plus,MAPD,2025-02-04,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C657598642,Ernest,Gomez,1956-05-08,M,32803,Humana Gold Plus,MAPD,2023-02-08,2026-12-31,5678901235,Dr. William Foster,false,false
+H902364207,Helen,Jones,1943-09-17,F,33609,UnitedHealthcare AARP,MAPD,2023-06-23,2026-12-31,5678901235,Dr. William Foster,false,false
+U155531525,Frances,Stewart,1936-05-08,F,34747,Aetna Medicare Advantage,MA,2024-04-10,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H423727843,Jean,Rogers,1947-04-25,F,34741,Humana Gold Plus,MAPD,2024-11-28,2026-12-31,4567890124,Dr. David Chang,false,false
+U382969417,Donald,Baker,1952-07-22,M,33702,UnitedHealthcare AARP,MAPD,2023-03-19,2026-12-31,3456789013,Dr. James Wilson,false,false
+C675046498,Henry,Young,1941-10-12,M,33702,Humana Gold Plus,MAPD,2023-05-03,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H536196460,Nancy,Bennett,1952-04-25,F,33629,Aetna Medicare Advantage,MA,2024-06-22,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U144734459,Susan,Evans,1951-05-06,F,32803,Aetna Medicare Advantage,MA,2023-10-03,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C814985773,Richard,Mitchell,1942-09-14,M,34741,Cigna Medicare Select,MA,2023-05-30,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U235834366,Roy,Thomas,1945-01-07,M,34747,UnitedHealthcare AARP,MAPD,2025-05-09,2026-12-31,4567890124,Dr. David Chang,false,false
+A869464903,Ronald,Morris,1951-09-16,M,33716,UnitedHealthcare AARP,MAPD,2023-03-22,2026-12-31,4567890124,Dr. David Chang,false,false
+C181227723,Donna,Mitchell,1946-07-09,F,33611,Cigna Medicare Select,MA,2025-02-04,2026-12-31,3456789013,Dr. James Wilson,false,false
+C322618068,Ernest,Hughes,1957-07-17,M,33716,UnitedHealthcare AARP,MAPD,2023-04-17,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C563358432,Cheryl,Cruz,1938-09-15,F,33710,Humana Gold Plus,MAPD,2023-07-01,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C277575184,James,Gray,1942-03-12,M,33701,Humana Gold Plus,MAPD,2023-01-09,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U278481266,Wayne,Rogers,1953-02-14,M,33702,Aetna Medicare Advantage,MA,2025-02-21,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H214337947,Helen,Evans,1959-01-18,F,33716,Humana Gold Plus,MAPD,2023-10-16,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C817274704,Charles,Davis,1952-07-03,M,32836,Aetna Medicare Advantage,MA,2023-07-16,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H261882163,Fred,King,1949-11-10,M,33626,Cigna Medicare Select,MA,2024-10-06,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H246397031,Jessica,Peterson,1942-01-02,F,34741,Aetna Medicare Advantage,MA,2024-12-05,2026-12-31,4567890124,Dr. David Chang,false,false
+H631844261,Thomas,Wood,1953-09-26,M,33626,Aetna Medicare Advantage,MA,2025-04-04,2026-12-31,3456789013,Dr. James Wilson,false,false
+U547578636,Diane,Cox,1952-10-28,F,33716,Aetna Medicare Advantage,MA,2024-06-27,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+U150818240,Walter,Morgan,1954-11-16,M,34747,UnitedHealthcare AARP,MAPD,2024-09-19,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A698463788,Phyllis,James,1946-10-09,F,32806,Humana Gold Plus,MAPD,2024-09-12,2026-12-31,2345678902,Dr. Robert Kim,false,true
+C152617416,Kenneth,James,1958-02-27,M,34102,Humana Gold Plus,MAPD,2024-06-15,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C995984683,Evelyn,Jackson,1954-03-18,F,33701,Aetna Medicare Advantage,MA,2024-11-04,2026-12-31,3456789013,Dr. James Wilson,false,false
+U559332808,Wayne,Hughes,1938-05-12,M,32806,Cigna Medicare Select,MA,2024-02-11,2026-12-31,4567890124,Dr. David Chang,true,false
+A280397771,Alice,Price,1947-10-05,F,32806,Humana Gold Plus,MAPD,2023-12-31,2026-12-31,4567890124,Dr. David Chang,false,false
+C488266073,Arthur,Jones,1944-10-13,M,33710,Humana Gold Plus,MAPD,2025-02-28,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C750471347,Gerald,Cruz,1947-06-17,M,34741,UnitedHealthcare AARP,MAPD,2023-02-21,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A595224651,Sharon,Anderson,1950-07-25,F,34201,UnitedHealthcare AARP,MAPD,2024-05-07,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C649261707,Joyce,Stewart,1954-06-20,F,33701,UnitedHealthcare AARP,MAPD,2023-06-23,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A575696639,Ronald,Johnson,1951-02-10,M,34236,Aetna Medicare Advantage,MA,2023-12-06,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+H328680862,Donald,Lee,1957-04-26,M,34108,UnitedHealthcare AARP,MAPD,2023-02-24,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H253313362,Gerald,Wood,1940-09-03,M,34236,Humana Gold Plus,MAPD,2024-04-13,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A039662219,Linda,Nelson,1940-01-18,F,34748,Cigna Medicare Select,MA,2023-06-05,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A497651057,Jean,Cruz,1955-11-05,F,33626,Aetna Medicare Advantage,MA,2023-05-22,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A096665200,Margaret,Brown,1943-07-14,F,32836,Humana Gold Plus,MAPD,2023-06-05,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A107024797,Sarah,Brooks,1941-08-23,F,33609,Aetna Medicare Advantage,MA,2025-05-22,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U395567014,Ralph,Wood,1945-08-08,M,33602,Aetna Medicare Advantage,MA,2024-09-14,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U487212969,Fred,Reyes,1950-12-02,M,34207,Aetna Medicare Advantage,MA,2025-02-22,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C572426977,Elizabeth,Brooks,1955-10-23,F,33611,Aetna Medicare Advantage,MA,2024-02-28,2026-12-31,4567890123,Dr. Maria Santos,false,true
+C013881170,Joseph,Howard,1946-02-17,M,33710,UnitedHealthcare AARP,MAPD,2024-09-18,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C850825440,Jean,Roberts,1946-02-05,F,34748,Cigna Medicare Select,MA,2024-09-29,2026-12-31,1234567890,Dr. Sarah Chen,false,true
+U086829041,Paul,Hughes,1952-11-18,M,32803,UnitedHealthcare AARP,MAPD,2023-02-20,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H780418342,Nancy,Ward,1943-06-02,F,33629,Humana Gold Plus,MAPD,2023-11-27,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U964748822,Richard,James,1934-08-24,M,33629,UnitedHealthcare AARP,MAPD,2024-03-13,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+A022735306,Joseph,Brown,1949-02-24,M,33716,UnitedHealthcare AARP,MAPD,2024-02-29,2026-12-31,5678901235,Dr. William Foster,false,false
+A685374782,Patricia,Walker,1953-06-22,F,32819,Aetna Medicare Advantage,MA,2025-03-27,2026-12-31,4567890124,Dr. David Chang,true,false
+H335161173,Patricia,King,1947-06-26,F,33716,Cigna Medicare Select,MA,2023-03-09,2026-12-31,3456789013,Dr. James Wilson,false,false
+U779404519,Kenneth,Reed,1956-04-12,M,32819,Aetna Medicare Advantage,MA,2023-08-10,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H475096504,Diane,Robinson,1943-02-27,F,33602,Cigna Medicare Select,MA,2024-11-23,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U762119515,Fred,Campbell,1959-05-21,M,34741,Cigna Medicare Select,MA,2023-07-25,2026-12-31,3456789013,Dr. James Wilson,false,false
+C009030378,Sandra,Robinson,1937-05-19,F,32801,Humana Gold Plus,MAPD,2023-11-15,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C508603674,Frances,Campbell,1951-04-23,F,33701,UnitedHealthcare AARP,MAPD,2023-03-22,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H341761187,Donald,Murphy,1950-12-22,M,33716,Humana Gold Plus,MAPD,2024-04-09,2026-12-31,3456789013,Dr. James Wilson,false,false
+H385747526,Arthur,Reyes,1949-10-14,M,33609,Humana Gold Plus,MAPD,2024-07-15,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C360215787,Jessica,Cox,1951-02-27,F,32803,Aetna Medicare Advantage,MA,2024-02-20,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U997995658,Ralph,Reyes,1952-10-19,M,33710,Aetna Medicare Advantage,MA,2024-11-28,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A456744211,Eugene,Hughes,1936-01-23,M,34741,Aetna Medicare Advantage,MA,2023-04-23,2026-12-31,3456789013,Dr. James Wilson,false,false
+C691188869,Joyce,Bailey,1954-11-05,F,34748,Humana Gold Plus,MAPD,2024-10-25,2026-12-31,1234567891,Dr. Michael Rivera,true,false
+A729500435,Albert,Bennett,1950-08-13,M,32806,Humana Gold Plus,MAPD,2024-03-10,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H655695049,Charles,James,1935-05-15,M,34747,Aetna Medicare Advantage,MA,2024-09-16,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U041098620,Gloria,Morris,1936-05-10,F,34236,Humana Gold Plus,MAPD,2025-02-06,2026-12-31,5678901235,Dr. William Foster,false,false
+A631721509,Kenneth,Nelson,1955-05-09,M,33614,Cigna Medicare Select,MA,2025-01-29,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+H671133775,Jack,Reed,1943-04-22,M,34108,Aetna Medicare Advantage,MA,2023-08-04,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H053866228,Martha,Carter,1955-07-01,F,33702,Humana Gold Plus,MAPD,2024-01-27,2026-12-31,4567890124,Dr. David Chang,false,false
+H680014221,Cheryl,Adams,1944-10-25,F,33601,Humana Gold Plus,MAPD,2024-11-24,2026-12-31,3456789013,Dr. James Wilson,false,false
+A862496924,Michael,Wright,1937-11-04,M,32803,UnitedHealthcare AARP,MAPD,2023-03-30,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+U109236154,Sharon,Lewis,1943-05-25,F,34748,Humana Gold Plus,MAPD,2023-12-07,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A600313307,Ralph,Carter,1956-02-03,M,32836,Aetna Medicare Advantage,MA,2025-03-06,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C159330963,Martha,Gomez,1950-12-25,F,33716,UnitedHealthcare AARP,MAPD,2024-07-07,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H630671175,Albert,Turner,1946-03-18,M,34231,Humana Gold Plus,MAPD,2024-11-07,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H426598572,Barbara,Cruz,1946-08-18,F,33609,Cigna Medicare Select,MA,2023-01-17,2026-12-31,4567890124,Dr. David Chang,true,false
+U806808156,Charles,Wood,1946-08-20,M,33609,Humana Gold Plus,MAPD,2023-01-15,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A753114654,Carl,Collins,1942-12-22,M,34747,Aetna Medicare Advantage,MA,2024-12-01,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H106848762,Thomas,Thomas,1942-11-20,M,32801,Humana Gold Plus,MAPD,2023-01-17,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H673021503,Norma,Howard,1950-03-20,F,32836,UnitedHealthcare AARP,MAPD,2023-07-04,2026-12-31,5678901235,Dr. William Foster,false,false
+H032268410,Albert,King,1952-04-04,M,34741,UnitedHealthcare AARP,MAPD,2024-05-24,2026-12-31,4567890124,Dr. David Chang,false,false
+U212241805,Daniel,Brown,1949-02-03,M,33602,Cigna Medicare Select,MA,2024-08-29,2026-12-31,4567890124,Dr. David Chang,false,false
+U216018413,Margaret,Wright,1938-08-06,F,33710,Humana Gold Plus,MAPD,2024-04-13,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C277235851,Daniel,Hughes,1941-02-14,M,34747,Cigna Medicare Select,MA,2025-06-01,2026-12-31,4567890124,Dr. David Chang,false,false
+H425079126,Harold,Garcia,1958-08-24,M,33609,UnitedHealthcare AARP,MAPD,2024-03-11,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A847346808,Ernest,Campbell,1954-08-28,M,33716,Aetna Medicare Advantage,MA,2023-01-25,2026-12-31,5678901235,Dr. William Foster,false,false
+U709681363,Ronald,Bell,1943-12-20,M,33626,Aetna Medicare Advantage,MA,2025-03-17,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A773854034,George,Thompson,1935-04-18,M,34236,Humana Gold Plus,MAPD,2025-01-25,2026-12-31,4567890124,Dr. David Chang,false,false
+H180319011,Ernest,Reyes,1945-09-10,M,33614,Aetna Medicare Advantage,MA,2025-03-30,2026-12-31,3456789013,Dr. James Wilson,false,false
+H208296436,Margaret,King,1948-11-01,F,33716,Humana Gold Plus,MAPD,2023-05-16,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U970341972,Norma,Hughes,1949-05-19,F,33626,Humana Gold Plus,MAPD,2023-06-25,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H691495109,Daniel,Adams,1955-06-19,M,32836,Humana Gold Plus,MAPD,2024-01-14,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U979677931,Albert,Parker,1954-12-18,M,34231,Cigna Medicare Select,MA,2024-10-24,2026-12-31,3456789013,Dr. James Wilson,false,false
+A529205460,Thomas,Hughes,1955-01-13,M,34236,Aetna Medicare Advantage,MA,2024-04-01,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U303345287,Helen,Wood,1951-10-17,F,34201,Cigna Medicare Select,MA,2024-02-12,2026-12-31,3456789013,Dr. James Wilson,false,false
+A395395306,Donna,Lewis,1942-07-24,F,33702,Cigna Medicare Select,MA,2025-05-05,2026-12-31,2345678901,Dr. Angela Patel,false,false
+C088354002,Nancy,Price,1949-10-25,F,32801,Cigna Medicare Select,MA,2023-07-10,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H534426983,Jessica,Roberts,1950-08-23,F,32819,Aetna Medicare Advantage,MA,2023-05-03,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C690260167,Donald,Lewis,1947-03-11,M,34748,Aetna Medicare Advantage,MA,2024-01-01,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A053439112,Walter,Evans,1940-11-26,M,33629,Humana Gold Plus,MAPD,2023-04-09,2026-12-31,3456789013,Dr. James Wilson,false,false
+A885737082,Harold,Ward,1938-02-27,M,32806,Humana Gold Plus,MAPD,2024-05-06,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C017501206,Henry,Campbell,1955-03-03,M,32836,Aetna Medicare Advantage,MA,2023-03-21,2026-12-31,1234567891,Dr. Michael Rivera,true,false
+U931572505,Joseph,King,1947-04-06,M,33601,UnitedHealthcare AARP,MAPD,2023-04-03,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C354913322,Edward,Roberts,1954-09-01,M,33611,Cigna Medicare Select,MA,2023-08-08,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C126394528,Jessica,Cox,1955-03-16,F,33629,UnitedHealthcare AARP,MAPD,2024-07-24,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H145199093,Ernest,Cook,1954-11-16,M,34748,UnitedHealthcare AARP,MAPD,2024-03-24,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C369951414,Jessica,Green,1941-12-16,F,33701,Humana Gold Plus,MAPD,2024-08-30,2026-12-31,5678901235,Dr. William Foster,false,false
+U600777264,Robert,Thomas,1944-02-16,M,33702,UnitedHealthcare AARP,MAPD,2024-01-27,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U814337545,Patricia,Jones,1934-02-13,F,34741,Aetna Medicare Advantage,MA,2024-03-29,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U720513857,Martha,Price,1941-09-02,F,32801,Humana Gold Plus,MAPD,2024-08-28,2026-12-31,4567890124,Dr. David Chang,false,false
+H903303485,Janet,Thomas,1950-06-14,F,34201,Humana Gold Plus,MAPD,2023-09-11,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A357363448,Patricia,Diaz,1947-06-13,F,33609,Aetna Medicare Advantage,MA,2024-08-09,2026-12-31,3456789013,Dr. James Wilson,false,false
+H525543085,Ronald,Carter,1958-10-13,M,33710,UnitedHealthcare AARP,MAPD,2025-01-30,2026-12-31,5678901235,Dr. William Foster,false,false
+A529749567,Diane,Young,1950-05-20,F,34201,Aetna Medicare Advantage,MA,2023-07-04,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H682216221,Fred,Young,1951-03-08,M,33601,Humana Gold Plus,MAPD,2025-05-14,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U725607708,Arthur,Cox,1949-07-14,M,33716,Aetna Medicare Advantage,MA,2023-07-26,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+H551657540,Barbara,Reed,1939-11-22,F,34748,Cigna Medicare Select,MA,2025-05-09,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A942543934,Gerald,Edwards,1941-12-13,M,32803,UnitedHealthcare AARP,MAPD,2024-03-09,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H672539381,Kenneth,Robinson,1951-12-12,M,33701,UnitedHealthcare AARP,MAPD,2024-10-22,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C687408894,Janet,Johnson,1939-07-09,F,34201,Humana Gold Plus,MAPD,2023-11-01,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U400667146,Evelyn,Thomas,1942-12-09,F,33716,Aetna Medicare Advantage,MA,2024-03-06,2026-12-31,3456789013,Dr. James Wilson,false,false
+U481153203,Joseph,Lewis,1952-12-25,M,34108,UnitedHealthcare AARP,MAPD,2025-05-17,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A066191505,Carol,Williams,1937-09-21,F,32836,Aetna Medicare Advantage,MA,2023-04-02,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C869264412,Phyllis,Harris,1953-04-07,F,33702,Cigna Medicare Select,MA,2023-10-22,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C677720032,Ralph,Baker,1950-11-21,M,34102,Aetna Medicare Advantage,MA,2024-04-25,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A259813511,James,Nelson,1948-07-10,M,33602,Cigna Medicare Select,MA,2023-05-16,2026-12-31,3456789013,Dr. James Wilson,false,false
+U417495964,Jack,Perez,1943-07-10,M,33629,Cigna Medicare Select,MA,2024-09-19,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C037448810,Michael,Green,1954-08-09,M,33710,Humana Gold Plus,MAPD,2024-03-22,2026-12-31,4567890124,Dr. David Chang,false,false
+C924032913,Daniel,Bennett,1942-10-22,M,33611,Aetna Medicare Advantage,MA,2023-01-05,2026-12-31,5678901235,Dr. William Foster,false,false
+H693779520,Margaret,Brown,1956-12-22,F,32801,Aetna Medicare Advantage,MA,2024-08-31,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C081727614,Diane,Davis,1944-09-20,F,34201,Humana Gold Plus,MAPD,2023-09-19,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C043160596,Sarah,Morris,1945-06-17,F,32801,Humana Gold Plus,MAPD,2024-02-02,2026-12-31,4567890124,Dr. David Chang,false,false
+A963245595,Jack,James,1946-09-03,M,34236,Humana Gold Plus,MAPD,2023-03-23,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H161130825,Gloria,Thomas,1949-12-19,F,34207,UnitedHealthcare AARP,MAPD,2023-09-18,2026-12-31,3456789013,Dr. James Wilson,false,false
+H011468964,Sharon,Collins,1936-03-07,F,34748,Humana Gold Plus,MAPD,2023-09-23,2026-12-31,5678901235,Dr. William Foster,false,false
+A412885071,Shirley,Phillips,1956-03-01,F,34201,Humana Gold Plus,MAPD,2024-12-13,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A258006798,Joseph,Lee,1939-12-23,M,32819,Aetna Medicare Advantage,MA,2024-04-27,2026-12-31,4567890124,Dr. David Chang,true,false
+C552681664,Jennifer,Wood,1950-09-19,F,34201,UnitedHealthcare AARP,MAPD,2023-08-26,2026-12-31,4567890124,Dr. David Chang,false,false
+C127986777,Daniel,Roberts,1944-08-12,M,33626,Aetna Medicare Advantage,MA,2023-08-13,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C320083188,Ronald,Taylor,1945-03-06,M,33602,Humana Gold Plus,MAPD,2024-05-18,2026-12-31,5678901235,Dr. William Foster,false,false
+H758886109,Larry,Gomez,1955-04-04,M,34207,Aetna Medicare Advantage,MA,2023-09-22,2026-12-31,4567890124,Dr. David Chang,false,false
+U774813812,Richard,Jackson,1942-01-17,M,34201,Humana Gold Plus,MAPD,2023-07-30,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+A174284448,Paul,Diaz,1951-09-06,M,32803,Humana Gold Plus,MAPD,2025-01-02,2026-12-31,3456789013,Dr. James Wilson,false,false
+A430915997,Patricia,Kelly,1955-01-23,F,34236,UnitedHealthcare AARP,MAPD,2023-03-28,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+A742576687,Gloria,Cooper,1940-12-18,F,34108,Cigna Medicare Select,MA,2023-12-19,2026-12-31,3456789013,Dr. James Wilson,true,false
+H533608528,Arthur,Anderson,1958-06-13,M,33710,UnitedHealthcare AARP,MAPD,2024-06-16,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H450327579,Alice,White,1944-06-09,F,32803,Aetna Medicare Advantage,MA,2023-05-07,2026-12-31,3456789013,Dr. James Wilson,true,false
+A830780084,Raymond,Phillips,1952-12-19,M,34207,UnitedHealthcare AARP,MAPD,2024-06-16,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C697415449,Eugene,James,1950-09-17,M,34236,UnitedHealthcare AARP,MAPD,2024-08-21,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H325133201,George,Ward,1949-12-06,M,34747,Cigna Medicare Select,MA,2023-05-02,2026-12-31,3456789013,Dr. James Wilson,false,false
+H455974767,Linda,Campbell,1939-04-06,F,34236,UnitedHealthcare AARP,MAPD,2023-01-03,2026-12-31,4567890124,Dr. David Chang,false,false
+C306420106,Jean,Howard,1954-12-11,F,32836,Humana Gold Plus,MAPD,2024-11-11,2026-12-31,5678901235,Dr. William Foster,false,false
+H191072784,Jessica,Price,1956-10-18,F,34741,Aetna Medicare Advantage,MA,2024-08-06,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U095217196,Shirley,Garcia,1949-01-11,F,33602,Aetna Medicare Advantage,MA,2023-01-25,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H025255923,Nancy,Brown,1944-05-13,F,34741,Humana Gold Plus,MAPD,2024-02-27,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H257340629,Barbara,Richardson,1958-11-08,F,34102,Cigna Medicare Select,MA,2023-10-03,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A094583365,Paul,Reyes,1937-09-15,M,34236,Humana Gold Plus,MAPD,2025-04-29,2026-12-31,4567890124,Dr. David Chang,false,false
+U825889697,Jennifer,Lewis,1944-10-03,F,33702,Humana Gold Plus,MAPD,2024-12-16,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H964877576,Gerald,Collins,1953-10-11,M,33609,Humana Gold Plus,MAPD,2024-10-23,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H131077671,Ralph,Harris,1951-07-27,M,34748,Aetna Medicare Advantage,MA,2023-07-01,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C125117661,Carol,Green,1935-06-02,F,34747,Humana Gold Plus,MAPD,2023-08-03,2026-12-31,5678901235,Dr. William Foster,true,false
+H965254969,William,Martin,1952-10-28,M,33602,Humana Gold Plus,MAPD,2025-01-16,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A095333889,Evelyn,Reed,1952-11-17,F,33701,Aetna Medicare Advantage,MA,2024-06-13,2026-12-31,3456789013,Dr. James Wilson,false,false
+U824988520,Barbara,Baker,1953-06-10,F,34748,Humana Gold Plus,MAPD,2023-01-29,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+A080641008,Susan,Howard,1947-02-02,F,34108,Cigna Medicare Select,MA,2023-11-17,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H397431150,Harold,Green,1940-11-20,M,33629,Humana Gold Plus,MAPD,2024-04-20,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A349738713,Howard,Nelson,1951-08-24,M,33716,Aetna Medicare Advantage,MA,2023-09-06,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H412973669,Joyce,Johnson,1948-11-22,F,34748,Humana Gold Plus,MAPD,2024-06-03,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A642478834,Judith,Phillips,1950-03-04,F,33601,Aetna Medicare Advantage,MA,2024-05-22,2026-12-31,1234567890,Dr. Sarah Chen,false,true
+U001187351,Mary,Martinez,1951-09-04,F,33601,Humana Gold Plus,MAPD,2023-07-19,2026-12-31,4567890124,Dr. David Chang,false,false
+A331576471,Donald,Thomas,1959-11-05,M,33614,Humana Gold Plus,MAPD,2023-12-13,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+U730788982,Edward,Reyes,1950-06-11,M,33609,Aetna Medicare Advantage,MA,2023-02-17,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U549456762,Barbara,Lee,1948-11-25,F,33629,Aetna Medicare Advantage,MA,2024-06-15,2026-12-31,4567890124,Dr. David Chang,false,false
+H252053443,Ruth,Peterson,1953-07-13,F,34231,Aetna Medicare Advantage,MA,2023-09-18,2026-12-31,3456789013,Dr. James Wilson,false,false
+H790002133,Sandra,Rogers,1959-08-08,F,32836,Humana Gold Plus,MAPD,2024-01-03,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+U744564571,Helen,Thompson,1932-12-24,F,34108,Aetna Medicare Advantage,MA,2023-01-09,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H317624535,Henry,King,1949-09-19,M,33614,UnitedHealthcare AARP,MAPD,2025-01-09,2026-12-31,4567890124,Dr. David Chang,false,false
+U307919366,Mary,Watson,1942-06-11,F,34748,Humana Gold Plus,MAPD,2024-12-03,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U015064109,Janet,King,1937-02-18,F,33710,Humana Gold Plus,MAPD,2023-04-22,2026-12-31,4567890124,Dr. David Chang,false,false
+C391473928,Henry,Turner,1945-02-15,M,33710,Humana Gold Plus,MAPD,2023-01-12,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C038598457,Martha,Lewis,1947-05-19,F,33710,Humana Gold Plus,MAPD,2023-10-10,2026-12-31,4567890124,Dr. David Chang,false,false
+A606081856,Frances,Phillips,1950-03-14,F,33609,Humana Gold Plus,MAPD,2025-01-20,2026-12-31,5678901235,Dr. William Foster,false,false
+U412006643,Jack,Reed,1934-09-04,M,34108,Cigna Medicare Select,MA,2025-02-12,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H067442186,Roy,Jones,1960-02-23,M,33626,Cigna Medicare Select,MA,2024-11-17,2026-12-31,3456789013,Dr. James Wilson,false,false
+A206268867,Jessica,Reyes,1944-03-03,F,33611,UnitedHealthcare AARP,MAPD,2024-11-24,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+H000860908,Virginia,Kelly,1957-01-02,F,32803,UnitedHealthcare AARP,MAPD,2023-09-13,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C912314334,Daniel,Garcia,1950-02-27,M,33609,Humana Gold Plus,MAPD,2024-10-03,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A203639711,Joyce,Garcia,1957-04-14,F,32836,Humana Gold Plus,MAPD,2024-05-26,2026-12-31,5678901235,Dr. William Foster,false,false
+H268377603,Martha,Rodriguez,1951-10-19,F,33710,Aetna Medicare Advantage,MA,2024-10-17,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+U370748727,Charles,Rogers,1953-01-08,M,33716,Cigna Medicare Select,MA,2024-03-30,2026-12-31,5678901235,Dr. William Foster,false,false
+A408016120,George,Cruz,1957-11-08,M,34747,UnitedHealthcare AARP,MAPD,2024-09-14,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U246270931,Paul,Brooks,1956-12-15,M,34207,Humana Gold Plus,MAPD,2023-09-08,2026-12-31,2345678902,Dr. Robert Kim,false,false
+U517244360,Alice,Gomez,1943-08-01,F,33614,UnitedHealthcare AARP,MAPD,2025-05-24,2026-12-31,4567890123,Dr. Maria Santos,false,false
+C934654093,Helen,Clark,1938-01-01,F,34747,Cigna Medicare Select,MA,2024-05-18,2026-12-31,3456789013,Dr. James Wilson,false,false
+C972086666,Edward,Gomez,1936-12-12,M,33702,Aetna Medicare Advantage,MA,2024-10-12,2026-12-31,4567890124,Dr. David Chang,false,false
+C359514823,Margaret,Nelson,1952-10-22,F,34741,UnitedHealthcare AARP,MAPD,2023-04-30,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U793398006,Virginia,Reed,1943-12-28,F,34236,Humana Gold Plus,MAPD,2025-03-06,2026-12-31,5678901235,Dr. William Foster,false,false
+C522781984,Donna,Gomez,1954-06-06,F,34748,UnitedHealthcare AARP,MAPD,2024-05-13,2026-12-31,2345678902,Dr. Robert Kim,false,false
+H029670273,Daniel,Anderson,1952-07-04,M,34236,Humana Gold Plus,MAPD,2023-01-31,2026-12-31,3456789013,Dr. James Wilson,false,false
+C303314678,Phyllis,Diaz,1943-10-14,F,33614,Humana Gold Plus,MAPD,2023-11-19,2026-12-31,3456789013,Dr. James Wilson,false,false
+C560693689,Joseph,James,1952-12-25,M,32819,UnitedHealthcare AARP,MAPD,2024-04-07,2026-12-31,3456789013,Dr. James Wilson,false,false
+C989721155,Jean,Green,1946-07-24,F,32806,Aetna Medicare Advantage,MA,2023-12-23,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H452196190,Thomas,Watson,1942-05-27,M,33716,UnitedHealthcare AARP,MAPD,2024-04-23,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C068976637,Sandra,Scott,1944-11-16,F,32819,Cigna Medicare Select,MA,2024-11-12,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H513373513,Evelyn,Green,1953-02-10,F,34201,Humana Gold Plus,MAPD,2023-12-15,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+A822612788,Joyce,Martin,1948-10-19,F,33602,Humana Gold Plus,MAPD,2023-01-10,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U739382787,Virginia,Brooks,1934-02-09,F,33602,Cigna Medicare Select,MA,2024-05-04,2026-12-31,5678901235,Dr. William Foster,false,false
+C973526183,Jack,Peterson,1952-11-28,M,33614,Humana Gold Plus,MAPD,2024-07-15,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A707569194,Linda,Phillips,1949-03-19,F,33626,Humana Gold Plus,MAPD,2023-10-26,2026-12-31,4567890124,Dr. David Chang,false,false
+A640246963,Richard,Morris,1935-03-02,M,32806,Humana Gold Plus,MAPD,2024-10-27,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A055277146,Albert,Rogers,1952-11-15,M,34201,Humana Gold Plus,MAPD,2023-04-30,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+C085867261,Sarah,Thomas,1951-12-28,F,34748,UnitedHealthcare AARP,MAPD,2024-02-20,2026-12-31,2345678901,Dr. Angela Patel,false,true
+U809535490,James,Price,1949-06-04,M,33710,Humana Gold Plus,MAPD,2023-07-31,2026-12-31,5678901235,Dr. William Foster,false,false
+A660018215,Fred,Turner,1945-08-05,M,34747,Aetna Medicare Advantage,MA,2024-06-19,2026-12-31,3456789013,Dr. James Wilson,false,false
+C024650796,Sandra,Martin,1944-07-03,F,33629,Aetna Medicare Advantage,MA,2024-01-26,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H256430971,Alice,Lewis,1950-03-11,F,33701,Cigna Medicare Select,MA,2024-01-24,2026-12-31,4567890123,Dr. Maria Santos,true,false
+C035220037,Mary,Thomas,1950-04-13,F,33626,Cigna Medicare Select,MA,2023-06-29,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+U079726719,Shirley,Richardson,1947-05-01,F,34207,UnitedHealthcare AARP,MAPD,2024-11-04,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H602050298,Sandra,Bell,1948-12-27,F,33601,Humana Gold Plus,MAPD,2023-11-09,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+A977772798,Alice,Thompson,1949-09-22,F,34236,Cigna Medicare Select,MA,2024-12-15,2026-12-31,5678901234,Dr. Karen O'Brien,false,true
+H433192571,Ralph,Lee,1945-09-08,M,33710,Humana Gold Plus,MAPD,2025-05-09,2026-12-31,3456789013,Dr. James Wilson,false,false
+H988004213,Donna,Carter,1953-12-21,F,32819,Aetna Medicare Advantage,MA,2023-11-09,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C072433852,Roy,Morris,1960-07-16,M,34207,Humana Gold Plus,MAPD,2024-06-10,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+C430699914,Dorothy,Thompson,1951-07-01,F,34231,Humana Gold Plus,MAPD,2023-04-24,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A157263974,Gerald,Cooper,1948-12-27,M,33710,UnitedHealthcare AARP,MAPD,2023-04-23,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U928178751,Phyllis,Anderson,1943-04-20,F,34747,Humana Gold Plus,MAPD,2023-07-11,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H357924040,Henry,Harris,1955-01-09,M,33611,Cigna Medicare Select,MA,2024-03-12,2026-12-31,2345678901,Dr. Angela Patel,true,false
+U249119330,Joyce,Perez,1937-12-14,F,33601,Humana Gold Plus,MAPD,2023-07-06,2026-12-31,1234567890,Dr. Sarah Chen,true,false
+A501660988,Larry,Murphy,1944-06-24,M,33629,UnitedHealthcare AARP,MAPD,2024-09-11,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H147878533,Susan,Martinez,1937-10-11,F,32801,Humana Gold Plus,MAPD,2025-02-18,2026-12-31,4567890124,Dr. David Chang,false,false
+U057673689,Carl,Rodriguez,1949-09-17,M,33626,UnitedHealthcare AARP,MAPD,2024-09-05,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H874753275,Alice,Morgan,1947-07-13,F,33626,Aetna Medicare Advantage,MA,2023-07-08,2026-12-31,2345678902,Dr. Robert Kim,true,false
+A921669398,John,Reyes,1953-01-21,M,33702,Humana Gold Plus,MAPD,2023-05-17,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U959771736,Harold,Turner,1951-01-21,M,32801,UnitedHealthcare AARP,MAPD,2023-08-13,2026-12-31,3456789013,Dr. James Wilson,false,false
+C390118147,Ralph,Scott,1951-04-19,M,32801,Aetna Medicare Advantage,MA,2023-06-09,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A464717003,Patricia,Campbell,1954-03-27,F,33611,Humana Gold Plus,MAPD,2023-07-12,2026-12-31,5678901235,Dr. William Foster,false,false
+H588017883,John,Martin,1952-02-09,M,34231,Humana Gold Plus,MAPD,2023-01-14,2026-12-31,5678901235,Dr. William Foster,false,true
+H581904162,Paul,Davis,1948-05-21,M,32803,Aetna Medicare Advantage,MA,2025-04-24,2026-12-31,1234567890,Dr. Sarah Chen,true,false
+U998615561,Jessica,Wood,1954-02-08,F,32803,Humana Gold Plus,MAPD,2024-01-01,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H897114798,Donna,Stewart,1940-05-16,F,33611,UnitedHealthcare AARP,MAPD,2025-04-10,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C661993554,Sandra,Robinson,1956-03-06,F,34741,UnitedHealthcare AARP,MAPD,2023-11-23,2026-12-31,3456789013,Dr. James Wilson,false,false
+A905990388,Wayne,Anderson,1947-07-17,M,33614,Aetna Medicare Advantage,MA,2024-12-20,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A309376088,Cheryl,Robinson,1941-09-14,F,33601,Humana Gold Plus,MAPD,2023-02-27,2026-12-31,2345678902,Dr. Robert Kim,false,false
+A762437621,Eugene,Robinson,1956-02-01,M,32801,Aetna Medicare Advantage,MA,2023-06-03,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U741959126,Frank,Brooks,1954-07-27,M,33701,Aetna Medicare Advantage,MA,2024-07-21,2026-12-31,4567890124,Dr. David Chang,false,false
+C186110680,Nancy,Price,1947-02-27,F,33710,UnitedHealthcare AARP,MAPD,2023-11-17,2026-12-31,4567890124,Dr. David Chang,false,false
+H205094003,Walter,Jackson,1957-10-01,M,34102,UnitedHealthcare AARP,MAPD,2023-07-12,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H570748016,Shirley,Brooks,1953-07-24,F,33609,Humana Gold Plus,MAPD,2024-12-20,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U412690762,Henry,Wright,1942-11-05,M,34748,UnitedHealthcare AARP,MAPD,2024-05-28,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H441205307,Charles,Watson,1956-01-05,M,34207,UnitedHealthcare AARP,MAPD,2024-07-14,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U489138936,Martha,Nelson,1943-08-21,F,34236,Cigna Medicare Select,MA,2024-08-05,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H213034046,Sharon,Garcia,1946-11-02,F,34207,UnitedHealthcare AARP,MAPD,2024-12-17,2026-12-31,2345678902,Dr. Robert Kim,false,true
+C271459125,David,Hall,1944-07-25,M,34748,Aetna Medicare Advantage,MA,2023-12-03,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A004278562,Linda,Murphy,1942-08-07,F,33602,Humana Gold Plus,MAPD,2025-02-15,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+A949585817,Carl,Collins,1936-05-06,M,34747,Humana Gold Plus,MAPD,2024-05-08,2026-12-31,4567890123,Dr. Maria Santos,false,false
+U504814902,Gerald,Parker,1959-08-05,M,33629,Aetna Medicare Advantage,MA,2023-04-27,2026-12-31,3456789013,Dr. James Wilson,false,false
+U858664435,Dorothy,Rogers,1953-04-07,F,34236,Cigna Medicare Select,MA,2023-01-15,2026-12-31,5678901235,Dr. William Foster,false,false
+C679900800,Jessica,Walker,1949-06-06,F,34201,Aetna Medicare Advantage,MA,2024-07-09,2026-12-31,2345678901,Dr. Angela Patel,false,false
+A751893749,Jack,Cruz,1956-08-17,M,32801,Aetna Medicare Advantage,MA,2024-11-14,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C609007857,Mary,Cook,1943-09-10,F,33716,Humana Gold Plus,MAPD,2023-11-11,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+C169195408,Dorothy,Gomez,1953-07-07,F,34236,Aetna Medicare Advantage,MA,2025-04-28,2026-12-31,4567890123,Dr. Maria Santos,false,false
+A079037146,Roy,Carter,1941-03-11,M,34102,Humana Gold Plus,MAPD,2023-01-27,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H966514512,Paul,Scott,1952-09-27,M,33626,Humana Gold Plus,MAPD,2025-02-27,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H248641296,William,Watson,1941-04-13,M,32801,Humana Gold Plus,MAPD,2024-02-28,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+H100518123,Joseph,Collins,1933-08-20,M,33701,Aetna Medicare Advantage,MA,2023-06-12,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C499218791,Thomas,Mitchell,1952-04-03,M,32836,Humana Gold Plus,MAPD,2024-10-29,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H645360105,Dorothy,King,1937-08-14,F,34747,Cigna Medicare Select,MA,2024-09-02,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H231306725,Donna,James,1951-01-04,F,33716,Humana Gold Plus,MAPD,2024-03-15,2026-12-31,3456789013,Dr. James Wilson,false,false
+H566481040,William,Morgan,1952-04-17,M,33702,Humana Gold Plus,MAPD,2023-10-12,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H928489060,Jessica,Harris,1949-10-11,F,33611,Aetna Medicare Advantage,MA,2024-08-13,2026-12-31,2345678902,Dr. Robert Kim,true,true
+C469891281,Virginia,Perez,1951-06-13,F,33716,Humana Gold Plus,MAPD,2024-05-20,2026-12-31,3456789013,Dr. James Wilson,false,false
+U800326736,Carol,Lee,1956-12-26,F,33614,Humana Gold Plus,MAPD,2023-01-06,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+A569372220,Jessica,Martin,1951-03-25,F,34741,Aetna Medicare Advantage,MA,2024-10-14,2026-12-31,4567890123,Dr. Maria Santos,false,false
+H387539768,George,Martinez,1957-08-02,M,33611,Humana Gold Plus,MAPD,2024-04-24,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C138618728,Henry,Murphy,1950-08-28,M,33626,Aetna Medicare Advantage,MA,2025-03-09,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C550206742,Patricia,Diaz,1945-08-12,F,34108,Humana Gold Plus,MAPD,2023-03-28,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H002012673,Kenneth,James,1946-09-14,M,33611,Humana Gold Plus,MAPD,2024-10-23,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C786161349,Kenneth,Watson,1953-04-12,M,32803,Aetna Medicare Advantage,MA,2023-10-22,2026-12-31,5678901235,Dr. William Foster,false,false
+H421859851,Evelyn,Edwards,1959-05-03,F,33614,Humana Gold Plus,MAPD,2024-08-31,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U483356884,Richard,Phillips,1942-06-15,M,33702,Aetna Medicare Advantage,MA,2024-07-12,2026-12-31,3456789013,Dr. James Wilson,false,false
+C371969868,Charles,Reed,1941-11-05,M,34207,Humana Gold Plus,MAPD,2023-09-08,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U817573109,Donald,Stewart,1939-07-19,M,33614,Aetna Medicare Advantage,MA,2023-11-13,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H428140380,Margaret,Gray,1936-10-18,F,33614,UnitedHealthcare AARP,MAPD,2024-05-13,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+H209263398,Donna,Brooks,1945-09-05,F,33710,Cigna Medicare Select,MA,2023-05-27,2026-12-31,3456789012,Dr. Lisa Thompson,false,false
+U329417805,Nancy,Gomez,1945-06-26,F,32806,Aetna Medicare Advantage,MA,2023-09-14,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C019753688,Alice,Morris,1949-07-15,F,33602,Aetna Medicare Advantage,MA,2024-04-17,2026-12-31,4567890123,Dr. Maria Santos,true,false
+U863024307,Sarah,Cooper,1945-08-26,F,32803,UnitedHealthcare AARP,MAPD,2024-04-16,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H862018521,George,Gray,1955-12-16,M,33601,Humana Gold Plus,MAPD,2023-11-05,2026-12-31,2345678901,Dr. Angela Patel,false,false
+U868646186,Shirley,Davis,1938-05-13,F,33626,Aetna Medicare Advantage,MA,2025-04-19,2026-12-31,2345678901,Dr. Angela Patel,false,false
+H481213506,Ernest,Richardson,1952-11-04,M,32803,Cigna Medicare Select,MA,2024-01-12,2026-12-31,4567890124,Dr. David Chang,false,false
+A373063737,Jennifer,Morris,1936-08-24,F,33614,Aetna Medicare Advantage,MA,2023-06-12,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+U139364081,Virginia,Peterson,1957-11-16,F,33611,Humana Gold Plus,MAPD,2024-09-12,2026-12-31,4567890124,Dr. David Chang,false,false
+C740618076,Jack,Diaz,1951-04-25,M,33601,UnitedHealthcare AARP,MAPD,2023-04-18,2026-12-31,2345678902,Dr. Robert Kim,false,false
+C627457009,Gerald,Jackson,1945-07-05,M,33611,Cigna Medicare Select,MA,2024-07-23,2026-12-31,5678901235,Dr. William Foster,false,false
+C128538884,John,Thompson,1939-06-25,M,32801,Aetna Medicare Advantage,MA,2023-03-15,2026-12-31,5678901234,Dr. Karen O'Brien,false,false
+H299270890,Barbara,Anderson,1955-09-10,F,34747,Humana Gold Plus,MAPD,2023-08-25,2026-12-31,4567890124,Dr. David Chang,false,false
+U604280283,Fred,Brooks,1951-10-02,M,32836,Aetna Medicare Advantage,MA,2024-08-19,2026-12-31,1234567891,Dr. Michael Rivera,false,false
+H841714234,Paul,Watson,1957-10-20,M,33701,UnitedHealthcare AARP,MAPD,2023-12-21,2026-12-31,1234567890,Dr. Sarah Chen,false,false
+C076441489,Michael,Brown,1943-04-18,M,34102,Aetna Medicare Advantage,MA,2024-11-29,2026-12-31,4567890123,Dr. Maria Santos,false,true

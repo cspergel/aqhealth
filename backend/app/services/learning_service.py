@@ -432,7 +432,7 @@ async def track_user_interaction(
         target_type=target_type,
         target_id=target_id,
         page_context=page_context,
-        metadata=metadata,
+        interaction_metadata=metadata,
     )
     db.add(interaction)
     await db.commit()
@@ -480,10 +480,10 @@ async def get_user_preference_model(db: AsyncSession) -> dict[str, Any]:
 
     # Recent questions asked
     recent_questions = (await db.execute(
-        select(UserInteraction.metadata)
+        select(UserInteraction.interaction_metadata)
         .where(
             UserInteraction.interaction_type == "ask_question",
-            UserInteraction.metadata.isnot(None),
+            UserInteraction.interaction_metadata.isnot(None),
         )
         .order_by(UserInteraction.created_at.desc())
         .limit(20)

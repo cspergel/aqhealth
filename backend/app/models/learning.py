@@ -68,4 +68,4 @@ class UserInteraction(Base, TimestampMixin):
     target_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     page_context: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    interaction_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)

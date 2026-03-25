@@ -27,7 +27,18 @@
       "Bash(cd:*)",
       "Bash(npx gh-pages:*)",
       "Bash(gh api:*)",
-      "Bash(where gh:*)"
+      "Bash(where gh:*)",
+      "Bash(docker info:*)",
+      "Bash(python -c \"import py_compile; py_compile.compile\\(''scripts/generate_synthetic_data.py'', doraise=True\\); print\\(''generate_synthetic_data.py: OK''\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\(''tests/conftest.py'', doraise=True\\); print\\(''conftest.py: OK''\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\(''tests/test_integration.py'', doraise=True\\); print\\(''test_integration.py: OK''\\)\")",
+      "Bash(python -m scripts.generate_synthetic_data)",
+      "Bash(python -m pytest tests/test_auth.py tests/test_database.py tests/test_hcc_engine.py tests/test_ingestion.py tests/test_health.py -v --tb=short)",
+      "Bash(pip install:*)",
+      "Bash(python -m pytest tests/test_auth.py tests/test_database.py tests/test_hcc_engine.py tests/test_ingestion.py -v --tb=short)",
+      "Bash(python -m pytest tests/test_database.py tests/test_hcc_engine.py tests/test_ingestion.py -v --tb=short)",
+      "Bash(python -m pytest tests/test_integration.py -v --tb=short)",
+      "Bash(npx vitest:*)"
     ]
   }
 }
