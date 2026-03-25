@@ -56,6 +56,8 @@ import {
   mockReportTemplates,
   mockGeneratedReports,
   mockActionItems,
+  mockClinicalPatients,
+  mockClinicalWorklist,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -495,6 +497,48 @@ export function enableDemoMode() {
         };
         (mockActionItems as any[]).unshift(newAction);
         mockResponse = newAction;
+      }
+      // Clinical: capture suspect
+      else if (url.includes("/api/clinical/capture")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const memberId = body?.member_id;
+        const suspectId = body?.suspect_id;
+        const patient = mockClinicalPatients[memberId];
+        if (patient) {
+          const suspect = patient.suspects.find((s) => s.id === suspectId);
+          if (suspect) {
+            suspect.captured = true;
+            mockResponse = {
+              success: true,
+              suspect_id: suspectId,
+              hcc_code: suspect.hcc_code,
+              raf_value: suspect.raf_value,
+              annual_value: suspect.annual_value,
+            };
+          } else {
+            mockResponse = { success: false, error: "Suspect not found" };
+          }
+        } else {
+          mockResponse = { success: false, error: "Patient not found" };
+        }
+      }
+      // Clinical: close gap
+      else if (url.includes("/api/clinical/close-gap")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const memberId = body?.member_id;
+        const gapId = body?.gap_id;
+        const patient = mockClinicalPatients[memberId];
+        if (patient) {
+          const gap = patient.care_gaps.find((g) => g.id === gapId);
+          if (gap) {
+            gap.closed = true;
+            mockResponse = { success: true, gap_id: gapId };
+          } else {
+            mockResponse = { success: false, error: "Gap not found" };
+          }
+        } else {
+          mockResponse = { success: false, error: "Patient not found" };
+        }
       }
       else {
         mockResponse = { success: true };
@@ -1004,6 +1048,16 @@ export function enableDemoMode() {
         if (assignedTo) filtered = filtered.filter((a) => a.assigned_to === parseInt(assignedTo));
         if (sourceType) filtered = filtered.filter((a) => a.source_type === sourceType);
         mockResponse = filtered;
+      }
+
+      // Clinical: patient context
+      else if (/\/api\/clinical\/patient\/\d+/.test(url)) {
+        const memberId = parseInt(url.match(/\/api\/clinical\/patient\/(\d+)/)![1]);
+        mockResponse = mockClinicalPatients[memberId] || { error: "Patient not found" };
+      }
+      // Clinical: worklist
+      else if (url.includes("/api/clinical/worklist")) {
+        mockResponse = mockClinicalWorklist;
       }
 
       // Generic insights

@@ -24,6 +24,7 @@ import { MembersPage } from "../../pages/MembersPage";
 import { WatchlistPage } from "../../pages/WatchlistPage";
 import { ReportsPage } from "../../pages/ReportsPage";
 import { ActionsPage } from "../../pages/ActionsPage";
+import { ClinicalPage } from "../../pages/ClinicalPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -72,6 +73,8 @@ export function AppShell() {
           }}
         >
           <Routes>
+            <Route path="/clinical" element={<ClinicalPage />} />
+            <Route path="/clinical/:memberId" element={<ClinicalPage />} />
             <Route path="/" element={<DashboardPage />} />
             <Route path="/census" element={<CensusPage />} />
             <Route path="/alerts" element={<AlertsPage />} />

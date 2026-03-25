@@ -25,6 +25,12 @@ const watchlistChangeCount = mockWatchlistItems.filter((i) => i.has_changes).len
 
 const navSections: NavSection[] = [
   {
+    title: "Clinical",
+    items: [
+      { path: "/clinical", label: "Patient View" },
+    ],
+  },
+  {
     title: "Overview",
     items: [
       { path: "/", label: "Dashboard" },

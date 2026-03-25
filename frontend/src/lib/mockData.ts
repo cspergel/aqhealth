@@ -3716,3 +3716,405 @@ export const mockActionStats = {
   overdue: 0,
   completion_rate: 25.0,
 };
+
+
+// ---- Clinical View (Provider Mode 2) ----
+
+export interface ClinicalSuspect {
+  id: number;
+  condition_name: string;
+  icd10_code: string;
+  hcc_code: number;
+  raf_value: number;
+  annual_value: number;
+  evidence_summary: string;
+  confidence: number;
+  suspect_type: string;
+  captured?: boolean;
+}
+
+export interface ClinicalConfirmedHCC {
+  condition_name: string;
+  icd10_code: string;
+  hcc_code: number;
+  raf_value: number;
+}
+
+export interface ClinicalCareGap {
+  id: number;
+  measure_name: string;
+  measure_code: string;
+  stars_weight: number;
+  recommended_action: string;
+  closed?: boolean;
+}
+
+export interface ClinicalInteraction {
+  name: string;
+  bonus_raf: number;
+  codes: string;
+}
+
+export interface ClinicalNearMiss {
+  name: string;
+  potential_raf: number;
+  missing: string;
+  missing_hccs: number[];
+}
+
+export interface ClinicalMedication {
+  drug_name: string;
+  has_matching_dx: boolean;
+  inferred_diagnosis?: string;
+}
+
+export interface ClinicalEncounter {
+  date: string;
+  type: string;
+  facility: string;
+  provider: string;
+  diagnoses: string[];
+  cost: number;
+}
+
+export interface ClinicalPatientContext {
+  demographics: {
+    id: number;
+    member_id: string;
+    first_name: string;
+    last_name: string;
+    name: string;
+    age: number;
+    dob: string;
+    gender: string;
+    insurance: string;
+    pcp: string;
+    room?: string;
+  };
+  raf: {
+    demographic_raf: number;
+    disease_raf: number;
+    interaction_raf: number;
+    total_raf: number;
+    projected_raf: number;
+    delta: number;
+    current_annual_value: number;
+    projected_annual_value: number;
+  };
+  suspects: ClinicalSuspect[];
+  confirmed_hccs: ClinicalConfirmedHCC[];
+  care_gaps: ClinicalCareGap[];
+  interactions: ClinicalInteraction[];
+  near_misses: ClinicalNearMiss[];
+  medications: ClinicalMedication[];
+  encounters: ClinicalEncounter[];
+  risk: {
+    tier: string;
+    hospitalization_risk_pct: number;
+  };
+  visit_prep: string;
+}
+
+export interface ClinicalWorklistItem {
+  member_id: number;
+  member_external_id: string;
+  name: string;
+  age: number;
+  gender: string;
+  current_raf: number;
+  projected_raf: number;
+  suspect_count: number;
+  gap_count: number;
+  priority_score: number;
+  priority_reason: string;
+  risk_tier: string;
+  visit_type?: string;
+  time_slot?: string;
+}
+
+// Margaret Chen — the primary demo patient from design-reset
+export const mockClinicalPatientMargaret: ClinicalPatientContext = {
+  demographics: {
+    id: 1,
+    member_id: "MC-20394",
+    first_name: "Margaret",
+    last_name: "Chen",
+    name: "Margaret Chen",
+    age: 72,
+    dob: "1953-08-14",
+    gender: "F",
+    insurance: "Humana Gold Plus",
+    pcp: "Dr. Rivera",
+    room: "204B",
+  },
+  raf: {
+    demographic_raf: 0.564,
+    disease_raf: 1.017,
+    interaction_raf: 0.266,
+    total_raf: 1.847,
+    projected_raf: 2.312,
+    delta: 0.465,
+    current_annual_value: 20317,
+    projected_annual_value: 25432,
+  },
+  suspects: [
+    {
+      id: 101,
+      condition_name: "Protein-calorie malnutrition, mild",
+      icd10_code: "E44.1",
+      hcc_code: 21,
+      raf_value: 0.455,
+      annual_value: 5005,
+      evidence_summary: "Albumin 3.2, BMI 20.1, weight loss 5% in 30 days per nursing assessment",
+      confidence: 82,
+      suspect_type: "new_suspect",
+    },
+    {
+      id: 102,
+      condition_name: "Morbid obesity",
+      icd10_code: "E66.01",
+      hcc_code: 22,
+      raf_value: 0.250,
+      annual_value: 2750,
+      evidence_summary: "BMI 41.2 documented in vitals on 3/18 admission",
+      confidence: 88,
+      suspect_type: "new_suspect",
+    },
+  ],
+  confirmed_hccs: [
+    { condition_name: "Acute on chronic systolic heart failure", icd10_code: "I50.22", hcc_code: 85, raf_value: 0.323 },
+    { condition_name: "Type 2 diabetes with hyperglycemia", icd10_code: "E11.65", hcc_code: 37, raf_value: 0.302 },
+    { condition_name: "CKD Stage 3b", icd10_code: "N18.32", hcc_code: 138, raf_value: 0.069 },
+    { condition_name: "Major depressive disorder, recurrent, moderate", icd10_code: "F33.1", hcc_code: 155, raf_value: 0.309 },
+    { condition_name: "COPD with acute exacerbation", icd10_code: "J44.1", hcc_code: 111, raf_value: 0.280 },
+  ],
+  care_gaps: [
+    { id: 201, measure_name: "HbA1c not drawn in CY2026", measure_code: "CDC-HbA1c", stars_weight: 3, recommended_action: "Order HbA1c today" },
+    { id: 202, measure_name: "Diabetic eye exam overdue", measure_code: "CDC-Eye", stars_weight: 3, recommended_action: "Refer to ophthalmology" },
+    { id: 203, measure_name: "Kidney health evaluation incomplete", measure_code: "KED", stars_weight: 1, recommended_action: "Order eGFR + uACR" },
+    { id: 204, measure_name: "Depression follow-up needed", measure_code: "FMC", stars_weight: 3, recommended_action: "Schedule 7-day follow-up" },
+  ],
+  interactions: [
+    { name: "DM + CHF", bonus_raf: 0.121, codes: "HCC 37 + HCC 85" },
+    { name: "CHF + COPD", bonus_raf: 0.145, codes: "HCC 85 + HCC 111" },
+  ],
+  near_misses: [
+    {
+      name: "CHF + Diabetes + CKD",
+      potential_raf: 0.177,
+      missing: "HCC 326, HCC 327, HCC 328, HCC 329",
+      missing_hccs: [326, 327, 328, 329],
+    },
+  ],
+  medications: [
+    { drug_name: "Insulin Glargine 30u nightly", has_matching_dx: true, inferred_diagnosis: "Type 2 DM" },
+    { drug_name: "Metformin 500mg BID", has_matching_dx: true, inferred_diagnosis: "Type 2 DM" },
+    { drug_name: "Lisinopril 20mg daily", has_matching_dx: true, inferred_diagnosis: "Hypertension / CKD" },
+    { drug_name: "Furosemide 40mg BID", has_matching_dx: true, inferred_diagnosis: "Heart failure" },
+    { drug_name: "Carvedilol 12.5mg BID", has_matching_dx: true, inferred_diagnosis: "Heart failure" },
+    { drug_name: "Sertraline 100mg daily", has_matching_dx: true, inferred_diagnosis: "Depression" },
+    { drug_name: "Albuterol nebulizer Q4H PRN", has_matching_dx: true, inferred_diagnosis: "COPD" },
+    { drug_name: "Prednisone 40mg taper", has_matching_dx: true, inferred_diagnosis: "COPD exacerbation" },
+  ],
+  encounters: [
+    { date: "2026-03-18", type: "inpatient", facility: "Memorial Hospital", provider: "Dr. Nguyen", diagnoses: ["I50.22", "J44.1", "E11.65"], cost: 24500 },
+    { date: "2026-02-10", type: "office", facility: "Rivera Medical Group", provider: "Dr. Rivera", diagnoses: ["E11.65", "I50.22", "N18.32"], cost: 285 },
+    { date: "2026-01-15", type: "office", facility: "Rivera Medical Group", provider: "Dr. Rivera", diagnoses: ["F33.1", "E11.65"], cost: 210 },
+    { date: "2025-11-20", type: "ed_observation", facility: "Memorial Hospital", provider: "Dr. Singh", diagnoses: ["J44.1", "I50.22"], cost: 8400 },
+    { date: "2025-09-05", type: "office", facility: "Rivera Medical Group", provider: "Dr. Rivera", diagnoses: ["E11.65", "I50.22", "N18.32", "F33.1", "J44.1"], cost: 310 },
+  ],
+  risk: {
+    tier: "high",
+    hospitalization_risk_pct: 22,
+  },
+  visit_prep: "Capturing suspected Protein-calorie malnutrition, mild (E44.1, HCC 21) adds $5,005/year. Albumin 3.2, BMI 20.1, weight loss 5% in 30 days per nursing assessment. Triple-weighted Star measures needing closure: CDC-HbA1c, CDC-Eye, FMC. These directly impact plan quality ratings. Near-miss interaction: documenting conditions in the CHF + Diabetes + CKD group would trigger an additional +0.177 RAF bonus.",
+};
+
+// Robert Kim — simpler patient
+export const mockClinicalPatientRobert: ClinicalPatientContext = {
+  demographics: {
+    id: 2,
+    member_id: "RK-10482",
+    first_name: "Robert",
+    last_name: "Kim",
+    name: "Robert Kim",
+    age: 68,
+    dob: "1957-11-03",
+    gender: "M",
+    insurance: "Aetna MA",
+    pcp: "Dr. Rivera",
+  },
+  raf: {
+    demographic_raf: 0.489,
+    disease_raf: 0.637,
+    interaction_raf: 0.121,
+    total_raf: 1.247,
+    projected_raf: 1.549,
+    delta: 0.302,
+    current_annual_value: 13717,
+    projected_annual_value: 17039,
+  },
+  suspects: [
+    {
+      id: 201,
+      condition_name: "Type 2 diabetes with chronic complications",
+      icd10_code: "E11.65",
+      hcc_code: 18,
+      raf_value: 0.302,
+      annual_value: 3322,
+      evidence_summary: "HbA1c 8.9%, on insulin + metformin, coded as E11.9 (unspecified) — upgrade to E11.65",
+      confidence: 90,
+      suspect_type: "specificity",
+    },
+  ],
+  confirmed_hccs: [
+    { condition_name: "Type 2 diabetes mellitus", icd10_code: "E11.9", hcc_code: 37, raf_value: 0.105 },
+    { condition_name: "Congestive heart failure", icd10_code: "I50.9", hcc_code: 85, raf_value: 0.331 },
+    { condition_name: "Atrial fibrillation", icd10_code: "I48.91", hcc_code: 96, raf_value: 0.268 },
+  ],
+  care_gaps: [
+    { id: 301, measure_name: "HbA1c not drawn in CY2026", measure_code: "CDC-HbA1c", stars_weight: 3, recommended_action: "Order HbA1c" },
+    { id: 302, measure_name: "INR monitoring overdue", measure_code: "ACT", stars_weight: 1, recommended_action: "Order INR panel" },
+  ],
+  interactions: [
+    { name: "Diabetes + CHF", bonus_raf: 0.121, codes: "HCC 37 + HCC 85" },
+  ],
+  near_misses: [],
+  medications: [
+    { drug_name: "Insulin Lispro 10u TID", has_matching_dx: true },
+    { drug_name: "Metformin 1000mg BID", has_matching_dx: true },
+    { drug_name: "Apixaban 5mg BID", has_matching_dx: true },
+    { drug_name: "Carvedilol 25mg BID", has_matching_dx: true },
+    { drug_name: "Atorvastatin 40mg daily", has_matching_dx: false },
+  ],
+  encounters: [
+    { date: "2026-03-01", type: "office", facility: "Rivera Medical Group", provider: "Dr. Rivera", diagnoses: ["E11.9", "I50.9", "I48.91"], cost: 275 },
+    { date: "2026-01-08", type: "office", facility: "Rivera Medical Group", provider: "Dr. Rivera", diagnoses: ["E11.9", "I50.9"], cost: 210 },
+    { date: "2025-10-14", type: "ed_observation", facility: "Clearwater Regional", provider: "Dr. Brooks", diagnoses: ["I48.91"], cost: 5200 },
+  ],
+  risk: { tier: "rising", hospitalization_risk_pct: 12 },
+  visit_prep: "Specificity upgrade opportunity: coding diabetes as E11.65 (with chronic complications) instead of E11.9 would add $3,322/year. Patient is on insulin + metformin with HbA1c 8.9% — clinical evidence supports the upgrade. Order HbA1c for Star measure recapture.",
+};
+
+// Dorothy Santos — another simpler patient
+export const mockClinicalPatientDorothy: ClinicalPatientContext = {
+  demographics: {
+    id: 3,
+    member_id: "DS-30291",
+    first_name: "Dorothy",
+    last_name: "Santos",
+    name: "Dorothy Santos",
+    age: 81,
+    dob: "1944-06-22",
+    gender: "F",
+    insurance: "Humana Gold Plus",
+    pcp: "Dr. Rivera",
+  },
+  raf: {
+    demographic_raf: 0.712,
+    disease_raf: 1.480,
+    interaction_raf: 0.190,
+    total_raf: 2.382,
+    projected_raf: 2.655,
+    delta: 0.273,
+    current_annual_value: 26202,
+    projected_annual_value: 29205,
+  },
+  suspects: [
+    {
+      id: 301,
+      condition_name: "Dementia without behavioral disturbance",
+      icd10_code: "F03.90",
+      hcc_code: 51,
+      raf_value: 0.273,
+      annual_value: 3003,
+      evidence_summary: "BIMS 6/15, donepezil prescribed, family reports progressive memory loss over 2 years",
+      confidence: 78,
+      suspect_type: "med_dx_gap",
+    },
+  ],
+  confirmed_hccs: [
+    { condition_name: "CHF, chronic systolic", icd10_code: "I50.22", hcc_code: 85, raf_value: 0.323 },
+    { condition_name: "Type 2 diabetes with CKD", icd10_code: "E11.22", hcc_code: 18, raf_value: 0.302 },
+    { condition_name: "CKD Stage 4", icd10_code: "N18.4", hcc_code: 329, raf_value: 0.237 },
+    { condition_name: "COPD", icd10_code: "J44.1", hcc_code: 111, raf_value: 0.280 },
+    { condition_name: "Major depression", icd10_code: "F33.1", hcc_code: 155, raf_value: 0.309 },
+  ],
+  care_gaps: [
+    { id: 401, measure_name: "Fall risk assessment overdue", measure_code: "FRA", stars_weight: 1, recommended_action: "Complete fall risk screening" },
+  ],
+  interactions: [
+    { name: "CHF + Diabetes + CKD", bonus_raf: 0.190, codes: "HCC 85 + HCC 18 + HCC 329" },
+  ],
+  near_misses: [
+    { name: "Dementia + Depression", potential_raf: 0.065, missing: "HCC 51, HCC 52", missing_hccs: [51, 52] },
+  ],
+  medications: [
+    { drug_name: "Donepezil 10mg daily", has_matching_dx: false },
+    { drug_name: "Furosemide 80mg BID", has_matching_dx: true },
+    { drug_name: "Insulin Glargine 40u nightly", has_matching_dx: true },
+    { drug_name: "Sertraline 100mg daily", has_matching_dx: true },
+    { drug_name: "Tiotropium inhaler", has_matching_dx: true },
+    { drug_name: "Lisinopril 10mg daily", has_matching_dx: true },
+  ],
+  encounters: [
+    { date: "2026-03-10", type: "office", facility: "Rivera Medical Group", provider: "Dr. Rivera", diagnoses: ["I50.22", "E11.22", "N18.4", "J44.1"], cost: 320 },
+    { date: "2026-01-20", type: "inpatient", facility: "Memorial Hospital", provider: "Dr. Nguyen", diagnoses: ["I50.22", "N18.4", "J44.1"], cost: 18700 },
+    { date: "2025-12-01", type: "office", facility: "Rivera Medical Group", provider: "Dr. Rivera", diagnoses: ["E11.22", "F33.1"], cost: 250 },
+  ],
+  risk: { tier: "complex", hospitalization_risk_pct: 31 },
+  visit_prep: "Med-Dx gap: Donepezil prescribed without dementia diagnosis documented. Capturing Dementia (F03.90, HCC 51) adds $3,003/year and would trigger the Dementia + Depression interaction bonus (+0.065 RAF). Complete fall risk assessment for quality measure closure.",
+};
+
+// All patient contexts indexed by member ID (numeric)
+export const mockClinicalPatients: Record<number, ClinicalPatientContext> = {
+  1: mockClinicalPatientMargaret,
+  2: mockClinicalPatientRobert,
+  3: mockClinicalPatientDorothy,
+};
+
+// Provider worklist — 6 patients sorted by priority
+export const mockClinicalWorklist: ClinicalWorklistItem[] = [
+  {
+    member_id: 1, member_external_id: "MC-20394", name: "Margaret Chen",
+    age: 72, gender: "F", current_raf: 1.847, projected_raf: 2.312,
+    suspect_count: 2, gap_count: 4, priority_score: 18.6,
+    priority_reason: "+0.465 RAF uplift, 2 suspects, 4 open gaps",
+    risk_tier: "high", visit_type: "Follow-up", time_slot: "9:00 AM",
+  },
+  {
+    member_id: 3, member_external_id: "DS-30291", name: "Dorothy Santos",
+    age: 81, gender: "F", current_raf: 2.382, projected_raf: 2.655,
+    suspect_count: 1, gap_count: 1, priority_score: 8.2,
+    priority_reason: "+0.273 RAF uplift, 1 suspect, 1 open gap",
+    risk_tier: "complex", visit_type: "Annual Wellness", time_slot: "10:00 AM",
+  },
+  {
+    member_id: 2, member_external_id: "RK-10482", name: "Robert Kim",
+    age: 68, gender: "M", current_raf: 1.247, projected_raf: 1.549,
+    suspect_count: 1, gap_count: 2, priority_score: 6.4,
+    priority_reason: "+0.302 RAF uplift, 1 suspect, 2 open gaps",
+    risk_tier: "rising", visit_type: "Follow-up", time_slot: "11:00 AM",
+  },
+  {
+    member_id: 4, member_external_id: "JL-44521", name: "James Lee",
+    age: 65, gender: "M", current_raf: 0.892, projected_raf: 1.023,
+    suspect_count: 1, gap_count: 1, priority_score: 3.1,
+    priority_reason: "1 suspect, 1 open gap",
+    risk_tier: "rising", visit_type: "New Patient", time_slot: "1:00 PM",
+  },
+  {
+    member_id: 5, member_external_id: "PW-55893", name: "Patricia Wong",
+    age: 77, gender: "F", current_raf: 1.102, projected_raf: 1.102,
+    suspect_count: 0, gap_count: 2, priority_score: 1.8,
+    priority_reason: "2 open gaps",
+    risk_tier: "rising", visit_type: "Follow-up", time_slot: "2:00 PM",
+  },
+  {
+    member_id: 6, member_external_id: "TJ-66104", name: "Thomas Jackson",
+    age: 70, gender: "M", current_raf: 0.654, projected_raf: 0.654,
+    suspect_count: 0, gap_count: 0, priority_score: 0.5,
+    priority_reason: "Routine visit",
+    risk_tier: "low", visit_type: "Annual Wellness", time_slot: "3:00 PM",
+  },
+];
