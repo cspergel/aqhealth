@@ -15,9 +15,14 @@ import { FinancialPage } from "../../pages/FinancialPage";
 import { CohortsPage } from "../../pages/CohortsPage";
 import { PredictionsPage } from "../../pages/PredictionsPage";
 import { ScenariosPage } from "../../pages/ScenariosPage";
+import { CensusPage } from "../../pages/CensusPage";
+import { AlertsPage } from "../../pages/AlertsPage";
+import { ADTConfigPage } from "../../pages/ADTConfigPage";
 
 const navItems = [
   { path: "/", label: "Dashboard" },
+  { path: "/census", label: "Census" },
+  { path: "/alerts", label: "Alerts" },
   { path: "/suspects", label: "Suspect HCCs" },
   { path: "/expenditure", label: "Expenditure" },
   { path: "/financial", label: "Financial" },
@@ -94,6 +99,9 @@ export function AppShell() {
       <main className="max-w-[1440px] mx-auto">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/census" element={<CensusPage />} />
+          <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/adt-sources" element={<ADTConfigPage />} />
           <Route path="/suspects" element={<SuspectsPage />} />
           <Route path="/expenditure" element={<ExpenditurePage />} />
           <Route path="/providers/*" element={<ProvidersPage />} />

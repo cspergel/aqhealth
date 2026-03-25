@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, care_gaps, cohorts, dashboard, discovery, expenditure, financial, groups, hcc, ingestion, insights, journey, learning, patterns, predictions, providers, query, scenarios
+from app.routers import adt, auth, care_gaps, cohorts, dashboard, discovery, expenditure, financial, groups, hcc, ingestion, insights, journey, learning, patterns, predictions, providers, query, scenarios
 
 app = FastAPI(
     title="AQSoft Health Platform",
@@ -20,6 +20,7 @@ app.add_middleware(
 )
 
 
+app.include_router(adt.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(discovery.router)

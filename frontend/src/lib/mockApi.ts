@@ -41,6 +41,11 @@ import {
   mockRafProjections,
   mockPrebuiltScenarios,
   mockScenarioResults,
+  mockCensusSummary,
+  mockCensusItems,
+  mockCareAlerts,
+  mockADTSources,
+  mockRecentADTEvents,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -118,11 +123,39 @@ export function enableDemoMode() {
 
     // ---------- PATCH endpoints (mutations) ----------
     if (method === "patch") {
-      mockResponse = { success: true };
+      if (url.includes("/api/adt/alerts/")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const alertId = parseInt(url.split("/api/adt/alerts/")[1]);
+        const alert = mockCareAlerts.find((a) => a.id === alertId);
+        if (alert && body.action === "acknowledge") {
+          mockResponse = { ...alert, status: "acknowledged" };
+        } else if (alert && body.action === "resolve") {
+          mockResponse = { ...alert, status: "resolved", resolution_notes: body.resolution_notes };
+        } else if (alert && body.action === "assign") {
+          mockResponse = { ...alert, status: "in_progress", assigned_to: body.assigned_to };
+        } else {
+          mockResponse = { success: true };
+        }
+      } else if (url.includes("/api/adt/sources/")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        mockResponse = { ...body, id: parseInt(url.split("/api/adt/sources/")[1]) };
+      } else {
+        mockResponse = { success: true };
+      }
     }
 
     // ---------- POST endpoints ----------
     else if (method === "post") {
+      if (url.includes("/api/adt/webhook")) {
+        mockResponse = { status: "processed", event_id: Date.now(), alerts: 1 };
+      } else if (url.includes("/api/adt/events")) {
+        mockResponse = { id: Date.now(), event_type: "admit", alerts: [] };
+      } else if (url.includes("/api/adt/batch")) {
+        mockResponse = { processed: 25, matched: 22, unmatched: 3, alerts_generated: 8 };
+      } else if (url.includes("/api/adt/sources")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        mockResponse = { id: Date.now(), ...body, events_received: 0, last_sync: null };
+      } else
       if (url.includes("/api/query/ask")) {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         const q = (body?.question || "").toLowerCase();
@@ -427,6 +460,37 @@ export function enableDemoMode() {
       // Scenarios
       else if (url.includes("/api/scenarios/prebuilt")) {
         mockResponse = mockPrebuiltScenarios;
+      }
+
+      // ADT Census
+      else if (url.includes("/api/adt/census/summary")) {
+        mockResponse = mockCensusSummary;
+      }
+      else if (url.includes("/api/adt/census")) {
+        mockResponse = { total_census: mockCensusItems.length, items: mockCensusItems };
+      }
+
+      // ADT Alerts
+      else if (url.includes("/api/adt/alerts")) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        const statusParam = params.get("status");
+        const priorityParam = params.get("priority");
+        const typeParam = params.get("alert_type");
+        let filtered = [...mockCareAlerts];
+        if (statusParam) filtered = filtered.filter((a) => a.status === statusParam);
+        if (priorityParam) filtered = filtered.filter((a) => a.priority === priorityParam);
+        if (typeParam) filtered = filtered.filter((a) => a.alert_type === typeParam);
+        mockResponse = filtered;
+      }
+
+      // ADT Sources
+      else if (url.includes("/api/adt/sources")) {
+        mockResponse = mockADTSources;
+      }
+
+      // ADT Events (recent)
+      else if (url.includes("/api/adt/events")) {
+        mockResponse = mockRecentADTEvents;
       }
 
       // Generic insights

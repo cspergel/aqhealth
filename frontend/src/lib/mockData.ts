@@ -2710,3 +2710,219 @@ export const mockScenarioResults: Record<string, unknown> = {
     confidence: 68,
   },
 };
+
+// ---------------------------------------------------------------------------
+// ---- ADT Census (18 currently admitted members across 5 facilities) ----
+// ---------------------------------------------------------------------------
+
+export const mockCensusSummary = {
+  currently_admitted: 8,
+  in_ed: 4,
+  in_observation: 3,
+  in_snf: 3,
+  total_census: 18,
+  today_admits: 5,
+  today_discharges: 3,
+  by_facility: [
+    { facility: "Tampa General Hospital", count: 5 },
+    { facility: "St. Joseph's Hospital", count: 4 },
+    { facility: "Bayshore Medical Center", count: 3 },
+    { facility: "Sunrise SNF & Rehab", count: 3 },
+    { facility: "Memorial Hospital of Tampa", count: 3 },
+  ],
+  trend_7d: [
+    { date: "2026-03-18", admits: 4, discharges: 3 },
+    { date: "2026-03-19", admits: 6, discharges: 4 },
+    { date: "2026-03-20", admits: 3, discharges: 5 },
+    { date: "2026-03-21", admits: 5, discharges: 2 },
+    { date: "2026-03-22", admits: 7, discharges: 6 },
+    { date: "2026-03-23", admits: 4, discharges: 3 },
+    { date: "2026-03-24", admits: 5, discharges: 3 },
+  ],
+};
+
+export const mockCensusItems = [
+  // Inpatient (8)
+  { event_id: 1001, member_id: 101, patient_name: "Margaret Chen", patient_class: "inpatient", admit_date: "2026-03-17T08:30:00", los_days: 7, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["I50.9", "E11.65", "N18.3"], estimated_daily_cost: 3200, total_accrued_cost: 22400, typical_los: 5, projected_discharge: "2026-03-22", los_status: "extended" as const },
+  { event_id: 1002, member_id: 102, patient_name: "Robert Williams", patient_class: "inpatient", admit_date: "2026-03-20T14:15:00", los_days: 4, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. James Rivera", diagnosis_codes: ["J44.1", "J96.11"], estimated_daily_cost: 3200, total_accrued_cost: 12800, typical_los: 5, projected_discharge: "2026-03-25", los_status: "normal" as const },
+  { event_id: 1003, member_id: 103, patient_name: "Dorothy Garcia", patient_class: "inpatient", admit_date: "2026-03-21T09:00:00", los_days: 3, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["I25.10", "I48.0"], estimated_daily_cost: 3200, total_accrued_cost: 9600, typical_los: 5, projected_discharge: "2026-03-26", los_status: "normal" as const },
+  { event_id: 1004, member_id: 104, patient_name: "James Thompson", patient_class: "inpatient", admit_date: "2026-03-22T11:30:00", los_days: 2, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Michael Torres", diagnosis_codes: ["K80.10", "K81.0"], estimated_daily_cost: 3200, total_accrued_cost: 6400, typical_los: 3, projected_discharge: "2026-03-25", los_status: "normal" as const },
+  { event_id: 1005, member_id: 105, patient_name: "Helen Martinez", patient_class: "inpatient", admit_date: "2026-03-13T07:00:00", los_days: 11, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["S72.001A", "W01.0"], estimated_daily_cost: 3200, total_accrued_cost: 35200, typical_los: 5, projected_discharge: "2026-03-18", los_status: "critical" as const },
+  { event_id: 1006, member_id: 106, patient_name: "Charles Brown", patient_class: "inpatient", admit_date: "2026-03-23T16:00:00", los_days: 1, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Angela Brooks", diagnosis_codes: ["I63.9", "I10"], estimated_daily_cost: 3200, total_accrued_cost: 3200, typical_los: 5, projected_discharge: "2026-03-28", los_status: "normal" as const },
+  { event_id: 1007, member_id: 107, patient_name: "Patricia Davis", patient_class: "inpatient", admit_date: "2026-03-22T08:00:00", los_days: 2, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Thomas Lee", diagnosis_codes: ["C34.90", "J18.9"], estimated_daily_cost: 3200, total_accrued_cost: 6400, typical_los: 5, projected_discharge: "2026-03-27", los_status: "normal" as const },
+  { event_id: 1008, member_id: 108, patient_name: "Richard Wilson", patient_class: "inpatient", admit_date: "2026-03-24T06:45:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "acute", attending_provider: "Dr. Karen Murphy", diagnosis_codes: ["N17.9", "E87.1"], estimated_daily_cost: 3200, total_accrued_cost: 3200, typical_los: 4, projected_discharge: "2026-03-28", los_status: "normal" as const },
+  // Emergency (4)
+  { event_id: 1009, member_id: 109, patient_name: "Barbara Anderson", patient_class: "emergency", admit_date: "2026-03-24T02:15:00", los_days: 0, facility_name: "Tampa General Hospital", facility_type: "ed", attending_provider: "Dr. David Wilson", diagnosis_codes: ["R07.9", "I20.9"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const },
+  { event_id: 1010, member_id: 110, patient_name: "Thomas Jackson", patient_class: "emergency", admit_date: "2026-03-24T05:30:00", los_days: 0, facility_name: "St. Joseph's Hospital", facility_type: "ed", attending_provider: "Dr. Jennifer Adams", diagnosis_codes: ["J06.9", "R50.9"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const },
+  { event_id: 1011, member_id: 111, patient_name: "Nancy White", patient_class: "emergency", admit_date: "2026-03-24T08:00:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "ed", attending_provider: "Dr. Robert Kim", diagnosis_codes: ["S52.501A"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const },
+  { event_id: 1012, member_id: 112, patient_name: "Daniel Harris", patient_class: "emergency", admit_date: "2026-03-23T22:00:00", los_days: 1, facility_name: "Tampa General Hospital", facility_type: "ed", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["E11.65", "E87.6"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const },
+  // Observation (3)
+  { event_id: 1013, member_id: 113, patient_name: "Susan Clark", patient_class: "observation", admit_date: "2026-03-23T14:00:00", los_days: 1, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["R55", "I49.9"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-25", los_status: "normal" as const },
+  { event_id: 1014, member_id: 114, patient_name: "Joseph Lewis", patient_class: "observation", admit_date: "2026-03-23T18:30:00", los_days: 1, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Angela Brooks", diagnosis_codes: ["R06.02", "J45.41"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-25", los_status: "normal" as const },
+  { event_id: 1015, member_id: 115, patient_name: "Karen Robinson", patient_class: "observation", admit_date: "2026-03-24T01:00:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "acute", attending_provider: "Dr. Karen Murphy", diagnosis_codes: ["R42", "G43.909"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-26", los_status: "normal" as const },
+  // SNF (3)
+  { event_id: 1016, member_id: 116, patient_name: "Edward Walker", patient_class: "snf", admit_date: "2026-03-10T10:00:00", los_days: 14, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. James Rivera", diagnosis_codes: ["S72.001D", "M80.08"], estimated_daily_cost: 850, total_accrued_cost: 11900, typical_los: 21, projected_discharge: "2026-03-31", los_status: "normal" as const },
+  { event_id: 1017, member_id: 117, patient_name: "Betty Hall", patient_class: "snf", admit_date: "2026-03-05T09:00:00", los_days: 19, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. Michael Torres", diagnosis_codes: ["I63.9", "G81.90"], estimated_daily_cost: 850, total_accrued_cost: 16150, typical_los: 21, projected_discharge: "2026-03-26", los_status: "normal" as const },
+  { event_id: 1018, member_id: 118, patient_name: "George Young", patient_class: "snf", admit_date: "2026-02-28T11:00:00", los_days: 24, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["M17.11", "Z96.641"], estimated_daily_cost: 850, total_accrued_cost: 20400, typical_los: 21, projected_discharge: "2026-03-21", los_status: "extended" as const },
+];
+
+// ---------------------------------------------------------------------------
+// ---- Care Alerts (12 alerts) ----
+// ---------------------------------------------------------------------------
+
+export const mockCareAlerts = [
+  // Critical - Readmission (2)
+  {
+    id: 2001, adt_event_id: 1001, member_id: 101, alert_type: "readmission_risk", priority: "critical",
+    title: "Readmission within 12 days of prior discharge",
+    description: "Margaret Chen was discharged from Tampa General on 3/5 and readmitted on 3/17 with CHF exacerbation. This is her 3rd admission in 90 days.",
+    recommended_action: "Immediate care manager outreach. Review medication adherence and home health support. Schedule cardiology follow-up within 48 hours.",
+    assigned_to: 1, status: "open", resolved_at: null, resolution_notes: null,
+    patient_name: "Margaret Chen", facility_name: "Tampa General Hospital", event_type: "admit", event_timestamp: "2026-03-17T08:30:00", created_at: "2026-03-17T08:35:00",
+  },
+  {
+    id: 2002, adt_event_id: 1005, member_id: 105, alert_type: "readmission_risk", priority: "critical",
+    title: "Readmission within 8 days of prior discharge",
+    description: "Helen Martinez was discharged from St. Joseph's on 3/5 after hip fracture surgery and readmitted on 3/13 with wound infection. LOS now at 11 days exceeding expected 5-day stay.",
+    recommended_action: "Escalate to medical director. Review surgical site care. Coordinate with orthopedics and infectious disease.",
+    assigned_to: null, status: "open", resolved_at: null, resolution_notes: null,
+    patient_name: "Helen Martinez", facility_name: "Tampa General Hospital", event_type: "admit", event_timestamp: "2026-03-13T07:00:00", created_at: "2026-03-13T07:05:00",
+  },
+  // High - Admission (3)
+  {
+    id: 2003, adt_event_id: 1006, member_id: 106, alert_type: "admission", priority: "high",
+    title: "Member admitted to Bayshore Medical Center",
+    description: "Charles Brown admitted with acute stroke (I63.9). High-risk member with RAF 2.41. History of hypertension and atrial fibrillation.",
+    recommended_action: "Contact facility for care coordination. Ensure neurology consult. Begin discharge planning for potential SNF or home health.",
+    assigned_to: 2, status: "acknowledged", resolved_at: null, resolution_notes: null,
+    patient_name: "Charles Brown", facility_name: "Bayshore Medical Center", event_type: "admit", event_timestamp: "2026-03-23T16:00:00", created_at: "2026-03-23T16:05:00",
+  },
+  {
+    id: 2004, adt_event_id: 1008, member_id: 108, alert_type: "admission", priority: "high",
+    title: "Member admitted to Memorial Hospital of Tampa",
+    description: "Richard Wilson admitted with acute kidney injury (N17.9) and hyponatremia (E87.1). Member has CKD stage 3 history.",
+    recommended_action: "Coordinate with nephrology. Review current medications for nephrotoxicity. Monitor labs daily.",
+    assigned_to: null, status: "open", resolved_at: null, resolution_notes: null,
+    patient_name: "Richard Wilson", facility_name: "Memorial Hospital of Tampa", event_type: "admit", event_timestamp: "2026-03-24T06:45:00", created_at: "2026-03-24T06:50:00",
+  },
+  {
+    id: 2005, adt_event_id: 1009, member_id: 109, alert_type: "er_visit", priority: "high",
+    title: "ER visit at Tampa General Hospital",
+    description: "Barbara Anderson presented to ER with chest pain (R07.9). Possible unstable angina (I20.9). Member has cardiac history.",
+    recommended_action: "Evaluate if visit was avoidable. If admitted, begin care coordination. If discharged, schedule cardiology follow-up within 72 hours.",
+    assigned_to: 1, status: "in_progress", resolved_at: null, resolution_notes: null,
+    patient_name: "Barbara Anderson", facility_name: "Tampa General Hospital", event_type: "ed_visit", event_timestamp: "2026-03-24T02:15:00", created_at: "2026-03-24T02:20:00",
+  },
+  // Medium - Discharge Planning (4)
+  {
+    id: 2006, adt_event_id: 1016, member_id: 116, alert_type: "snf_placement", priority: "medium",
+    title: "Member discharged to SNF from Tampa General",
+    description: "Edward Walker discharged to Sunrise SNF after hip fracture repair. Expected SNF stay 21 days.",
+    recommended_action: "Verify Sunrise SNF is in-network. Coordinate with SNF care team. Set up weekly check-ins.",
+    assigned_to: 3, status: "in_progress", resolved_at: null, resolution_notes: null,
+    patient_name: "Edward Walker", facility_name: "Sunrise SNF & Rehab", event_type: "discharge", event_timestamp: "2026-03-10T10:00:00", created_at: "2026-03-10T10:05:00",
+  },
+  {
+    id: 2007, adt_event_id: 1017, member_id: 117, alert_type: "snf_placement", priority: "medium",
+    title: "Member discharged to SNF from St. Joseph's",
+    description: "Betty Hall discharged to Sunrise SNF after stroke. Requires PT/OT rehab. Expected 21-day stay.",
+    recommended_action: "Coordinate with SNF therapy team. Schedule 7-day and 14-day progress reviews.",
+    assigned_to: 3, status: "in_progress", resolved_at: null, resolution_notes: null,
+    patient_name: "Betty Hall", facility_name: "Sunrise SNF & Rehab", event_type: "discharge", event_timestamp: "2026-03-05T09:00:00", created_at: "2026-03-05T09:10:00",
+  },
+  {
+    id: 2008, adt_event_id: 1013, member_id: 113, alert_type: "discharge_planning", priority: "medium",
+    title: "Member in observation at St. Joseph's - discharge planning needed",
+    description: "Susan Clark in observation for syncope. If discharged, needs cardiac workup and fall prevention plan.",
+    recommended_action: "Schedule 7-day post-discharge follow-up. Arrange home safety assessment. Verify medication reconciliation.",
+    assigned_to: null, status: "open", resolved_at: null, resolution_notes: null,
+    patient_name: "Susan Clark", facility_name: "St. Joseph's Hospital", event_type: "observation", event_timestamp: "2026-03-23T14:00:00", created_at: "2026-03-23T14:05:00",
+  },
+  {
+    id: 2009, adt_event_id: 1004, member_id: 104, alert_type: "discharge_planning", priority: "medium",
+    title: "Member approaching expected discharge from St. Joseph's",
+    description: "James Thompson admitted for cholecystitis. Expected discharge in 1 day. Surgical follow-up needed.",
+    recommended_action: "Ensure surgical follow-up scheduled. Verify home support. Arrange post-op home health if needed.",
+    assigned_to: 2, status: "acknowledged", resolved_at: null, resolution_notes: null,
+    patient_name: "James Thompson", facility_name: "St. Joseph's Hospital", event_type: "admit", event_timestamp: "2026-03-22T11:30:00", created_at: "2026-03-22T11:35:00",
+  },
+  // Low - Follow-up (3)
+  {
+    id: 2010, adt_event_id: 1010, member_id: 110, alert_type: "discharge_planning", priority: "low",
+    title: "ER visit follow-up needed - URI symptoms",
+    description: "Thomas Jackson visited ER for upper respiratory infection. Low-acuity visit likely avoidable with PCP access.",
+    recommended_action: "Schedule PCP follow-up within 7 days. Evaluate barriers to primary care access.",
+    assigned_to: null, status: "open", resolved_at: null, resolution_notes: null,
+    patient_name: "Thomas Jackson", facility_name: "St. Joseph's Hospital", event_type: "ed_visit", event_timestamp: "2026-03-24T05:30:00", created_at: "2026-03-24T05:35:00",
+  },
+  {
+    id: 2011, adt_event_id: 1001, member_id: 101, alert_type: "hcc_opportunity", priority: "low",
+    title: "HCC capture opportunity: 3 suspect codes",
+    description: "Margaret Chen admission includes I50.9 (Heart Failure), E11.65 (Diabetes with Complications), N18.3 (CKD Stage 3). Verify coding specificity.",
+    recommended_action: "Review encounter documentation for HCC coding specificity. Ensure conditions are captured at the appropriate severity level.",
+    assigned_to: null, status: "open", resolved_at: null, resolution_notes: null,
+    patient_name: "Margaret Chen", facility_name: "Tampa General Hospital", event_type: "admit", event_timestamp: "2026-03-17T08:30:00", created_at: "2026-03-17T08:40:00",
+  },
+  {
+    id: 2012, adt_event_id: 1007, member_id: 107, alert_type: "hcc_opportunity", priority: "low",
+    title: "HCC capture opportunity: 1 suspect code",
+    description: "Patricia Davis admission includes C34.90 (Lung Cancer). Verify staging and specificity for HCC mapping.",
+    recommended_action: "Review oncology documentation for staging details. Ensure specific cancer code is captured (e.g., C34.11 vs C34.90).",
+    assigned_to: null, status: "open", resolved_at: null, resolution_notes: null,
+    patient_name: "Patricia Davis", facility_name: "Bayshore Medical Center", event_type: "admit", event_timestamp: "2026-03-22T08:00:00", created_at: "2026-03-22T08:10:00",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// ---- ADT Sources (3 configured) ----
+// ---------------------------------------------------------------------------
+
+export const mockADTSources = [
+  {
+    id: 1, name: "Bamboo Health", source_type: "webhook",
+    config: { webhook_url: "https://api.aqsoft.health/adt/webhook", webhook_secret: "bh-***-***" },
+    is_active: true, last_sync: "2026-03-24T09:15:00", events_received: 1847,
+  },
+  {
+    id: 2, name: "Humana SFTP", source_type: "sftp",
+    config: { host: "sftp.humana.com", port: "22", username: "aqsoft_adt", directory: "/outbound/adt/", schedule: "*/15 * * * *" },
+    is_active: true, last_sync: "2026-03-24T08:45:00", events_received: 3214,
+  },
+  {
+    id: 3, name: "Availity API", source_type: "rest_api",
+    config: { endpoint_url: "https://api.availity.com/v1/adt", api_key: "av-***-***" },
+    is_active: false, last_sync: "2026-03-18T14:30:00", events_received: 412,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// ---- Recent ADT Events (25 from last 48 hours) ----
+// ---------------------------------------------------------------------------
+
+export const mockRecentADTEvents = [
+  { id: 3001, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-24T06:45:00", patient_name: "Richard Wilson", patient_class: "inpatient", facility_name: "Memorial Hospital of Tampa", diagnosis_codes: ["N17.9", "E87.1"], is_processed: true, member_id: 108, match_confidence: 100 },
+  { id: 3002, source_id: 1, source_name: "Bamboo Health", event_type: "ed_visit", event_timestamp: "2026-03-24T08:00:00", patient_name: "Nancy White", patient_class: "emergency", facility_name: "Memorial Hospital of Tampa", diagnosis_codes: ["S52.501A"], is_processed: true, member_id: 111, match_confidence: 90 },
+  { id: 3003, source_id: 1, source_name: "Bamboo Health", event_type: "ed_visit", event_timestamp: "2026-03-24T05:30:00", patient_name: "Thomas Jackson", patient_class: "emergency", facility_name: "St. Joseph's Hospital", diagnosis_codes: ["J06.9", "R50.9"], is_processed: true, member_id: 110, match_confidence: 100 },
+  { id: 3004, source_id: 1, source_name: "Bamboo Health", event_type: "ed_visit", event_timestamp: "2026-03-24T02:15:00", patient_name: "Barbara Anderson", patient_class: "emergency", facility_name: "Tampa General Hospital", diagnosis_codes: ["R07.9", "I20.9"], is_processed: true, member_id: 109, match_confidence: 100 },
+  { id: 3005, source_id: 2, source_name: "Humana SFTP", event_type: "observation", event_timestamp: "2026-03-24T01:00:00", patient_name: "Karen Robinson", patient_class: "observation", facility_name: "Memorial Hospital of Tampa", diagnosis_codes: ["R42", "G43.909"], is_processed: true, member_id: 115, match_confidence: 90 },
+  { id: 3006, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-23T16:00:00", patient_name: "Charles Brown", patient_class: "inpatient", facility_name: "Bayshore Medical Center", diagnosis_codes: ["I63.9", "I10"], is_processed: true, member_id: 106, match_confidence: 100 },
+  { id: 3007, source_id: 1, source_name: "Bamboo Health", event_type: "observation", event_timestamp: "2026-03-23T18:30:00", patient_name: "Joseph Lewis", patient_class: "observation", facility_name: "Bayshore Medical Center", diagnosis_codes: ["R06.02", "J45.41"], is_processed: true, member_id: 114, match_confidence: 100 },
+  { id: 3008, source_id: 2, source_name: "Humana SFTP", event_type: "observation", event_timestamp: "2026-03-23T14:00:00", patient_name: "Susan Clark", patient_class: "observation", facility_name: "St. Joseph's Hospital", diagnosis_codes: ["R55", "I49.9"], is_processed: true, member_id: 113, match_confidence: 90 },
+  { id: 3009, source_id: 1, source_name: "Bamboo Health", event_type: "ed_visit", event_timestamp: "2026-03-23T22:00:00", patient_name: "Daniel Harris", patient_class: "emergency", facility_name: "Tampa General Hospital", diagnosis_codes: ["E11.65", "E87.6"], is_processed: true, member_id: 112, match_confidence: 100 },
+  { id: 3010, source_id: 1, source_name: "Bamboo Health", event_type: "discharge", event_timestamp: "2026-03-23T11:00:00", patient_name: "Alice Foster", patient_class: "inpatient", facility_name: "Tampa General Hospital", diagnosis_codes: ["J18.9"], is_processed: true, member_id: 120, match_confidence: 100 },
+  { id: 3011, source_id: 2, source_name: "Humana SFTP", event_type: "discharge", event_timestamp: "2026-03-23T09:00:00", patient_name: "Frank Butler", patient_class: "inpatient", facility_name: "St. Joseph's Hospital", diagnosis_codes: ["I21.09"], is_processed: true, member_id: 121, match_confidence: 90 },
+  { id: 3012, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-22T11:30:00", patient_name: "James Thompson", patient_class: "inpatient", facility_name: "St. Joseph's Hospital", diagnosis_codes: ["K80.10", "K81.0"], is_processed: true, member_id: 104, match_confidence: 100 },
+  { id: 3013, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-22T08:00:00", patient_name: "Patricia Davis", patient_class: "inpatient", facility_name: "Bayshore Medical Center", diagnosis_codes: ["C34.90", "J18.9"], is_processed: true, member_id: 107, match_confidence: 100 },
+  { id: 3014, source_id: 2, source_name: "Humana SFTP", event_type: "discharge", event_timestamp: "2026-03-22T14:00:00", patient_name: "Maria Gonzalez", patient_class: "inpatient", facility_name: "Tampa General Hospital", diagnosis_codes: ["E11.65", "E66.01"], is_processed: true, member_id: 122, match_confidence: 90 },
+  { id: 3015, source_id: 1, source_name: "Bamboo Health", event_type: "ed_visit", event_timestamp: "2026-03-22T19:00:00", patient_name: "Kevin Park", patient_class: "emergency", facility_name: "Memorial Hospital of Tampa", diagnosis_codes: ["T78.2XXA"], is_processed: true, member_id: 123, match_confidence: 100 },
+  { id: 3016, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-21T09:00:00", patient_name: "Dorothy Garcia", patient_class: "inpatient", facility_name: "St. Joseph's Hospital", diagnosis_codes: ["I25.10", "I48.0"], is_processed: true, member_id: 103, match_confidence: 100 },
+  { id: 3017, source_id: 2, source_name: "Humana SFTP", event_type: "discharge", event_timestamp: "2026-03-21T16:00:00", patient_name: "William Ross", patient_class: "emergency", facility_name: "Tampa General Hospital", diagnosis_codes: ["R10.9"], is_processed: true, member_id: 124, match_confidence: 90 },
+  { id: 3018, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-20T14:15:00", patient_name: "Robert Williams", patient_class: "inpatient", facility_name: "Tampa General Hospital", diagnosis_codes: ["J44.1", "J96.11"], is_processed: true, member_id: 102, match_confidence: 100 },
+  { id: 3019, source_id: 1, source_name: "Bamboo Health", event_type: "ed_visit", event_timestamp: "2026-03-20T23:00:00", patient_name: "Sandra Mitchell", patient_class: "emergency", facility_name: "Bayshore Medical Center", diagnosis_codes: ["N39.0"], is_processed: true, member_id: 125, match_confidence: 100 },
+  { id: 3020, source_id: 2, source_name: "Humana SFTP", event_type: "discharge", event_timestamp: "2026-03-20T10:00:00", patient_name: "Ruth Phillips", patient_class: "snf", facility_name: "Sunrise SNF & Rehab", diagnosis_codes: ["M80.08", "W19.XXXA"], is_processed: true, member_id: 126, match_confidence: 90 },
+  { id: 3021, source_id: 1, source_name: "Bamboo Health", event_type: "transfer", event_timestamp: "2026-03-19T12:00:00", patient_name: "Larry Campbell", patient_class: "inpatient", facility_name: "Tampa General Hospital", diagnosis_codes: ["I50.23", "I48.91"], is_processed: true, member_id: 127, match_confidence: 100 },
+  { id: 3022, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-19T08:00:00", patient_name: "Judith Reed", patient_class: "inpatient", facility_name: "St. Joseph's Hospital", diagnosis_codes: ["K92.0", "K25.4"], is_processed: true, member_id: 128, match_confidence: 100 },
+  { id: 3023, source_id: 2, source_name: "Humana SFTP", event_type: "ed_visit", event_timestamp: "2026-03-19T20:00:00", patient_name: "Carl Morris", patient_class: "emergency", facility_name: "Memorial Hospital of Tampa", diagnosis_codes: ["R51.9"], is_processed: true, member_id: null, match_confidence: null },
+  { id: 3024, source_id: 1, source_name: "Bamboo Health", event_type: "discharge", event_timestamp: "2026-03-18T15:00:00", patient_name: "Janet Cook", patient_class: "inpatient", facility_name: "Tampa General Hospital", diagnosis_codes: ["N18.4", "I12.9"], is_processed: true, member_id: 129, match_confidence: 100 },
+  { id: 3025, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-18T07:30:00", patient_name: "Sharon Peterson", patient_class: "inpatient", facility_name: "Bayshore Medical Center", diagnosis_codes: ["G20", "G40.909"], is_processed: true, member_id: 130, match_confidence: 100 },
+];
