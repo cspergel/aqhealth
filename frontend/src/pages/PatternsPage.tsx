@@ -4,13 +4,14 @@ import { tokens, fonts } from "../lib/tokens";
 import { PlaybookCard, type Playbook } from "../components/patterns/PlaybookCard";
 import { CodeUtilizationTable, type CodeUtilization } from "../components/patterns/CodeUtilizationTable";
 import { SuccessStory, type SuccessStoryData } from "../components/patterns/SuccessStory";
+import { ImprovementArea, type ImprovementAreaData } from "../components/patterns/ImprovementArea";
 import { LearningDashboard } from "../components/learning/LearningDashboard";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Tab = "playbooks" | "code-utilization" | "whats-working" | "benchmarks" | "system-learning";
+type Tab = "playbooks" | "code-utilization" | "whats-working" | "needs-improvement" | "benchmarks" | "system-learning";
 
 interface BenchmarkTier {
   network_avg: number;
@@ -31,6 +32,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "playbooks", label: "Best Practices" },
   { key: "code-utilization", label: "Code Utilization" },
   { key: "whats-working", label: "What's Working" },
+  { key: "needs-improvement", label: "Needs Improvement" },
   { key: "benchmarks", label: "Benchmarks" },
   { key: "system-learning", label: "System Learning" },
 ];
@@ -54,6 +56,7 @@ export function PatternsPage() {
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [codeData, setCodeData] = useState<{ codes: CodeUtilization[] }>({ codes: [] });
   const [stories, setStories] = useState<SuccessStoryData[]>([]);
+  const [improvements, setImprovements] = useState<ImprovementAreaData[]>([]);
   const [benchmarks, setBenchmarks] = useState<Benchmarks | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +67,7 @@ export function PatternsPage() {
       tab === "playbooks" ? "/api/patterns/playbooks" :
       tab === "code-utilization" ? "/api/patterns/code-utilization" :
       tab === "whats-working" ? "/api/patterns/outcomes" :
+      tab === "needs-improvement" ? "/api/patterns/improvements" :
       "/api/patterns/benchmarks";
 
     api.get(endpoint)
@@ -71,6 +75,7 @@ export function PatternsPage() {
         if (tab === "playbooks") setPlaybooks(res.data);
         else if (tab === "code-utilization") setCodeData(res.data);
         else if (tab === "whats-working") setStories(res.data);
+        else if (tab === "needs-improvement") setImprovements(res.data);
         else setBenchmarks(res.data);
       })
       .catch((err) => console.error("Failed to load pattern data:", err))
@@ -180,6 +185,17 @@ export function PatternsPage() {
                 <p className="text-[13px]" style={{ color: tokens.textMuted }}>No success stories yet.</p>
               ) : (
                 stories.map((s) => <SuccessStory key={s.id} story={s} />)
+              )}
+            </div>
+          )}
+
+          {/* Needs Improvement tab */}
+          {tab === "needs-improvement" && (
+            <div className="space-y-4">
+              {improvements.length === 0 ? (
+                <p className="text-[13px]" style={{ color: tokens.textMuted }}>No improvement areas identified yet.</p>
+              ) : (
+                improvements.map((area) => <ImprovementArea key={area.id} area={area} />)
               )}
             </div>
           )}

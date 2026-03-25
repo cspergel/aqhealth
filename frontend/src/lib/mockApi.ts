@@ -23,6 +23,7 @@ import {
   mockLearningReport,
   mockLearningAccuracy,
   mockLearningInteractions,
+  mockImprovementAreas,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -319,6 +320,9 @@ export function enableDemoMode() {
       }
       else if (url.includes("/api/patterns/outcomes")) {
         mockResponse = mockSuccessStories;
+      }
+      else if (url.includes("/api/patterns/improvements")) {
+        mockResponse = mockImprovementAreas;
       }
       else if (url.includes("/api/patterns/benchmarks")) {
         mockResponse = mockBenchmarks;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
 import { InsightCard } from "../ui/InsightCard";
+import { DrgCellValue, extractDrgCodes, extractDrgCode } from "../ui/DrgTooltip";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -183,6 +184,9 @@ function DataTable({ columns, rows }: { columns: ColumnDef[]; rows: Record<strin
                 {columns.map((col) => {
                   const val = row[col.key];
                   const cellColor = getCellColor(val, col);
+                  const isDrgCol = col.key.toLowerCase().includes("drg") || col.label.toLowerCase().includes("drg");
+                  const strVal = formatCellValue(val, col.format);
+                  const hasDrgContent = isDrgCol || (typeof val === "string" && (extractDrgCode(val) !== null || extractDrgCodes(val).length > 0));
                   return (
                     <td
                       key={col.key}
@@ -195,7 +199,11 @@ function DataTable({ columns, rows }: { columns: ColumnDef[]; rows: Record<strin
                         fontWeight: cellColor ? 600 : 400,
                       }}
                     >
-                      {formatCellValue(val, col.format)}
+                      {hasDrgContent && typeof val === "string" ? (
+                        <DrgCellValue value={val} />
+                      ) : (
+                        strVal
+                      )}
                     </td>
                   );
                 })}
