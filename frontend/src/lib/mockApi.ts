@@ -48,6 +48,7 @@ import {
   mockRecentADTEvents,
   mockReconciliationReport,
   mockIbnrEstimate,
+  mockMembers,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -598,6 +599,70 @@ export function enableDemoMode() {
       // ADT Events (recent)
       else if (url.includes("/api/adt/events")) {
         mockResponse = mockRecentADTEvents;
+      }
+
+      // Members: stats
+      else if (url.includes("/api/members/stats")) {
+        const params = config.params || {};
+        let filtered = [...mockMembers];
+        if (params.raf_min) filtered = filtered.filter((m) => m.current_raf >= parseFloat(params.raf_min));
+        if (params.raf_max) filtered = filtered.filter((m) => m.current_raf <= parseFloat(params.raf_max));
+        if (params.days_not_seen) filtered = filtered.filter((m) => m.days_since_visit >= parseInt(params.days_not_seen));
+        if (params.risk_tier) filtered = filtered.filter((m) => m.risk_tier === params.risk_tier);
+        if (params.provider_id) filtered = filtered.filter((m) => m.pcp_id === parseInt(params.provider_id));
+        if (params.group_id) filtered = filtered.filter((m) => m.group_id === parseInt(params.group_id));
+        if (params.has_suspects === "true") filtered = filtered.filter((m) => m.has_suspects);
+        if (params.has_gaps === "true") filtered = filtered.filter((m) => m.has_gaps);
+        if (params.search) { const q = params.search.toLowerCase(); filtered = filtered.filter((m) => m.name.toLowerCase().includes(q) || m.member_id.toLowerCase().includes(q)); }
+        mockResponse = {
+          count: filtered.length,
+          avg_raf: filtered.length ? Math.round((filtered.reduce((s, m) => s + m.current_raf, 0) / filtered.length) * 1000) / 1000 : 0,
+          total_suspects: filtered.reduce((s, m) => s + m.suspect_count, 0),
+          total_gaps: filtered.reduce((s, m) => s + m.gap_count, 0),
+        };
+      }
+      // Members: detail by ID
+      else if (/\/api\/members\/M\w+/.test(url)) {
+        const memberId = url.match(/\/api\/members\/(M\w+)/)?.[1] || "";
+        const member = mockMembers.find((m) => m.member_id === memberId);
+        mockResponse = member || { error: "Not found" };
+      }
+      // Members: list with filtering
+      else if (url.includes("/api/members")) {
+        const params = config.params || {};
+        let filtered = [...mockMembers];
+        // Apply global filters
+        if (hasFilter && providerIds.length > 0) {
+          filtered = filtered.filter((m) => providerIds.includes(m.pcp_id));
+        }
+        // Apply member-specific filters
+        if (params.raf_min) filtered = filtered.filter((m) => m.current_raf >= parseFloat(params.raf_min));
+        if (params.raf_max) filtered = filtered.filter((m) => m.current_raf <= parseFloat(params.raf_max));
+        if (params.days_not_seen) filtered = filtered.filter((m) => m.days_since_visit >= parseInt(params.days_not_seen));
+        if (params.risk_tier) filtered = filtered.filter((m) => m.risk_tier === params.risk_tier);
+        if (params.provider_id) filtered = filtered.filter((m) => m.pcp_id === parseInt(params.provider_id));
+        if (params.group_id) filtered = filtered.filter((m) => m.group_id === parseInt(params.group_id));
+        if (params.has_suspects === "true") filtered = filtered.filter((m) => m.has_suspects);
+        if (params.has_gaps === "true") filtered = filtered.filter((m) => m.has_gaps);
+        if (params.search) { const q = params.search.toLowerCase(); filtered = filtered.filter((m) => m.name.toLowerCase().includes(q) || m.member_id.toLowerCase().includes(q)); }
+        // Sort
+        const sortBy = params.sort_by || "raf";
+        const order = params.order || "desc";
+        const sortKeyMap: Record<string, string> = { raf: "current_raf", name: "name", last_visit: "days_since_visit", suspect_count: "suspect_count", gap_count: "gap_count", spend: "total_spend_12mo" };
+        const sortField = sortKeyMap[sortBy] || "current_raf";
+        filtered.sort((a: any, b: any) => {
+          const av = a[sortField]; const bv = b[sortField];
+          if (typeof av === "string") return order === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+          return order === "asc" ? av - bv : bv - av;
+        });
+        // Paginate
+        const page = parseInt(params.page || "1");
+        const pageSize = parseInt(params.page_size || "25");
+        const total = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        const start = (page - 1) * pageSize;
+        const items = filtered.slice(start, start + pageSize);
+        mockResponse = { items, total, page, page_size: pageSize, total_pages: totalPages };
       }
 
       // Generic insights

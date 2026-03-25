@@ -31,6 +31,13 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: "Population",
+    items: [
+      { path: "/members", label: "Members" },
+      { path: "/cohorts", label: "Cohorts" },
+    ],
+  },
+  {
     title: "Revenue",
     items: [
       { path: "/suspects", label: "Suspect HCCs" },
@@ -57,7 +64,6 @@ const navSections: NavSection[] = [
     items: [
       { path: "/intelligence", label: "Intelligence" },
       { path: "/scenarios", label: "Scenarios" },
-      { path: "/cohorts", label: "Cohorts" },
     ],
   },
   {

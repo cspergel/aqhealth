@@ -20,6 +20,7 @@ import { ScenariosPage } from "../../pages/ScenariosPage";
 import { CensusPage } from "../../pages/CensusPage";
 import { AlertsPage } from "../../pages/AlertsPage";
 import { ADTConfigPage } from "../../pages/ADTConfigPage";
+import { MembersPage } from "../../pages/MembersPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -72,6 +73,7 @@ export function AppShell() {
             <Route path="/census" element={<CensusPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/adt-sources" element={<ADTConfigPage />} />
+            <Route path="/members" element={<MembersPage />} />
             <Route path="/suspects" element={<SuspectsPage />} />
             <Route path="/expenditure" element={<ExpenditurePage />} />
             <Route path="/providers/*" element={<ProvidersPage />} />
