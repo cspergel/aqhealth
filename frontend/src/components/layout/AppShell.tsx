@@ -25,6 +25,7 @@ import { WatchlistPage } from "../../pages/WatchlistPage";
 import { ReportsPage } from "../../pages/ReportsPage";
 import { ActionsPage } from "../../pages/ActionsPage";
 import { ClinicalPage } from "../../pages/ClinicalPage";
+import { DataQualityPage } from "../../pages/DataQualityPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -96,6 +97,7 @@ export function AppShell() {
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/actions" element={<ActionsPage />} />
             <Route path="/ingestion" element={<IngestionPage />} />
+            <Route path="/data-quality" element={<DataQualityPage />} />
           </Routes>
         </main>
 

@@ -16,3 +16,4 @@ from app.models.annotation import Annotation
 from app.models.watchlist import WatchlistItem
 from app.models.report import ReportTemplate, GeneratedReport
 from app.models.action import ActionItem
+from app.models.data_quality import DataQualityReport, QuarantinedRecord, DataLineage

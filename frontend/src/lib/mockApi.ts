@@ -58,6 +58,11 @@ import {
   mockActionItems,
   mockClinicalPatients,
   mockClinicalWorklist,
+  mockQualityReport,
+  mockQualityReports,
+  mockQuarantinedRecords,
+  mockUnresolvedMatches,
+  mockDataLineage,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -1061,6 +1066,34 @@ export function enableDemoMode() {
       // Clinical: worklist
       else if (url.includes("/api/clinical/worklist")) {
         mockResponse = mockClinicalWorklist;
+      }
+
+      // Data Quality: report detail
+      else if (/\/api\/data-quality\/reports\/\d+/.test(url)) {
+        const reportId = parseInt(url.match(/\/api\/data-quality\/reports\/(\d+)/)![1]);
+        mockResponse = mockQualityReports.find((r) => r.id === reportId) || mockQualityReport;
+      }
+      // Data Quality: reports list
+      else if (url.includes("/api/data-quality/reports")) {
+        mockResponse = mockQualityReports;
+      }
+      // Data Quality: quarantine list
+      else if (url.includes("/api/data-quality/quarantine")) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        let filtered = [...mockQuarantinedRecords];
+        const sourceType = params.get("source_type");
+        const status = params.get("status");
+        if (sourceType) filtered = filtered.filter((r) => r.source_type === sourceType);
+        if (status) filtered = filtered.filter((r) => r.status === status);
+        mockResponse = filtered;
+      }
+      // Data Quality: unresolved matches
+      else if (url.includes("/api/data-quality/unresolved")) {
+        mockResponse = mockUnresolvedMatches;
+      }
+      // Data Quality: lineage
+      else if (url.includes("/api/data-quality/lineage")) {
+        mockResponse = mockDataLineage;
       }
 
       // Generic insights

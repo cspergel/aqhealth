@@ -4118,3 +4118,218 @@ export const mockClinicalWorklist: ClinicalWorklistItem[] = [
     risk_tier: "low", visit_type: "Annual Wellness", time_slot: "3:00 PM",
   },
 ];
+
+
+// ---------------------------------------------------------------------------
+// Data Quality & Governance
+// ---------------------------------------------------------------------------
+
+export const mockQualityReport = {
+  id: 1,
+  upload_job_id: 12,
+  overall_score: 87,
+  total_rows: 4832,
+  valid_rows: 4614,
+  quarantined_rows: 42,
+  warning_rows: 176,
+  summary: "Good overall data quality. 3 checks require attention: 42 records quarantined due to invalid ICD-10 codes and duplicate members. Financial sanity check flagged 2 high-value claims for review.",
+  created_at: "2026-03-22T14:30:00Z",
+  checks: [
+    { name: "Completeness", status: "passed", details: "98.7% of key fields populated (4832 members)", severity: "low" },
+    { name: "Referential Integrity", status: "passed", details: "0 claims reference non-existent members", severity: "low" },
+    { name: "Duplicate Detection", status: "warned", details: "14 potential duplicate claim groups detected", severity: "medium" },
+    { name: "Diagnosis Distribution", status: "passed", details: "No single diagnosis exceeds 20% of claims", severity: "low" },
+    { name: "Date Range", status: "passed", details: "Range: 2024-01-15 to 2026-03-20. 0 future dates, 0 pre-2020 dates.", severity: "low" },
+    { name: "Financial Sanity", status: "warned", details: "2 claims exceed $500K (flagged for review)", severity: "high" },
+    { name: "NPI Validation", status: "passed", details: "All 287 provider NPIs pass Luhn check", severity: "low" },
+    { name: "ICD-10 Format", status: "failed", details: "23 claims have invalid ICD-10 code format", severity: "high" },
+    { name: "CPT Validation", status: "passed", details: "All CPT codes are 5-digit format", severity: "low" },
+    { name: "Member ID Uniqueness", status: "passed", details: "All 4832 member IDs are unique", severity: "low" },
+    { name: "Gender Normalization", status: "passed", details: "All gender values normalized to M/F", severity: "low" },
+    { name: "Date of Birth Range", status: "passed", details: "All DOBs within 1920-2010 range", severity: "low" },
+  ],
+};
+
+export const mockQualityReports = [
+  mockQualityReport,
+  {
+    id: 2, upload_job_id: 11, overall_score: 92, total_rows: 3200, valid_rows: 3168,
+    quarantined_rows: 12, warning_rows: 20,
+    summary: "Excellent data quality on Humana Q4 roster refresh.",
+    created_at: "2026-03-15T10:00:00Z",
+    checks: mockQualityReport.checks.map(c => ({ ...c, status: c.status === "failed" ? "warned" : "passed" })),
+  },
+  {
+    id: 3, upload_job_id: 10, overall_score: 74, total_rows: 8400, valid_rows: 7560,
+    quarantined_rows: 340, warning_rows: 500,
+    summary: "Significant quality issues in Aetna claims file. High duplicate rate and missing NPIs.",
+    created_at: "2026-03-08T08:15:00Z",
+    checks: mockQualityReport.checks.map(c => ({ ...c, status: c.name === "Duplicate Detection" ? "failed" : c.status })),
+  },
+  {
+    id: 4, upload_job_id: 9, overall_score: 95, total_rows: 2100, valid_rows: 2090,
+    quarantined_rows: 5, warning_rows: 5,
+    summary: "Near-perfect pharmacy data from CVS Caremark feed.",
+    created_at: "2026-03-01T16:45:00Z",
+    checks: mockQualityReport.checks.map(c => ({ ...c, status: "passed" })),
+  },
+];
+
+export const mockQualityTrend = [
+  { date: "2025-10-01", score: 78 },
+  { date: "2025-11-01", score: 81 },
+  { date: "2025-12-01", score: 79 },
+  { date: "2026-01-01", score: 84 },
+  { date: "2026-02-01", score: 88 },
+  { date: "2026-03-01", score: 95 },
+  { date: "2026-03-08", score: 74 },
+  { date: "2026-03-15", score: 92 },
+  { date: "2026-03-22", score: 87 },
+];
+
+export const mockQuarantinedRecords = [
+  {
+    id: 1, upload_job_id: 12, source_type: "claims", row_number: 847, status: "pending",
+    raw_data: { member_id: "MC-20394", service_date: "2026-02-14", diagnosis_code: "Z999", cpt_code: "99213", provider_npi: "1234567890", billed_amount: 185 },
+    errors: ["diagnosis_code: invalid ICD-10 format 'Z999' (expected letter + 2-7 chars)"],
+    warnings: [],
+    created_at: "2026-03-22T14:30:00Z",
+  },
+  {
+    id: 2, upload_job_id: 12, source_type: "claims", row_number: 1203, status: "pending",
+    raw_data: { member_id: "RK-10482", service_date: "2026-01-20", diagnosis_code: "INVALID", cpt_code: "99214", provider_npi: "9876543210", billed_amount: 245 },
+    errors: ["diagnosis_code: invalid ICD-10 format 'INVALID' (expected letter + 2-7 chars)"],
+    warnings: [],
+    created_at: "2026-03-22T14:30:00Z",
+  },
+  {
+    id: 3, upload_job_id: 12, source_type: "claims", row_number: 2100, status: "pending",
+    raw_data: { member_id: "DS-30291", service_date: "2026-03-01", diagnosis_code: "E11", cpt_code: "99215", provider_npi: "5551234567", billed_amount: 310, paid_amount: -50 },
+    errors: ["diagnosis_code: invalid ICD-10 format 'E11' needs decimal portion", "paid_amount: negative amount -50"],
+    warnings: [],
+    created_at: "2026-03-22T14:30:00Z",
+  },
+  {
+    id: 4, upload_job_id: 12, source_type: "roster", row_number: 102, status: "pending",
+    raw_data: { member_id: "NEW-001", first_name: "Margaret", last_name: "Chen", date_of_birth: "1954-03-15", gender: "F", health_plan: "Humana" },
+    errors: ["Potential duplicate: matches existing member MC-20394 (Margaret Chen, DOB 1954-03-15)"],
+    warnings: ["Member ID format differs from existing records"],
+    created_at: "2026-03-22T14:30:00Z",
+  },
+  {
+    id: 5, upload_job_id: 12, source_type: "roster", row_number: 340, status: "pending",
+    raw_data: { member_id: "NEW-002", first_name: "Robert", last_name: "Kim", date_of_birth: "1958-07-22", gender: "M", health_plan: "Aetna" },
+    errors: ["Potential duplicate: matches existing member RK-10482 (Robert Kim, DOB 1958-07-22)"],
+    warnings: [],
+    created_at: "2026-03-22T14:30:00Z",
+  },
+  {
+    id: 6, upload_job_id: 11, source_type: "claims", row_number: 55, status: "pending",
+    raw_data: { member_id: "JL-44521", service_date: "2019-12-15", diagnosis_code: "I50.9", cpt_code: "99213", provider_npi: "1112223334", billed_amount: 175 },
+    errors: ["service_date: 2019-12-15 is before 2020"],
+    warnings: [],
+    created_at: "2026-03-15T10:00:00Z",
+  },
+  {
+    id: 7, upload_job_id: 11, source_type: "claims", row_number: 412, status: "pending",
+    raw_data: { member_id: "PW-55893", service_date: "2027-01-01", diagnosis_code: "J44.1", cpt_code: "99214", provider_npi: "4445556667", billed_amount: 225 },
+    errors: ["service_date: 2027-01-01 is in the future"],
+    warnings: [],
+    created_at: "2026-03-15T10:00:00Z",
+  },
+  {
+    id: 8, upload_job_id: 12, source_type: "claims", row_number: 3001, status: "pending",
+    raw_data: { member_id: "TJ-66104", service_date: "2026-02-28", diagnosis_code: "I21.0", cpt_code: "99223", provider_npi: "7778889990", billed_amount: 847000 },
+    errors: ["billed_amount: $847,000 exceeds $500K financial sanity threshold"],
+    warnings: ["Verify this is a valid high-cost claim (cardiac event)"],
+    created_at: "2026-03-22T14:30:00Z",
+  },
+];
+
+export const mockUnresolvedMatches = [
+  {
+    id: 101,
+    source_record: { member_id: "NEW-001", first_name: "Margaret", last_name: "Chen", date_of_birth: "1954-03-15", gender: "F", health_plan: "Humana", zip_code: "33012" },
+    candidates: [
+      { id: 1, member_external_id: "MC-20394", first_name: "Margaret", last_name: "Chen", date_of_birth: "1954-03-15", gender: "F", health_plan: "Humana", zip_code: "33012", confidence: 95 },
+    ],
+    match_type: "exact_name_dob",
+    confidence: 95,
+    status: "pending",
+  },
+  {
+    id: 102,
+    source_record: { member_id: "EXT-5521", first_name: "M.", last_name: "Chen", date_of_birth: "1954-03-15", gender: "F", health_plan: "Humana Gold Plus" },
+    candidates: [
+      { id: 1, member_external_id: "MC-20394", first_name: "Margaret", last_name: "Chen", date_of_birth: "1954-03-15", gender: "F", health_plan: "Humana", zip_code: "33012", confidence: 75 },
+      { id: 42, member_external_id: "MC-88712", first_name: "Maria", last_name: "Chen", date_of_birth: "1954-08-22", gender: "F", health_plan: "Humana", zip_code: "33015", confidence: 45 },
+    ],
+    match_type: "fuzzy",
+    confidence: 75,
+    status: "pending",
+  },
+  {
+    id: 103,
+    source_record: { member_id: "EXT-7803", first_name: "Rob", last_name: "Kim", date_of_birth: "1958-07-22", gender: "M", health_plan: "Aetna" },
+    candidates: [
+      { id: 2, member_external_id: "RK-10482", first_name: "Robert", last_name: "Kim", date_of_birth: "1958-07-22", gender: "M", health_plan: "Aetna", zip_code: "33142", confidence: 85 },
+    ],
+    match_type: "fuzzy",
+    confidence: 85,
+    status: "pending",
+  },
+  {
+    id: 104,
+    source_record: { member_id: "EXT-9120", first_name: "Dorothy", last_name: "Santos-Garcia", date_of_birth: "1945-11-03", gender: "F", health_plan: "UHC" },
+    candidates: [
+      { id: 3, member_external_id: "DS-30291", first_name: "Dorothy", last_name: "Santos", date_of_birth: "1945-11-03", gender: "F", health_plan: "UnitedHealthcare", zip_code: "33178", confidence: 70 },
+      { id: 89, member_external_id: "DS-30445", first_name: "Dorothy", last_name: "Santos", date_of_birth: "1945-06-18", gender: "F", health_plan: "UnitedHealthcare", zip_code: "33183", confidence: 55 },
+    ],
+    match_type: "fuzzy",
+    confidence: 70,
+    status: "pending",
+  },
+];
+
+export const mockDataLineage = [
+  {
+    id: 1, entity_type: "member", entity_id: 1,
+    source_system: "file_upload", source_file: "humana_roster_q4_2025.csv", source_row: 342,
+    ingestion_job_id: 5,
+    field_changes: null,
+    created_at: "2025-10-15T09:00:00Z",
+    description: "Initial member record created from Humana Q4 2025 roster file",
+  },
+  {
+    id: 2, entity_type: "member", entity_id: 1,
+    source_system: "file_upload", source_file: "humana_claims_q4_2025.csv", source_row: null,
+    ingestion_job_id: 6,
+    field_changes: { current_raf: { old: 1.200, new: 1.547, reason: "Claims-based RAF recalculation", timestamp: "2025-11-01T12:00:00Z" } },
+    created_at: "2025-11-01T12:00:00Z",
+    description: "RAF score updated after Q4 2025 claims ingestion",
+  },
+  {
+    id: 3, entity_type: "member", entity_id: 1,
+    source_system: "file_upload", source_file: "humana_q1_2026.csv", source_row: 298,
+    ingestion_job_id: 10,
+    field_changes: { health_plan: { old: "Humana Gold", new: "Humana", reason: "Plan name normalization", timestamp: "2026-01-10T08:30:00Z" } },
+    created_at: "2026-01-10T08:30:00Z",
+    description: "Roster refresh from Humana Q1 2026 file, plan name normalized",
+  },
+  {
+    id: 4, entity_type: "member", entity_id: 1,
+    source_system: "hcc_engine", source_file: null, source_row: null,
+    ingestion_job_id: 10,
+    field_changes: { current_raf: { old: 1.547, new: 1.847, reason: "HCC engine run - captured HCC 18 (Diabetes with Complications)", timestamp: "2026-03-15T14:00:00Z" } },
+    created_at: "2026-03-15T14:00:00Z",
+    description: "HCC engine run after Q1 2026 claims ingestion, captured HCC 18",
+  },
+  {
+    id: 5, entity_type: "member", entity_id: 1,
+    source_system: "hcc_engine", source_file: null, source_row: null,
+    ingestion_job_id: 12,
+    field_changes: { projected_raf: { old: 2.100, new: 2.312, reason: "Suspect HCC 85 (CHF) identified for capture", timestamp: "2026-03-22T14:30:00Z" } },
+    created_at: "2026-03-22T14:30:00Z",
+    description: "Suspect HCC 85 (CHF/Heart Failure) identified for capture, projected RAF updated",
+  },
+];
