@@ -24,6 +24,18 @@ function rafColor(raf: number): string {
   return tokens.red;
 }
 
+function erColor(visits: number): string {
+  if (visits >= 4) return tokens.red;
+  if (visits >= 2) return tokens.amber;
+  return tokens.textMuted;
+}
+
+function admitsColor(admits: number): string {
+  if (admits >= 3) return tokens.red;
+  if (admits >= 1) return tokens.amber;
+  return tokens.textMuted;
+}
+
 function daysColor(days: number): string {
   if (days > 180) return tokens.red;
   if (days > 90) return tokens.amber;
@@ -63,6 +75,8 @@ const columns = [
   { key: "raf", label: "RAF", width: 70 },
   { key: "risk_tier", label: "Risk", width: 80 },
   { key: "last_visit", label: "Last Visit", width: 120 },
+  { key: "er_visits_12mo", label: "ER (12mo)", width: 80 },
+  { key: "admissions_12mo", label: "Admits (12mo)", width: 90 },
   { key: "suspect_count", label: "Suspects", width: 80 },
   { key: "gap_count", label: "Gaps", width: 70 },
   { key: "spend", label: "12mo Spend", width: 100 },
@@ -223,6 +237,32 @@ export function MemberTable({ members, sortBy, order, onSort }: Props) {
                     >
                       {daysAgoLabel(m.days_since_visit)}
                     </div>
+                  </td>
+
+                  {/* ER (12mo) */}
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontFamily: fonts.code,
+                      fontWeight: 600,
+                      color: erColor(m.er_visits_12mo),
+                      textAlign: "center",
+                    }}
+                  >
+                    {m.er_visits_12mo}
+                  </td>
+
+                  {/* Admits (12mo) */}
+                  <td
+                    style={{
+                      padding: "10px 12px",
+                      fontFamily: fonts.code,
+                      fontWeight: 600,
+                      color: admitsColor(m.admissions_12mo),
+                      textAlign: "center",
+                    }}
+                  >
+                    {m.admissions_12mo}
                   </td>
 
                   {/* Suspects */}

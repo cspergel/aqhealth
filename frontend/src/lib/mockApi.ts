@@ -614,6 +614,9 @@ export function enableDemoMode() {
         if (params.has_suspects === "true") filtered = filtered.filter((m) => m.has_suspects);
         if (params.has_gaps === "true") filtered = filtered.filter((m) => m.has_gaps);
         if (params.search) { const q = params.search.toLowerCase(); filtered = filtered.filter((m) => m.name.toLowerCase().includes(q) || m.member_id.toLowerCase().includes(q)); }
+        if (params.min_er_visits) filtered = filtered.filter((m) => m.er_visits_12mo >= parseInt(params.min_er_visits));
+        if (params.min_admissions) filtered = filtered.filter((m) => m.admissions_12mo >= parseInt(params.min_admissions));
+        if (params.frequent_utilizers === "true") filtered = filtered.filter((m) => m.er_visits_12mo >= 3 || m.admissions_12mo >= 2);
         mockResponse = {
           count: filtered.length,
           avg_raf: filtered.length ? Math.round((filtered.reduce((s, m) => s + m.current_raf, 0) / filtered.length) * 1000) / 1000 : 0,
@@ -645,10 +648,13 @@ export function enableDemoMode() {
         if (params.has_suspects === "true") filtered = filtered.filter((m) => m.has_suspects);
         if (params.has_gaps === "true") filtered = filtered.filter((m) => m.has_gaps);
         if (params.search) { const q = params.search.toLowerCase(); filtered = filtered.filter((m) => m.name.toLowerCase().includes(q) || m.member_id.toLowerCase().includes(q)); }
+        if (params.min_er_visits) filtered = filtered.filter((m) => m.er_visits_12mo >= parseInt(params.min_er_visits));
+        if (params.min_admissions) filtered = filtered.filter((m) => m.admissions_12mo >= parseInt(params.min_admissions));
+        if (params.frequent_utilizers === "true") filtered = filtered.filter((m) => m.er_visits_12mo >= 3 || m.admissions_12mo >= 2);
         // Sort
         const sortBy = params.sort_by || "raf";
         const order = params.order || "desc";
-        const sortKeyMap: Record<string, string> = { raf: "current_raf", name: "name", last_visit: "days_since_visit", suspect_count: "suspect_count", gap_count: "gap_count", spend: "total_spend_12mo" };
+        const sortKeyMap: Record<string, string> = { raf: "current_raf", name: "name", last_visit: "days_since_visit", suspect_count: "suspect_count", gap_count: "gap_count", spend: "total_spend_12mo", er_visits_12mo: "er_visits_12mo", admissions_12mo: "admissions_12mo" };
         const sortField = sortKeyMap[sortBy] || "current_raf";
         filtered.sort((a: any, b: any) => {
           const av = a[sortField]; const bv = b[sortField];

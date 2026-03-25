@@ -36,6 +36,9 @@ const defaultFilters: MemberFilterState = {
   has_suspects: false,
   has_gaps: false,
   search: "",
+  min_er_visits: null,
+  min_admissions: null,
+  frequent_utilizers: false,
 };
 
 /* ------------------------------------------------------------------ */
@@ -69,6 +72,9 @@ export function MembersPage() {
     if (filters.has_suspects) params.has_suspects = "true";
     if (filters.has_gaps) params.has_gaps = "true";
     if (filters.search) params.search = filters.search;
+    if (filters.min_er_visits) params.min_er_visits = String(filters.min_er_visits);
+    if (filters.min_admissions) params.min_admissions = String(filters.min_admissions);
+    if (filters.frequent_utilizers) params.frequent_utilizers = "true";
     return params;
   }, [filters, sortBy, order, page]);
 
@@ -158,15 +164,21 @@ export function MembersPage() {
         setSortBy("raf");
         setOrder("desc");
         break;
+      case "frequent_utilizers":
+        // er_visits >= 3 OR admissions >= 2 — cost drivers for care management
+        setFilters({ ...defaultFilters, frequent_utilizers: true });
+        setSortBy("er_visits_12mo");
+        setOrder("desc");
+        break;
     }
     setPage(1);
   };
 
   /* Export CSV */
   const handleExport = () => {
-    const header = "Member ID,Name,DOB,PCP,Group,RAF,Risk Tier,Last Visit,Days Since Visit,Suspects,Gaps,12mo Spend,Plan\n";
+    const header = "Member ID,Name,DOB,PCP,Group,RAF,Risk Tier,Last Visit,Days Since Visit,ER Visits 12mo,Admissions 12mo,SNF Days 12mo,Suspects,Gaps,12mo Spend,Plan\n";
     const rows = members.map((m) =>
-      `${m.member_id},"${m.name}",${m.dob},"${m.pcp}","${m.group}",${m.current_raf},${m.risk_tier},${m.last_visit_date},${m.days_since_visit},${m.suspect_count},${m.gap_count},${m.total_spend_12mo},"${m.plan}"`
+      `${m.member_id},"${m.name}",${m.dob},"${m.pcp}","${m.group}",${m.current_raf},${m.risk_tier},${m.last_visit_date},${m.days_since_visit},${m.er_visits_12mo},${m.admissions_12mo},${m.snf_days_12mo},${m.suspect_count},${m.gap_count},${m.total_spend_12mo},"${m.plan}"`
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

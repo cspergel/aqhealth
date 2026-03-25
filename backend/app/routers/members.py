@@ -47,6 +47,9 @@ class MemberRow(BaseModel):
     plan: str
     has_suspects: bool
     has_gaps: bool
+    er_visits_12mo: int
+    admissions_12mo: int
+    snf_days_12mo: int
 
 
 class MemberListOut(BaseModel):
@@ -80,6 +83,8 @@ async def member_stats(
     has_gaps: Optional[bool] = Query(None),
     plan: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    min_er_visits: Optional[int] = Query(None),
+    min_admissions: Optional[int] = Query(None),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
 ):
@@ -96,6 +101,8 @@ async def member_stats(
             "has_gaps": has_gaps,
             "plan": plan,
             "search": search,
+            "min_er_visits": min_er_visits,
+            "min_admissions": min_admissions,
         }.items() if v is not None
     }
     data = await get_member_stats(db, filters)
@@ -135,6 +142,8 @@ async def member_list(
     has_gaps: Optional[bool] = Query(None),
     plan: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    min_er_visits: Optional[int] = Query(None),
+    min_admissions: Optional[int] = Query(None),
     sort_by: str = Query("raf"),
     order: str = Query("desc"),
     page: int = Query(1, ge=1),
@@ -155,6 +164,8 @@ async def member_list(
             "has_gaps": has_gaps,
             "plan": plan,
             "search": search,
+            "min_er_visits": min_er_visits,
+            "min_admissions": min_admissions,
             "sort_by": sort_by,
             "order": order,
             "page": page,

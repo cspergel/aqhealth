@@ -13,6 +13,9 @@ export interface MemberFilterState {
   has_suspects: boolean;
   has_gaps: boolean;
   search: string;
+  min_er_visits: number | null;
+  min_admissions: number | null;
+  frequent_utilizers: boolean;
 }
 
 interface Props {
@@ -59,6 +62,7 @@ const presetGroups: PresetGroup[] = [
       { key: "rising_risk", label: "Rising Risk" },
       { key: "complex_active", label: "Complex Active Mgmt" },
       { key: "not_seen_6mo", label: "Not Seen 6+ Mo" },
+      { key: "frequent_utilizers", label: "Frequent Utilizers" },
     ],
   },
   {
@@ -275,6 +279,54 @@ export function MemberFilters({ filters, onChange, onPreset }: Props) {
               <option key={o.label} value={o.value ?? ""}>{o.label}</option>
             ))}
           </select>
+        </div>
+
+        {/* Min ER Visits */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>Min ER Visits (12mo)</label>
+          <input
+            type="number"
+            min={0}
+            max={12}
+            step={1}
+            value={filters.min_er_visits ?? ""}
+            onChange={(e) => update({ min_er_visits: e.target.value ? parseInt(e.target.value) : null })}
+            placeholder="0"
+            style={{
+              width: 60,
+              padding: "6px 8px",
+              borderRadius: 6,
+              border: `1px solid ${tokens.border}`,
+              fontSize: 13,
+              fontFamily: fonts.code,
+              textAlign: "center",
+              background: tokens.bg,
+            }}
+          />
+        </div>
+
+        {/* Min Admissions */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: tokens.textMuted, textTransform: "uppercase", letterSpacing: "0.04em" }}>Min Admissions (12mo)</label>
+          <input
+            type="number"
+            min={0}
+            max={5}
+            step={1}
+            value={filters.min_admissions ?? ""}
+            onChange={(e) => update({ min_admissions: e.target.value ? parseInt(e.target.value) : null })}
+            placeholder="0"
+            style={{
+              width: 60,
+              padding: "6px 8px",
+              borderRadius: 6,
+              border: `1px solid ${tokens.border}`,
+              fontSize: 13,
+              fontFamily: fonts.code,
+              textAlign: "center",
+              background: tokens.bg,
+            }}
+          />
         </div>
 
         {/* Risk Tier pills */}
