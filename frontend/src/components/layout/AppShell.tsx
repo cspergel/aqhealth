@@ -10,15 +10,25 @@ import { ProvidersPage } from "../../pages/ProvidersPage";
 import { CareGapsPage } from "../../pages/CareGapsPage";
 import { GroupsPage } from "../../pages/GroupsPage";
 import { PatternsPage } from "../../pages/PatternsPage";
+import { JourneyPage } from "../../pages/JourneyPage";
+import { FinancialPage } from "../../pages/FinancialPage";
+import { CohortsPage } from "../../pages/CohortsPage";
+import { PredictionsPage } from "../../pages/PredictionsPage";
+import { ScenariosPage } from "../../pages/ScenariosPage";
 
 const navItems = [
   { path: "/", label: "Dashboard" },
   { path: "/suspects", label: "Suspect HCCs" },
   { path: "/expenditure", label: "Expenditure" },
+  { path: "/financial", label: "Financial" },
+  { path: "/predictions", label: "Predictions" },
+  { path: "/scenarios", label: "Scenarios" },
   { path: "/providers", label: "Providers" },
   { path: "/groups", label: "Groups" },
+  { path: "/cohorts", label: "Cohorts" },
   { path: "/intelligence", label: "Intelligence" },
   { path: "/care-gaps", label: "Care Gaps" },
+  { path: "/journey", label: "Journey" },
   { path: "/ingestion", label: "Data" },
 ];
 
@@ -90,6 +100,12 @@ export function AppShell() {
           <Route path="/groups/*" element={<GroupsPage />} />
           <Route path="/intelligence" element={<PatternsPage />} />
           <Route path="/care-gaps" element={<CareGapsPage />} />
+          <Route path="/journey" element={<JourneyPage />} />
+          <Route path="/journey/:memberId" element={<JourneyPage />} />
+          <Route path="/financial" element={<FinancialPage />} />
+          <Route path="/cohorts" element={<CohortsPage />} />
+          <Route path="/predictions" element={<PredictionsPage />} />
+          <Route path="/scenarios" element={<ScenariosPage />} />
           <Route path="/ingestion" element={<IngestionPage />} />
         </Routes>
       </main>

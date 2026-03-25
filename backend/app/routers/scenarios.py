@@ -1,0 +1,42 @@
+"""
+Scenario Modeling / What-If Analysis API endpoints.
+
+Provides pre-built and custom scenario execution with financial
+impact projections.  All endpoints are tenant-scoped via JWT auth.
+"""
+
+import logging
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies import get_current_user, get_tenant_db
+from app.services import scenario_service
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/scenarios", tags=["scenarios"])
+
+
+class ScenarioRequest(BaseModel):
+    type: str = Field(..., description="Scenario type: capture_improvement, facility_redirect, gap_closure, membership_change, cost_reduction, provider_education")
+    params: dict = Field(default_factory=dict, description="Scenario parameters")
+
+
+@router.get("/prebuilt")
+async def list_prebuilt_scenarios(
+    current_user: dict = Depends(get_current_user),
+) -> list[dict]:
+    """Return list of pre-built scenario definitions."""
+    return await scenario_service.get_prebuilt_scenarios()
+
+
+@router.post("/run")
+async def run_scenario(
+    body: ScenarioRequest,
+    db: AsyncSession = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Run a scenario with the given parameters and return projected impact."""
+    return await scenario_service.run_scenario(db, {"type": body.type, "params": body.params})

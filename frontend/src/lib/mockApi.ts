@@ -26,6 +26,21 @@ import {
   mockImprovementAreas,
   mockDiscoveryLatest,
   mockDiscoveryRevenueCycle,
+  mockJourneyMembers,
+  mockJourneyData,
+  mockTrajectoryData,
+  mockFinancialPnl,
+  mockFinancialByPlan,
+  mockFinancialByGroup,
+  mockFinancialForecast,
+  mockCohortBuildResult,
+  mockSavedCohorts,
+  mockCohortTrends,
+  mockHospitalizationRisk,
+  mockCostProjections,
+  mockRafProjections,
+  mockPrebuiltScenarios,
+  mockScenarioResults,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -143,6 +158,15 @@ export function enableDemoMode() {
         }
       } else if (url.includes("/api/learning/track")) {
         mockResponse = { id: Date.now(), interaction_type: "tracked", target_type: "mock", success: true };
+      } else if (url.includes("/api/cohorts/build")) {
+        mockResponse = mockCohortBuildResult;
+      } else if (url.includes("/api/cohorts/save")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        mockResponse = { id: Date.now(), name: body?.name || "New Cohort", filters: body?.filters || {}, created_at: "2026-03-24", member_count: 8, last_run: "2026-03-24" };
+      } else if (url.includes("/api/scenarios/run")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const scenarioType = body?.type || "capture_improvement";
+        mockResponse = mockScenarioResults[scenarioType] || mockScenarioResults["capture_improvement"];
       } else if (url.includes("/api/care-gaps/measures")) {
         mockResponse = { id: 999, code: "CUSTOM-01", name: "Custom Measure", success: true };
       } else {
@@ -345,6 +369,64 @@ export function enableDemoMode() {
           { id: "coding_specificity", title: "Higher Coding Specificity", description: "Top performers use specific diagnosis codes 78% of the time vs 51% for bottom performers.", metric: "specificity_rate", top_value: 78, bottom_value: 51, gap: 27, evidence_count: 1247, category: "coding" },
           { id: "hcc_code_breadth", title: "Broader HCC Code Utilization", description: "Top performers document HCC-relevant codes in 34% of claims vs 18% for bottom performers.", metric: "hcc_code_rate", top_value: 34, bottom_value: 18, gap: 16, evidence_count: 24, category: "hcc_capture" },
         ];
+      }
+
+      // Journey: member search
+      else if (url.includes("/api/journey/members")) {
+        mockResponse = mockJourneyMembers;
+      }
+      // Journey: trajectory for a member
+      else if (/\/api\/journey\/\d+\/trajectory/.test(url)) {
+        const mid = parseInt(url.match(/\/api\/journey\/(\d+)/)![1]);
+        mockResponse = mockTrajectoryData[mid] || mockTrajectoryData[1];
+      }
+      // Journey: full timeline for a member
+      else if (/\/api\/journey\/\d+$/.test(url)) {
+        const mid = parseInt(url.match(/\/api\/journey\/(\d+)/)![1]);
+        mockResponse = mockJourneyData[mid] || mockJourneyData[1];
+      }
+
+      // Financial P&L
+      else if (url.includes("/api/financial/pnl/by-plan")) {
+        mockResponse = mockFinancialByPlan;
+      }
+      else if (url.includes("/api/financial/pnl/by-group")) {
+        mockResponse = mockFinancialByGroup;
+      }
+      else if (url.includes("/api/financial/pnl")) {
+        mockResponse = mockFinancialPnl;
+      }
+      else if (url.includes("/api/financial/forecast")) {
+        mockResponse = mockFinancialForecast;
+      }
+
+      // Cohorts
+      else if (/\/api\/cohorts\/\d+\/trends/.test(url)) {
+        mockResponse = mockCohortTrends;
+      }
+      else if (/\/api\/cohorts\/\d+$/.test(url)) {
+        const cid = parseInt(url.match(/\/api\/cohorts\/(\d+)/)![1]);
+        const cohort = mockSavedCohorts.find((c) => c.id === cid) || mockSavedCohorts[0];
+        mockResponse = { ...cohort, ...mockCohortBuildResult };
+      }
+      else if (url.match(/\/api\/cohorts\/?$/) || url.match(/\/api\/cohorts\?/)) {
+        mockResponse = mockSavedCohorts;
+      }
+
+      // Predictions
+      else if (url.includes("/api/predictions/hospitalization-risk")) {
+        mockResponse = mockHospitalizationRisk;
+      }
+      else if (url.includes("/api/predictions/cost-trajectory")) {
+        mockResponse = mockCostProjections;
+      }
+      else if (url.includes("/api/predictions/raf-impact")) {
+        mockResponse = mockRafProjections;
+      }
+
+      // Scenarios
+      else if (url.includes("/api/scenarios/prebuilt")) {
+        mockResponse = mockPrebuiltScenarios;
       }
 
       // Generic insights
