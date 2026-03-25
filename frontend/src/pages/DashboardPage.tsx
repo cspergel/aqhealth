@@ -328,7 +328,7 @@ export function DashboardPage() {
           {/* Insight Panel */}
           <InsightPanel
             insights={insights}
-            lastDiscoveryAt={new Date().toISOString()}
+            lastDiscoveryAt={new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()}
             onRefresh={() => {
               api.get("/api/dashboard/insights").then((res) => setInsights(res.data));
             }}

@@ -249,9 +249,9 @@ async def upload_file(
         data_type = result["data_type"]
         proposed = result["mapping"]
 
-    # Create UploadJob record
+    # Create UploadJob record and retrieve its ID via RETURNING
     mapping_json = json.dumps(proposed)
-    await db.execute(
+    id_result = await db.execute(
         text("""
             INSERT INTO upload_jobs
                 (filename, file_size, detected_type, status, column_mapping,
@@ -259,6 +259,7 @@ async def upload_file(
             VALUES
                 (:filename, :file_size, :detected_type, 'mapping',
                  :mapping::jsonb, :template_id, :user_id)
+            RETURNING id
         """),
         {
             "filename": unique_name,
@@ -269,14 +270,8 @@ async def upload_file(
             "user_id": current_user["user_id"],
         },
     )
-    await db.commit()
-
-    # Get the created job ID
-    id_result = await db.execute(
-        text("SELECT id FROM upload_jobs WHERE filename = :fn ORDER BY id DESC LIMIT 1"),
-        {"fn": unique_name},
-    )
     job_id = id_result.scalar_one()
+    await db.commit()
 
     # Convert proposed mapping to response format
     mapping_response = {}
@@ -515,12 +510,14 @@ async def create_template(
     mapping_json = json.dumps(body.column_mapping)
     rules_json = json.dumps(body.transformation_rules) if body.transformation_rules else None
 
-    await db.execute(
+    result = await db.execute(
         text("""
             INSERT INTO mapping_templates
                 (name, source_name, data_type, column_mapping, transformation_rules)
             VALUES
                 (:name, :source, :dtype, :mapping::jsonb, :rules::jsonb)
+            RETURNING id, name, source_name, data_type, column_mapping,
+                      transformation_rules, created_at
         """),
         {
             "name": body.name,
@@ -530,18 +527,8 @@ async def create_template(
             "rules": rules_json,
         },
     )
-    await db.commit()
-
-    # Retrieve the created template
-    result = await db.execute(
-        text("""
-            SELECT id, name, source_name, data_type, column_mapping,
-                   transformation_rules, created_at
-            FROM mapping_templates
-            ORDER BY id DESC LIMIT 1
-        """)
-    )
     row = result.mappings().first()
+    await db.commit()
 
     return TemplateResponse(
         id=row["id"],
@@ -604,12 +591,14 @@ async def create_rule(
 
     config_json = json.dumps(body.rule_config)
 
-    await db.execute(
+    result = await db.execute(
         text("""
             INSERT INTO mapping_rules
                 (source_name, rule_type, rule_config, description, is_active)
             VALUES
                 (:source, :rtype, :config::jsonb, :desc, true)
+            RETURNING id, source_name, rule_type, rule_config, description,
+                      is_active, created_at
         """),
         {
             "source": body.source_name,
@@ -618,17 +607,8 @@ async def create_rule(
             "desc": body.description,
         },
     )
-    await db.commit()
-
-    result = await db.execute(
-        text("""
-            SELECT id, source_name, rule_type, rule_config, description,
-                   is_active, created_at
-            FROM mapping_rules
-            ORDER BY id DESC LIMIT 1
-        """)
-    )
     row = result.mappings().first()
+    await db.commit()
 
     return RuleResponse(
         id=row["id"],

@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
-    # CORS
+    # CORS — production deployments should set the CORS_ORIGINS env var
+    # to the actual frontend origin(s), e.g. "https://app.example.com".
+    # Do NOT use "*" in production.
     cors_origins: list[str] = ["http://localhost:5180"]
 
     # SNF Admit Assist

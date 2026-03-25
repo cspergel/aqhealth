@@ -20,6 +20,7 @@ export function ClinicalPage() {
   const [worklist, setWorklist] = useState<ClinicalWorklistItem[]>([]);
   const [patient, setPatient] = useState<ClinicalPatientContext | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Load worklist
@@ -31,6 +32,11 @@ export function ClinicalPage() {
         .then((res) => {
           setWorklist(res.data);
           setPatient(null);
+          setError(null);
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : "Failed to load worklist";
+          setError(message);
         })
         .finally(() => setLoading(false));
     }
@@ -45,7 +51,12 @@ export function ClinicalPage() {
         .then((res) => {
           if (res.data && !res.data.error) {
             setPatient(res.data);
+            setError(null);
           }
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : "Failed to load patient data";
+          setError(message);
         })
         .finally(() => setLoading(false));
     }
@@ -83,6 +94,35 @@ export function ClinicalPage() {
         }}
       >
         Loading...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        style={{
+          padding: 40,
+          textAlign: "center",
+          color: tokens.text,
+          fontFamily: fonts.body,
+        }}
+      >
+        <div style={{ color: "#dc2626", marginBottom: 12 }}>{error}</div>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            padding: "6px 16px",
+            borderRadius: 6,
+            border: `1px solid ${tokens.border}`,
+            background: tokens.surface,
+            cursor: "pointer",
+            fontSize: 13,
+            fontFamily: fonts.body,
+          }}
+        >
+          Retry
+        </button>
       </div>
     );
   }

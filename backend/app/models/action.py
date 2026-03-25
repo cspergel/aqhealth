@@ -7,7 +7,7 @@ are acted on, by whom, and what the measured outcome was.
 
 from datetime import date
 
-from sqlalchemy import Boolean, Date, Integer, String, Text
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,8 +40,8 @@ class ActionItem(Base, TimestampMixin):
     completed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Affected entities
-    member_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    provider_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    member_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True)
+    provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
     group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Outcome tracking

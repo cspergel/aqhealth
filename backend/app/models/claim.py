@@ -66,4 +66,4 @@ class Claim(Base, TimestampMixin):
     signal_source: Mapped[str | None] = mapped_column(String(50), nullable=True)  # "adt_event", "census", "prediction"
     signal_event_id: Mapped[int | None] = mapped_column(ForeignKey("adt_events.id"), nullable=True)  # FK to ADT event
     reconciled: Mapped[bool] = mapped_column(default=False)  # has this signal been matched to a record?
-    reconciled_claim_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # record-tier claim that replaced this signal
+    reconciled_claim_id: Mapped[int | None] = mapped_column(ForeignKey("claims.id"), nullable=True)  # record-tier claim that replaced this signal
