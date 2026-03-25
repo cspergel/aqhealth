@@ -46,7 +46,12 @@
       "Bash(alembic upgrade:*)",
       "Bash(python -m scripts.seed)",
       "Bash(python -m scripts.seed_extended)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/app/services/entity_resolution_service.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/app/services/entity_resolution_service.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")",
+      "Bash(find 'C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform' -name .env -not -path */node_modules/*)",
+      "Bash(while read:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/**)",
+      "Bash(timeout 30 python -c \":*)"
     ]
   }
 }
