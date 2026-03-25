@@ -251,21 +251,68 @@ aqsoft-health-platform/
 
 ## Architecture
 
+### The AQSoft Ecosystem
+
+The Health Platform is one part of a broader product ecosystem. Each product works independently, but together they form a complete managed care operations and intelligence stack. **Not every client needs every product** — they plug together based on what the organization does.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AQSoft Health Platform                        │
+│              (Intelligence & Analytics Hub)                      │
+│                                                                 │
+│   Population analytics, HCC suspects, expenditure drill-downs,  │
+│   care gaps, provider scorecards, AI insights, predictions,     │
+│   scenario modeling, financial P&L, cohort builder               │
+│                                                                 │
+│   Used by: MSO admins, care managers, PCP offices (overlay)     │
+└───────┬──────────┬──────────┬──────────┬──────────┬─────────────┘
+        │          │          │          │          │
+        ▼          ▼          ▼          ▼          ▼
+┌──────────┐ ┌──────────┐ ┌────────┐ ┌────────┐ ┌──────────┐
+│ AQTracker│ │SNF Admit │ │  ADT   │ │ Claims │ │ AIClaim  │
+│          │ │ Assist   │ │ Feeds  │ │ Files  │ │          │
+│ Hospital │ │          │ │        │ │        │ │ Denial   │
+│ billing  │ │ HCC      │ │Bamboo  │ │Roster  │ │prevention│
+│ hub      │ │ coding   │ │Health, │ │Claims  │ │& claim   │
+│          │ │ engine   │ │Availity│ │Rx, 834 │ │scrubbing │
+│ Rounding │ │          │ │        │ │        │ │          │
+│ sheets → │ │ PDF →    │ │Real-   │ │Batch   │ │          │
+│ OCR →    │ │ extract →│ │time    │ │upload   │ │          │
+│ coding → │ │ code →   │ │alerts  │ │from    │ │          │
+│ billing  │ │ optimize │ │        │ │health  │ │          │
+│          │ │ → RAF    │ │        │ │plans   │ │          │
+└──────────┘ └──────────┘ └────────┘ └────────┘ └──────────┘
+```
+
+**Who uses what:**
+
+| Organization Type | Products They Need |
+|-------------------|-------------------|
+| **MSO managing populations** | Health Platform + Claims Files + ADT Feeds |
+| **MSO with own billing company** | Health Platform + AQTracker + SNF Admit Assist + Claims + ADT |
+| **Billing company only** | AQTracker + AQCoder (no Health Platform needed) |
+| **PCP office under MSO** | Health Platform (overlay mode) — data comes from MSO's claims |
+| **Hospitalist group** | AQTracker + SNF Admit Assist + Health Platform for insights |
+
+**AQTracker** is the operational hub for hospital-side work. It handles the daily workflow: receiving rounding sheets, extracting patient data via OCR, routing through coding (AQCoder), managing the billing process, and tracking patient encounters across hospital systems (TGH, HCA, Baycare, Advent, Encompass, Kindred). It serves billing company clients (ISG, FMG, TPSG, GI) who have hospitalist and specialist providers seeing patients at these facilities.
+
+**The Health Platform** is the intelligence hub for MSO-side analytics. It ingests data from ALL sources — AQTracker encounters, PCP office claims, pharmacy data, ADT feeds, eligibility files — and turns it into actionable intelligence. It sees across the entire continuum of care and finds patterns, opportunities, and risks that no single data source reveals.
+
+**They connect but don't depend on each other.** A billing company can run AQTracker without the Health Platform. An MSO can run the Health Platform on claims data alone, without AQTracker. But when both are running, the Health Platform gets a predictive advantage — it sees what's being coded and billed in AQTracker BEFORE the insurance company receives the claim.
+
 ### Multi-Tenancy
 
 The platform uses a **schema-per-tenant** model in PostgreSQL. Each MSO client gets a dedicated schema (e.g., `sunstate.*`, `gulfcoast.*`) with strong data isolation. A shared `platform` schema holds cross-tenant data: user accounts, tenant configuration, and platform metadata. Middleware extracts tenant context from the authenticated session and scopes all queries. PostgreSQL Row-Level Security serves as an additional safety net.
 
 ### Microservice Integration Points
 
-The Health Platform is the intelligence hub connecting a broader ecosystem of specialized services:
-
-| Service | Role | Status |
-|---------|------|--------|
-| **AQTracker** | Encounter management, billing, provider scheduling, patient tracking. **Predictive data source** — the platform sees what AQTracker is billing before the payer receives the claim, enabling RAF forecasting months ahead of CMS payment cycles. | Active integration |
-| **AQCoder** | AI-powered CPT/ICD-10 coding, MIPS measures, MDM scoring | Active integration |
-| **SNF Admit Assist** | HCC coding pipeline, med-dx gap detection, RAF calculation. Exposes `/api/validate` (ICD-10 validation), `/api/optimize` (code optimization), and `/api/raf` (RAF scoring) endpoints. | Active (internal API) |
-| **AutoCoder** | Additional AI coding intelligence layer | Active (external API) |
-| **AIClaim** | Denial prevention, claim scrubbing | Future integration |
+| Service | Role | Integration |
+|---------|------|-------------|
+| **AQTracker** | Hospital-side operational hub: rounding sheet intake, OCR, patient tracking, coding, billing. Predictive data source — sees billing before the payer. | REST API / DB sync |
+| **AQCoder** | AI coding engine inside AQTracker: CPT/ICD-10, MIPS, MDM, RAF scoring | Via AQTracker |
+| **SNF Admit Assist** | HCC coding pipeline for complex documents. Exposes `/api/validate`, `/api/optimize`, `/api/raf` endpoints for the Health Platform. | REST API (port 8000) |
+| **AutoCoder** | AQSoft.AI's proprietary HCC intelligence layer | External API |
+| **AIClaim** | Denial prevention, claim scrubbing, X12 837 analysis | Future (external API) |
 | **redact.health** | PHI de-identification for external data sharing | Available |
 
 ### API Surface
