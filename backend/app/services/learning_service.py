@@ -208,18 +208,25 @@ async def generate_learning_report(db: AsyncSession) -> dict[str, Any]:
         }
 
     # Identify blind spots — lowest accuracy HCC codes
-    blind_spots = (await db.execute(
-        select(
-            PredictionOutcome.context["hcc_code"].astext.label("hcc_code"),
-            func.count(PredictionOutcome.id).label("total"),
-            func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)).label("correct"),  # noqa: E712
-        )
-        .where(PredictionOutcome.prediction_type == "hcc_suspect")
-        .group_by(PredictionOutcome.context["hcc_code"].astext)
-        .having(func.count(PredictionOutcome.id) >= 5)
-        .order_by((func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)) * 100.0 / func.count(PredictionOutcome.id)).asc())  # noqa: E712
-        .limit(5)
-    )).all()
+    try:
+        blind_spots = (await db.execute(
+            select(
+                PredictionOutcome.context["hcc_code"].astext.label("hcc_code"),
+                func.count(PredictionOutcome.id).label("total"),
+                func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)).label("correct"),  # noqa: E712
+            )
+            .where(
+                PredictionOutcome.prediction_type == "hcc_suspect",
+                PredictionOutcome.context.isnot(None),
+                PredictionOutcome.context["hcc_code"].astext.isnot(None),
+            )
+            .group_by(PredictionOutcome.context["hcc_code"].astext)
+            .having(func.count(PredictionOutcome.id) >= 2)
+            .order_by((func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)) * 100.0 / func.count(PredictionOutcome.id)).asc())  # noqa: E712
+            .limit(5)
+        )).all()
+    except Exception:
+        blind_spots = []
 
     blind_spot_list = [
         {
@@ -232,18 +239,25 @@ async def generate_learning_report(db: AsyncSession) -> dict[str, Any]:
     ]
 
     # Identify improving areas — highest accuracy HCC codes
-    strengths = (await db.execute(
-        select(
-            PredictionOutcome.context["hcc_code"].astext.label("hcc_code"),
-            func.count(PredictionOutcome.id).label("total"),
-            func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)).label("correct"),  # noqa: E712
-        )
-        .where(PredictionOutcome.prediction_type == "hcc_suspect")
-        .group_by(PredictionOutcome.context["hcc_code"].astext)
-        .having(func.count(PredictionOutcome.id) >= 5)
-        .order_by((func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)) * 100.0 / func.count(PredictionOutcome.id)).desc())  # noqa: E712
-        .limit(5)
-    )).all()
+    try:
+        strengths = (await db.execute(
+            select(
+                PredictionOutcome.context["hcc_code"].astext.label("hcc_code"),
+                func.count(PredictionOutcome.id).label("total"),
+                func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)).label("correct"),  # noqa: E712
+            )
+            .where(
+                PredictionOutcome.prediction_type == "hcc_suspect",
+                PredictionOutcome.context.isnot(None),
+                PredictionOutcome.context["hcc_code"].astext.isnot(None),
+            )
+            .group_by(PredictionOutcome.context["hcc_code"].astext)
+            .having(func.count(PredictionOutcome.id) >= 2)
+            .order_by((func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)) * 100.0 / func.count(PredictionOutcome.id)).desc())  # noqa: E712
+            .limit(5)
+        )).all()
+    except Exception:
+        strengths = []
 
     strength_list = [
         {
@@ -347,16 +361,22 @@ async def get_learning_context_for_insights(db: AsyncSession) -> dict[str, Any]:
         }
 
     # HCC-specific accuracy (top and bottom)
-    hcc_accuracy = (await db.execute(
-        select(
-            PredictionOutcome.context["hcc_code"].astext.label("hcc_code"),
-            func.count(PredictionOutcome.id).label("total"),
-            func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)).label("correct"),  # noqa: E712
-        )
-        .where(PredictionOutcome.prediction_type == "hcc_suspect")
-        .group_by(PredictionOutcome.context["hcc_code"].astext)
-        .having(func.count(PredictionOutcome.id) >= 3)
-    )).all()
+    try:
+        hcc_accuracy = (await db.execute(
+            select(
+                PredictionOutcome.context["hcc_code"].astext.label("hcc_code"),
+                func.count(PredictionOutcome.id).label("total"),
+                func.sum(case((PredictionOutcome.was_correct == True, 1), else_=0)).label("correct"),  # noqa: E712
+            )
+            .where(
+                PredictionOutcome.prediction_type == "hcc_suspect",
+                PredictionOutcome.context.isnot(None),
+            )
+            .group_by(PredictionOutcome.context["hcc_code"].astext)
+            .having(func.count(PredictionOutcome.id) >= 2)
+        )).all()
+    except Exception:
+        hcc_accuracy = []
 
     hcc_performance = {}
     for row in hcc_accuracy:

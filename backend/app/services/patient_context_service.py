@@ -234,7 +234,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
             "date": c.service_date.isoformat(),
             "type": c.claim_type.value if c.claim_type else "unknown",
             "facility": c.facility_name or "Unknown",
-            "provider": c.provider_name or "Unknown",
+            "provider": str(c.rendering_provider_id) if c.rendering_provider_id else "Unknown",
             "diagnoses": c.diagnosis_codes or [],
             "cost": float(c.paid_amount) if c.paid_amount else 0.0,
         }
