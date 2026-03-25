@@ -2,15 +2,24 @@
 Entity Resolution service.
 
 Matches incoming member and provider records to existing entities
-using exact, fuzzy, and phonetic matching strategies.
+using a two-tier pipeline:
+
+  1. Fast path  — deterministic exact matches (no API call)
+  2. AI path    — Claude evaluates fuzzy candidates when deterministic fails
+
+Also provides batch AI resolution and a learning feedback loop.
 """
 
+import json
 import logging
 import re
+from datetime import date
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import text, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -109,19 +118,568 @@ async def normalize_facility(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Member matching
+# Claude AI client helper
+# ---------------------------------------------------------------------------
+
+def _get_ai_client():
+    """Return an AsyncAnthropic client, or None if unavailable."""
+    if not settings.anthropic_api_key:
+        return None
+    try:
+        import anthropic
+        return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    except ImportError:
+        logger.warning("anthropic package not installed — AI matching disabled")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# AI-powered member matching
+# ---------------------------------------------------------------------------
+
+_MEMBER_SYSTEM_PROMPT = """You are an entity resolution expert for healthcare data.
+
+Given an incoming patient record and a list of potential matches from our database,
+determine if any candidate is the same person as the incoming record.
+
+Signals to consider (strongest to weakest):
+- Exact or near-exact name match (accounting for common nicknames)
+- Date of birth match or near-match (transposed digits, off-by-one year)
+- Same health plan / insurance
+- Same PCP (primary care physician)
+- Same or similar address
+- Overlapping diagnosis patterns or medications
+
+Common name variations to recognise:
+  Robert=Bob=Bobby=Rob, William=Bill=Billy=Will, Richard=Rick=Dick,
+  James=Jim=Jimmy, John=Jack=Johnny, Charles=Charlie=Chuck,
+  Margaret=Peggy=Marge=Maggie, Elizabeth=Liz=Beth=Betty=Lizzy,
+  Patricia=Pat=Patty, Jennifer=Jenny=Jen, Katherine=Kate=Kathy=Katie,
+  Michael=Mike, Joseph=Joe, Thomas=Tom=Tommy, Daniel=Dan=Danny,
+  Anthony=Tony, Christopher=Chris, Edward=Ed=Eddie=Ted,
+  Alexandra=Alex, Alejandro=Alex, Francisco=Frank
+
+Data quality issues to handle:
+- Transposed digits in DOB (e.g. 1985-03-12 vs 1985-12-03)
+- Minor misspellings (Johanson vs Johansson, Smyth vs Smith)
+- Format differences (dates, phone numbers, addresses)
+- Missing or null fields (absence of data is not evidence of mismatch)
+
+Return your assessment as a JSON object with these fields:
+{
+  "best_match_index": <0-based index of the best candidate, or null if no match>,
+  "confidence": <integer 0-100>,
+  "reasoning": "<brief explanation of your decision>",
+  "signals": ["<list of key signals that informed your decision>"]
+}
+
+Return ONLY the JSON object, no other text."""
+
+
+async def ai_match_member(
+    db: AsyncSession,
+    incoming: dict,
+    candidates: list[dict],
+) -> dict:
+    """Use Claude to evaluate which candidate (if any) matches the incoming member.
+
+    Returns: {
+        best_match_index: int | None,
+        confidence: int,
+        reasoning: str,
+        signals: list[str],
+        matched: bool,
+        member_id: int | None,
+        strategy: str,
+    }
+    """
+    client = _get_ai_client()
+    if client is None:
+        # Fallback: return the best deterministic candidate as-is
+        return _deterministic_fallback(candidates, entity_key="member_id")
+
+    # --- Enrich candidates with extra context from the database ---------------
+    enriched_candidates = []
+    for i, c in enumerate(candidates[:5]):
+        enriched = {
+            "index": i,
+            "first_name": c.get("first_name", ""),
+            "last_name": c.get("last_name", ""),
+            "date_of_birth": c.get("dob") or c.get("date_of_birth", ""),
+            "deterministic_confidence": c.get("confidence", 0),
+        }
+        # Try to pull extra context (plan, PCP, address, dx, meds)
+        try:
+            extra = await db.execute(
+                text("""
+                    SELECT gender, plan_name, pcp_name, address_line1, city,
+                           state, zip_code
+                    FROM members WHERE id = :mid
+                """),
+                {"mid": c["id"]},
+            )
+            row = extra.fetchone()
+            if row:
+                enriched.update({
+                    "gender": row.gender if hasattr(row, "gender") else None,
+                    "plan": row.plan_name if hasattr(row, "plan_name") else None,
+                    "pcp": row.pcp_name if hasattr(row, "pcp_name") else None,
+                    "address": ", ".join(filter(None, [
+                        getattr(row, "address_line1", None),
+                        getattr(row, "city", None),
+                        getattr(row, "state", None),
+                        getattr(row, "zip_code", None),
+                    ])),
+                })
+        except Exception:
+            pass  # extra context is best-effort
+
+        # Recent diagnoses
+        try:
+            dx = await db.execute(
+                text("""
+                    SELECT DISTINCT diagnosis_code
+                    FROM claims
+                    WHERE member_id = :mid
+                    ORDER BY diagnosis_code
+                    LIMIT 10
+                """),
+                {"mid": c["id"]},
+            )
+            enriched["recent_diagnoses"] = [r.diagnosis_code for r in dx.fetchall()]
+        except Exception:
+            enriched["recent_diagnoses"] = []
+
+        enriched_candidates.append(enriched)
+
+    # --- Build prompt ---------------------------------------------------------
+    user_message = (
+        "INCOMING RECORD:\n"
+        f"{json.dumps(incoming, default=str, indent=2)}\n\n"
+        "CANDIDATE MATCHES FROM DATABASE:\n"
+        f"{json.dumps(enriched_candidates, default=str, indent=2)}"
+    )
+
+    try:
+        response = await client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            system=_MEMBER_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        raw = response.content[0].text.strip()
+        # Parse JSON — handle possible markdown fences
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"```\s*$", "", raw)
+        ai_result = json.loads(raw)
+    except Exception as e:
+        logger.warning("AI member matching failed, falling back to deterministic: %s", e)
+        return _deterministic_fallback(candidates, entity_key="member_id")
+
+    # --- Interpret AI result --------------------------------------------------
+    best_idx = ai_result.get("best_match_index")
+    confidence = int(ai_result.get("confidence", 0))
+    reasoning = ai_result.get("reasoning", "")
+    signals = ai_result.get("signals", [])
+
+    if best_idx is not None and 0 <= best_idx < len(candidates):
+        best_candidate = candidates[best_idx]
+
+        if confidence >= 85:
+            strategy = "ai_auto_match"
+            matched = True
+        elif confidence >= 60:
+            strategy = "ai_review_needed"
+            matched = False  # needs human review
+        else:
+            strategy = "ai_low_confidence"
+            matched = False
+            best_candidate = None
+    else:
+        strategy = "ai_no_match"
+        matched = False
+        best_candidate = None
+
+    return {
+        "matched": matched,
+        "member_id": best_candidate["id"] if best_candidate else None,
+        "confidence": confidence,
+        "strategy": strategy,
+        "reasoning": reasoning,
+        "signals": signals,
+        "candidates": candidates[:5],
+    }
+
+
+# ---------------------------------------------------------------------------
+# AI-powered provider matching
+# ---------------------------------------------------------------------------
+
+_PROVIDER_SYSTEM_PROMPT = """You are an entity resolution expert for healthcare provider data.
+
+Given an incoming provider record and a list of potential matches from our database,
+determine if any candidate is the same provider as the incoming record.
+
+Signals to consider (strongest to weakest):
+- NPI match (National Provider Identifier — unique to each provider)
+- Exact or near-exact name match
+- Same specialty
+- Same practice name or TIN (Tax Identification Number)
+- Same or similar address
+
+Data quality issues to handle:
+- Credential suffixes (MD, DO, PhD, NP, PA) may be inconsistent
+- Practice names change over acquisitions
+- Providers may have multiple office locations
+- Minor misspellings
+
+Return your assessment as a JSON object with these fields:
+{
+  "best_match_index": <0-based index of the best candidate, or null if no match>,
+  "confidence": <integer 0-100>,
+  "reasoning": "<brief explanation of your decision>",
+  "signals": ["<list of key signals that informed your decision>"]
+}
+
+Return ONLY the JSON object, no other text."""
+
+
+async def ai_match_provider(
+    db: AsyncSession,
+    incoming: dict,
+    candidates: list[dict],
+) -> dict:
+    """Use Claude to evaluate which candidate (if any) matches the incoming provider.
+
+    Returns the same shape as ai_match_member but with provider_id.
+    """
+    client = _get_ai_client()
+    if client is None:
+        return _deterministic_fallback(candidates, entity_key="provider_id")
+
+    # Enrich candidates
+    enriched_candidates = []
+    for i, c in enumerate(candidates[:5]):
+        enriched = {
+            "index": i,
+            "first_name": c.get("first_name", ""),
+            "last_name": c.get("last_name", ""),
+            "npi": c.get("npi", ""),
+            "deterministic_confidence": c.get("confidence", 0),
+        }
+        try:
+            extra = await db.execute(
+                text("""
+                    SELECT specialty, practice_name, tin,
+                           address_line1, city, state, zip_code
+                    FROM providers WHERE id = :pid
+                """),
+                {"pid": c["id"]},
+            )
+            row = extra.fetchone()
+            if row:
+                enriched.update({
+                    "specialty": getattr(row, "specialty", None),
+                    "practice_name": getattr(row, "practice_name", None),
+                    "tin": getattr(row, "tin", None),
+                    "address": ", ".join(filter(None, [
+                        getattr(row, "address_line1", None),
+                        getattr(row, "city", None),
+                        getattr(row, "state", None),
+                        getattr(row, "zip_code", None),
+                    ])),
+                })
+        except Exception:
+            pass
+
+        enriched_candidates.append(enriched)
+
+    user_message = (
+        "INCOMING RECORD:\n"
+        f"{json.dumps(incoming, default=str, indent=2)}\n\n"
+        "CANDIDATE MATCHES FROM DATABASE:\n"
+        f"{json.dumps(enriched_candidates, default=str, indent=2)}"
+    )
+
+    try:
+        response = await client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            system=_PROVIDER_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"```\s*$", "", raw)
+        ai_result = json.loads(raw)
+    except Exception as e:
+        logger.warning("AI provider matching failed, falling back to deterministic: %s", e)
+        return _deterministic_fallback(candidates, entity_key="provider_id")
+
+    best_idx = ai_result.get("best_match_index")
+    confidence = int(ai_result.get("confidence", 0))
+    reasoning = ai_result.get("reasoning", "")
+    signals = ai_result.get("signals", [])
+
+    if best_idx is not None and 0 <= best_idx < len(candidates):
+        best_candidate = candidates[best_idx]
+        if confidence >= 85:
+            strategy = "ai_auto_match"
+            matched = True
+        elif confidence >= 60:
+            strategy = "ai_review_needed"
+            matched = False
+        else:
+            strategy = "ai_low_confidence"
+            matched = False
+            best_candidate = None
+    else:
+        strategy = "ai_no_match"
+        matched = False
+        best_candidate = None
+
+    return {
+        "matched": matched,
+        "provider_id": best_candidate["id"] if best_candidate else None,
+        "confidence": confidence,
+        "strategy": strategy,
+        "reasoning": reasoning,
+        "signals": signals,
+        "candidates": candidates[:5],
+    }
+
+
+# ---------------------------------------------------------------------------
+# AI batch resolution
+# ---------------------------------------------------------------------------
+
+_BATCH_SYSTEM_PROMPT = """You are an entity resolution expert for healthcare data.
+
+You are given a list of unresolved matching tasks. Each task contains an incoming
+record and up to 5 candidate matches from our database.
+
+For EACH task, determine whether any candidate is a match for the incoming record.
+Apply the same logic as single-record matching: consider name variations, DOB
+transpositions, insurance plan, PCP, address, and diagnosis overlap.
+
+Return a JSON array (one element per task) with this structure:
+[
+  {
+    "task_index": 0,
+    "best_match_index": <0-based index into that task's candidates, or null>,
+    "confidence": <integer 0-100>,
+    "reasoning": "<brief explanation>",
+    "signals": ["<key signals>"]
+  },
+  ...
+]
+
+Return ONLY the JSON array, no other text."""
+
+
+async def ai_resolve_batch(
+    db: AsyncSession,
+    unresolved: list[dict],
+) -> list[dict]:
+    """Process multiple unresolved matches in a single LLM call for efficiency.
+
+    Each element of *unresolved* should have:
+      - "incoming": dict  (the incoming record)
+      - "candidates": list[dict]  (candidate matches)
+
+    Returns a list of resolution recommendations, one per input.
+    """
+    client = _get_ai_client()
+    if client is None:
+        return [
+            _deterministic_fallback(item.get("candidates", []), entity_key="member_id")
+            for item in unresolved
+        ]
+
+    # Build the batch payload
+    tasks_for_prompt: list[dict] = []
+    for idx, item in enumerate(unresolved):
+        tasks_for_prompt.append({
+            "task_index": idx,
+            "incoming": item.get("incoming", {}),
+            "candidates": item.get("candidates", [])[:5],
+        })
+
+    user_message = (
+        f"Resolve the following {len(tasks_for_prompt)} matching tasks:\n\n"
+        f"{json.dumps(tasks_for_prompt, default=str, indent=2)}"
+    )
+
+    try:
+        response = await client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            system=_BATCH_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"```\s*$", "", raw)
+        ai_results = json.loads(raw)
+    except Exception as e:
+        logger.warning("AI batch resolution failed: %s", e)
+        return [
+            _deterministic_fallback(item.get("candidates", []), entity_key="member_id")
+            for item in unresolved
+        ]
+
+    # Normalise into a list aligned with the input
+    results: list[dict] = []
+    ai_by_idx = {r["task_index"]: r for r in ai_results} if isinstance(ai_results, list) else {}
+
+    for idx, item in enumerate(unresolved):
+        ai_r = ai_by_idx.get(idx)
+        candidates = item.get("candidates", [])
+
+        if ai_r is None:
+            results.append(_deterministic_fallback(candidates, entity_key="member_id"))
+            continue
+
+        best_idx = ai_r.get("best_match_index")
+        confidence = int(ai_r.get("confidence", 0))
+        reasoning = ai_r.get("reasoning", "")
+        signals = ai_r.get("signals", [])
+
+        if best_idx is not None and 0 <= best_idx < len(candidates):
+            best = candidates[best_idx]
+            if confidence >= 85:
+                strategy = "ai_auto_match"
+                matched = True
+            elif confidence >= 60:
+                strategy = "ai_review_needed"
+                matched = False
+            else:
+                strategy = "ai_low_confidence"
+                matched = False
+                best = None
+        else:
+            strategy = "ai_no_match"
+            matched = False
+            best = None
+
+        results.append({
+            "matched": matched,
+            "member_id": best["id"] if best else None,
+            "confidence": confidence,
+            "strategy": strategy,
+            "reasoning": reasoning,
+            "signals": signals,
+            "candidates": candidates[:5],
+        })
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Learning feedback loop
+# ---------------------------------------------------------------------------
+
+async def record_match_feedback(
+    db: AsyncSession,
+    match_id: int,
+    was_correct: bool,
+) -> dict:
+    """Record human feedback on an AI-generated entity match.
+
+    This creates a PredictionOutcome row with prediction_type='entity_match'
+    so the learning system can track accuracy over time.
+    """
+    try:
+        from app.models.learning import PredictionOutcome
+
+        outcome_str = "confirmed" if was_correct else "rejected"
+        po = PredictionOutcome(
+            prediction_type="entity_match",
+            prediction_id=match_id,
+            predicted_value=f"entity_match_{match_id}",
+            confidence=None,
+            outcome=outcome_str,
+            was_correct=was_correct,
+            context={"source": "entity_resolution", "match_id": match_id},
+        )
+        db.add(po)
+        await db.commit()
+
+        logger.info(
+            "Recorded entity match feedback: match_id=%s was_correct=%s",
+            match_id,
+            was_correct,
+        )
+        return {"success": True, "match_id": match_id, "outcome": outcome_str}
+    except Exception as e:
+        logger.error("Failed to record match feedback: %s", e)
+        await db.rollback()
+        return {"success": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Deterministic fallback helper
+# ---------------------------------------------------------------------------
+
+def _deterministic_fallback(
+    candidates: list[dict],
+    entity_key: str = "member_id",
+) -> dict:
+    """When AI is unavailable, return the best deterministic candidate."""
+    if not candidates:
+        return {
+            "matched": False,
+            entity_key: None,
+            "confidence": 0,
+            "strategy": "no_match",
+            "reasoning": "No candidates found",
+            "signals": [],
+            "candidates": [],
+        }
+
+    best = candidates[0]
+    conf = best.get("confidence", 0)
+    matched = conf >= 80
+    return {
+        "matched": matched,
+        entity_key: best["id"] if matched else None,
+        "confidence": conf,
+        "strategy": "deterministic_fuzzy" if matched else "ambiguous",
+        "reasoning": "AI unavailable — used deterministic scoring",
+        "signals": [],
+        "candidates": candidates[:5],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Member matching — two-tier pipeline
 # ---------------------------------------------------------------------------
 
 async def match_member(db: AsyncSession, incoming: dict) -> dict:
-    """Try to match an incoming member record to existing members.
+    """Match an incoming member record to existing members.
 
-    Match strategies (in order):
-    1. Exact match on member_id (health plan ID)
-    2. Exact match on first_name + last_name + date_of_birth
-    3. Fuzzy: last_name exact + first_name starts-with + DOB within 1 year
-    4. Fuzzy: last_name sounds-like (Soundex) + DOB exact
+    Pipeline:
+      Fast path (deterministic, no API call):
+        1. Exact match on member_id → confidence 100, done
+        2. Exact match on first_name + last_name + DOB → confidence 98, done
 
-    Returns: {matched: bool, member_id: int | None, confidence: int, strategy: str, candidates: list}
+      AI path (when deterministic fails):
+        3. Gather fuzzy candidates (prefix + Soundex)
+        4. Send to Claude for intelligent evaluation
+        5. Return AI assessment with confidence and reasoning
+
+    Returns: {
+        matched: bool,
+        member_id: int | None,
+        confidence: int,
+        strategy: str,
+        reasoning: str | None,
+        signals: list[str] | None,
+        candidates: list,
+    }
     """
     candidates: list[dict] = []
 
@@ -130,7 +688,7 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
     last_name = (incoming.get("last_name") or "").strip()
     dob = incoming.get("date_of_birth")
 
-    # Strategy 1: Exact match on member_id
+    # ---- Fast path 1: Exact match on member_id ----------------------------
     if member_id_val:
         try:
             result = await db.execute(
@@ -145,6 +703,8 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
                     "member_id": r.id,
                     "confidence": 100,
                     "strategy": "exact_member_id",
+                    "reasoning": "Exact member_id match",
+                    "signals": ["member_id"],
                     "candidates": [{"id": r.id, "first_name": r.first_name, "last_name": r.last_name, "dob": str(r.date_of_birth), "confidence": 100}],
                 }
             elif len(rows) > 1:
@@ -153,7 +713,7 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
         except Exception as e:
             logger.warning("Strategy 1 (exact member_id) failed: %s", e)
 
-    # Strategy 2: Exact match on first_name + last_name + DOB
+    # ---- Fast path 2: Exact name + DOB ------------------------------------
     if first_name and last_name and dob:
         try:
             result = await db.execute(
@@ -171,16 +731,21 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
                 return {
                     "matched": True,
                     "member_id": r.id,
-                    "confidence": 95,
+                    "confidence": 98,
                     "strategy": "exact_name_dob",
-                    "candidates": [{"id": r.id, "first_name": r.first_name, "last_name": r.last_name, "dob": str(r.date_of_birth), "confidence": 95}],
+                    "reasoning": "Exact first_name + last_name + DOB match",
+                    "signals": ["first_name", "last_name", "date_of_birth"],
+                    "candidates": [{"id": r.id, "first_name": r.first_name, "last_name": r.last_name, "dob": str(r.date_of_birth), "confidence": 98}],
                 }
             for r in rows:
-                candidates.append({"id": r.id, "first_name": r.first_name, "last_name": r.last_name, "dob": str(r.date_of_birth), "confidence": 95})
+                if not any(c["id"] == r.id for c in candidates):
+                    candidates.append({"id": r.id, "first_name": r.first_name, "last_name": r.last_name, "dob": str(r.date_of_birth), "confidence": 95})
         except Exception as e:
             logger.warning("Strategy 2 (exact name+DOB) failed: %s", e)
 
-    # Strategy 3: Fuzzy — last_name exact, first_name starts-with, DOB within 1 year
+    # ---- Gather fuzzy candidates for AI evaluation -------------------------
+
+    # Strategy 3: last_name exact, first_name starts-with, DOB within 1 year
     if first_name and last_name and dob:
         try:
             prefix = first_name[:2].lower() if len(first_name) >= 2 else first_name[0].lower()
@@ -224,29 +789,19 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
     # Sort candidates by confidence descending
     candidates.sort(key=lambda c: c["confidence"], reverse=True)
 
+    # ---- AI path: send candidates to Claude --------------------------------
     if candidates:
-        best = candidates[0]
-        if best["confidence"] >= 80:
-            return {
-                "matched": True,
-                "member_id": best["id"],
-                "confidence": best["confidence"],
-                "strategy": "fuzzy",
-                "candidates": candidates[:5],
-            }
-        return {
-            "matched": False,
-            "member_id": None,
-            "confidence": best["confidence"],
-            "strategy": "ambiguous",
-            "candidates": candidates[:5],
-        }
+        ai_result = await ai_match_member(db, incoming, candidates[:5])
+        return ai_result
 
+    # No candidates at all
     return {
         "matched": False,
         "member_id": None,
         "confidence": 0,
         "strategy": "no_match",
+        "reasoning": "No candidates found via any strategy",
+        "signals": [],
         "candidates": [],
     }
 
@@ -258,7 +813,7 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
 async def match_provider(db: AsyncSession, incoming: dict) -> dict:
     """Match an incoming provider record by NPI or name+specialty.
 
-    Returns: {matched: bool, provider_id: int | None, confidence: int}
+    Returns: {matched: bool, provider_id: int | None, confidence: int, ...}
     """
     npi = incoming.get("npi")
     first_name = (incoming.get("first_name") or "").strip()
@@ -274,39 +829,83 @@ async def match_provider(db: AsyncSession, incoming: dict) -> dict:
             )
             row = result.fetchone()
             if row:
-                return {"matched": True, "provider_id": row.id, "confidence": 100}
+                return {
+                    "matched": True,
+                    "provider_id": row.id,
+                    "confidence": 100,
+                    "strategy": "exact_npi",
+                    "reasoning": "Exact NPI match",
+                    "signals": ["npi"],
+                    "candidates": [],
+                }
         except Exception as e:
             logger.warning("Provider NPI match failed: %s", e)
 
-    # Fallback: last_name + first_name + specialty
+    # Gather candidates for AI evaluation
+    candidates: list[dict] = []
+
     if last_name and first_name:
         try:
             result = await db.execute(
                 text("""
-                    SELECT id FROM providers
+                    SELECT id, first_name, last_name, npi, specialty
+                    FROM providers
                     WHERE LOWER(last_name) = LOWER(:ln) AND LOWER(first_name) = LOWER(:fn)
                     LIMIT 5
                 """),
                 {"ln": last_name, "fn": first_name},
             )
-            rows = result.fetchall()
-            if len(rows) == 1:
-                return {"matched": True, "provider_id": rows[0].id, "confidence": 85}
-            elif len(rows) > 1 and specialty:
-                # Try to disambiguate by specialty
-                for r in rows:
-                    spec_result = await db.execute(
-                        text("SELECT specialty FROM providers WHERE id = :pid"),
-                        {"pid": r.id},
-                    )
-                    spec_row = spec_result.fetchone()
-                    if spec_row and spec_row.specialty and spec_row.specialty.lower() == specialty.lower():
-                        return {"matched": True, "provider_id": r.id, "confidence": 90}
-                return {"matched": False, "provider_id": None, "confidence": 60}
+            for r in result.fetchall():
+                candidates.append({
+                    "id": r.id,
+                    "first_name": r.first_name,
+                    "last_name": r.last_name,
+                    "npi": getattr(r, "npi", None),
+                    "specialty": getattr(r, "specialty", None),
+                    "confidence": 85,
+                })
         except Exception as e:
             logger.warning("Provider name match failed: %s", e)
 
-    return {"matched": False, "provider_id": None, "confidence": 0}
+    # Also try Soundex on last_name for fuzzy candidates
+    if last_name:
+        soundex_code = _soundex(last_name)
+        try:
+            result = await db.execute(
+                text("""
+                    SELECT id, first_name, last_name, npi, specialty
+                    FROM providers
+                    LIMIT 100
+                """),
+            )
+            for r in result.fetchall():
+                if _soundex(r.last_name) == soundex_code:
+                    if not any(c["id"] == r.id for c in candidates):
+                        candidates.append({
+                            "id": r.id,
+                            "first_name": r.first_name,
+                            "last_name": r.last_name,
+                            "npi": getattr(r, "npi", None),
+                            "specialty": getattr(r, "specialty", None),
+                            "confidence": 65,
+                        })
+        except Exception as e:
+            logger.warning("Provider Soundex match failed: %s", e)
+
+    candidates.sort(key=lambda c: c["confidence"], reverse=True)
+
+    if candidates:
+        return await ai_match_provider(db, incoming, candidates[:5])
+
+    return {
+        "matched": False,
+        "provider_id": None,
+        "confidence": 0,
+        "strategy": "no_match",
+        "reasoning": "No provider candidates found",
+        "signals": [],
+        "candidates": [],
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -45,7 +45,8 @@
       "Bash(docker compose:*)",
       "Bash(alembic upgrade:*)",
       "Bash(python -m scripts.seed)",
-      "Bash(python -m scripts.seed_extended)"
+      "Bash(python -m scripts.seed_extended)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/app/services/entity_resolution_service.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")"
     ]
   }
 }
