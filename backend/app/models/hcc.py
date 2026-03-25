@@ -29,7 +29,7 @@ class HccSuspect(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)
-    payment_year: Mapped[int] = mapped_column(Integer)
+    payment_year: Mapped[int] = mapped_column(Integer, index=True)
 
     # HCC details
     hcc_code: Mapped[int] = mapped_column(Integer)
@@ -43,7 +43,7 @@ class HccSuspect(Base, TimestampMixin):
 
     # Classification
     suspect_type: Mapped[SuspectType] = mapped_column(SAEnum(SuspectType))
-    status: Mapped[SuspectStatus] = mapped_column(SAEnum(SuspectStatus), default=SuspectStatus.open)
+    status: Mapped[SuspectStatus] = mapped_column(SAEnum(SuspectStatus), default=SuspectStatus.open, index=True)
     confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
 
     # Evidence

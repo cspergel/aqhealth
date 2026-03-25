@@ -37,8 +37,10 @@ logger = logging.getLogger(__name__)
 CMS_PMPM_BASE = Decimal("1000.00")
 ANNUAL_MULTIPLIER = Decimal("12")
 
-# Current payment year
-CURRENT_PAYMENT_YEAR = date.today().year
+# Current payment year — computed at call time so long-running processes
+# pick up the correct year after midnight on January 1st.
+def get_current_payment_year() -> int:
+    return date.today().year
 
 # ---------------------------------------------------------------------------
 # Local fallback: Common medication-to-diagnosis mappings
@@ -184,7 +186,7 @@ def _extract_diagnosis_codes(claims: list[Claim]) -> set[str]:
 
 def _extract_current_year_codes(claims: list[Claim]) -> set[str]:
     codes: set[str] = set()
-    year_start = date(CURRENT_PAYMENT_YEAR, 1, 1)
+    year_start = date(get_current_payment_year(), 1, 1)
     for c in claims:
         if c.service_date >= year_start and c.diagnosis_codes:
             codes.update(c.diagnosis_codes)
@@ -321,7 +323,7 @@ async def _detect_recapture_gaps(
     """
     Find prior-year captured HCCs that have not been recaptured this year.
     """
-    prior_year = CURRENT_PAYMENT_YEAR - 1
+    prior_year = get_current_payment_year() - 1
     result = await db.execute(
         select(HccSuspect).where(
             HccSuspect.member_id == member_id,
@@ -353,7 +355,7 @@ async def _detect_recapture_gaps(
                 "confidence": 85,
                 "evidence_summary": (
                     f"HCC {ps.hcc_code} was captured in {prior_year} "
-                    f"but has not been recoded in {CURRENT_PAYMENT_YEAR} claims."
+                    f"but has not been recoded in {get_current_payment_year()} claims."
                 ),
             })
 
@@ -372,7 +374,7 @@ def _detect_historical_dropoffs(
     Detect diagnosis code families present 2+ years ago but absent in recent
     claims. Catches chronic conditions that fell off coding.
     """
-    current_year = CURRENT_PAYMENT_YEAR
+    current_year = get_current_payment_year()
     recent_years = {current_year, current_year - 1}
     historical_years = {y for y in yearly_codes if y < current_year - 1}
 
@@ -596,7 +598,7 @@ async def analyze_member(
                 HccSuspect.member_id == member_id,
                 HccSuspect.hcc_code == hcc_code,
                 HccSuspect.suspect_type == s["suspect_type"],
-                HccSuspect.payment_year == CURRENT_PAYMENT_YEAR,
+                HccSuspect.payment_year == get_current_payment_year(),
                 HccSuspect.status == SuspectStatus.open,
             )
         )
@@ -617,7 +619,7 @@ async def analyze_member(
         else:
             db.add(HccSuspect(
                 member_id=member_id,
-                payment_year=CURRENT_PAYMENT_YEAR,
+                payment_year=get_current_payment_year(),
                 hcc_code=hcc_code,
                 hcc_label=s.get("hcc_label", ""),
                 icd10_code=s.get("icd10_code"),
@@ -636,7 +638,7 @@ async def analyze_member(
     db.add(RafHistory(
         member_id=member_id,
         calculation_date=today,
-        payment_year=CURRENT_PAYMENT_YEAR,
+        payment_year=get_current_payment_year(),
         demographic_raf=Decimal(str(raf_result.get("demographic_raf", 0))),
         disease_raf=Decimal(str(raf_result.get("disease_raf", 0))),
         interaction_raf=Decimal(str(raf_result.get("interaction_raf", 0))),

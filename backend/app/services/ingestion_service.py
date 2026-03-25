@@ -378,7 +378,7 @@ def _process_claim_row(
         "pos_code": _clean_str(_get_val(row, reverse_map, "pos_code"), 5),
         "drug_name": _clean_str(_get_val(row, reverse_map, "drug_name"), 200),
         "drug_class": _clean_str(_get_val(row, reverse_map, "drug_class"), 100),
-        "quantity": float(_get_val(row, reverse_map, "quantity")) if _get_val(row, reverse_map, "quantity") else None,
+        "quantity": float(_parse_decimal(_get_val(row, reverse_map, "quantity"))) if _parse_decimal(_get_val(row, reverse_map, "quantity")) is not None else None,
         "days_supply": _parse_int(_get_val(row, reverse_map, "days_supply")),
     }
 
@@ -485,7 +485,7 @@ async def _upsert_claims(
 
         # Remove None values for cleaner insert
         clean_data = {k: v for k, v in row_data.items() if v is not None}
-        # Handle array for diagnosis_codes — use raw SQL casting
+        # Handle array for diagnosis_codes — use parameterized binding
         dx_codes = clean_data.pop("diagnosis_codes", None)
 
         cols = list(clean_data.keys())
@@ -494,9 +494,13 @@ async def _upsert_claims(
 
         vals_parts = [f":{k}" for k in clean_data.keys()]
         if dx_codes:
-            # Build array literal for PostgreSQL
-            array_literal = "ARRAY[" + ", ".join(f"'{c}'" for c in dx_codes) + "]::varchar[]"
-            vals_parts.append(array_literal)
+            # Use parameterized array binding to prevent SQL injection
+            dx_params = []
+            for i, code in enumerate(dx_codes):
+                param_name = f"_dx_{i}"
+                dx_params.append(f":{param_name}")
+                clean_data[param_name] = code
+            vals_parts.append(f"ARRAY[{', '.join(dx_params)}]::varchar[]")
 
         cols_str = ", ".join(cols)
         vals_str = ", ".join(vals_parts)

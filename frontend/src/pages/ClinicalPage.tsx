@@ -3,12 +3,19 @@ import { useParams, useNavigate } from "react-router-dom";
 import { tokens, fonts } from "../lib/tokens";
 import { ProviderWorklist } from "../components/clinical/ProviderWorklist";
 import { PatientContext } from "../components/clinical/PatientContext";
+import { useAuth } from "../lib/auth";
+import { useGlobalFilter } from "../lib/filterContext";
 import api from "../lib/api";
 import type { ClinicalPatientContext, ClinicalWorklistItem } from "../lib/mockData";
 
 export function ClinicalPage() {
   const { memberId } = useParams<{ memberId?: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { selectedProvider } = useGlobalFilter();
+
+  // Use the globally-selected provider if available, otherwise fall back to the user's own ID
+  const providerId = selectedProvider?.id ?? user?.id ?? 1;
 
   const [worklist, setWorklist] = useState<ClinicalWorklistItem[]>([]);
   const [patient, setPatient] = useState<ClinicalPatientContext | null>(null);
@@ -20,14 +27,14 @@ export function ClinicalPage() {
     if (!memberId) {
       setLoading(true);
       api
-        .get("/api/clinical/worklist", { params: { provider_id: 1 } })
+        .get("/api/clinical/worklist", { params: { provider_id: providerId } })
         .then((res) => {
           setWorklist(res.data);
           setPatient(null);
         })
         .finally(() => setLoading(false));
     }
-  }, [memberId]);
+  }, [memberId, providerId]);
 
   // Load patient context
   useEffect(() => {

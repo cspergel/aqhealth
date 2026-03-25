@@ -1,4 +1,5 @@
 from sqlalchemy import String, Enum as SAEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
@@ -22,4 +23,4 @@ class Tenant(Base, TimestampMixin):
     status: Mapped[TenantStatus] = mapped_column(
         SAEnum(TenantStatus), default=TenantStatus.onboarding
     )
-    config: Mapped[dict | None] = mapped_column(default=None)  # JSONB for tenant-specific settings
+    config: Mapped[dict | None] = mapped_column(JSONB, default=None)  # JSONB for tenant-specific settings

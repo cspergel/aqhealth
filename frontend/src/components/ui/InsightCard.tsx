@@ -17,7 +17,7 @@ interface InsightCardProps {
   title: string;
   description: string;
   impact?: string;
-  category: "revenue" | "cost" | "quality" | "provider" | "trend";
+  category: "revenue" | "cost" | "quality" | "provider" | "trend" | "cross_module";
   onDismiss?: () => void;
   onBookmark?: () => void;
 }
@@ -28,6 +28,7 @@ const categoryColors = {
   quality: { bg: tokens.blueSoft, border: "#bfdbfe", accent: "#1e40af" },
   provider: { bg: tokens.surfaceAlt, border: tokens.border, accent: tokens.textSecondary },
   trend: { bg: tokens.redSoft, border: "#fecaca", accent: "#991b1b" },
+  cross_module: { bg: "#f5f3ff", border: "#c4b5fd", accent: "#5b21b6" },
 };
 
 export function InsightCard({ id, title, description, impact, category, onDismiss, onBookmark }: InsightCardProps) {

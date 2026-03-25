@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import text
 
 from app.config import settings
-from app.database import async_session_factory
+from app.database import async_session_factory, validate_schema_name
 from app.services.hcc_engine import analyze_population
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 async def _get_tenant_session(tenant_schema: str):
     """Create a tenant-scoped session for background work (outside FastAPI DI)."""
+    validate_schema_name(tenant_schema)
     session = async_session_factory()
     try:
         await session.execute(text(f"SET search_path TO {tenant_schema}, public"))

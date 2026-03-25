@@ -21,7 +21,7 @@ class Claim(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)
     claim_id: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Payer claim number
-    claim_type: Mapped[ClaimType] = mapped_column(SAEnum(ClaimType))
+    claim_type: Mapped[ClaimType] = mapped_column(SAEnum(ClaimType), index=True)
 
     # Dates
     service_date: Mapped[date] = mapped_column(Date, index=True)
@@ -45,7 +45,7 @@ class Claim(Base, TimestampMixin):
     member_liability: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
 
     # Classification (for expenditure analytics)
-    service_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    service_category: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     # Values: inpatient, ed_observation, professional, snf_postacute, pharmacy, home_health, dme, other
 
     # Place of service

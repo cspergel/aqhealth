@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/discovery", tags=["discovery"])
 
 
-@router.get("/run")
+@router.post("/run")
 async def trigger_full_discovery(
     db: AsyncSession = Depends(get_tenant_db),
     current_user: dict = Depends(get_current_user),

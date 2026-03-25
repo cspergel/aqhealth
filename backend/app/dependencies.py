@@ -1,3 +1,5 @@
+import contextlib
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
@@ -31,11 +33,15 @@ async def get_current_user(
 async def get_tenant_db(
     current_user: dict = Depends(get_current_user),
 ) -> AsyncSession:
-    """Get a database session scoped to the current user's tenant."""
+    """Get a database session scoped to the current user's tenant.
+
+    Delegates to `get_tenant_session`, which is itself an async generator
+    that manages the session lifecycle (including cleanup on exit).
+    """
     tenant_schema = current_user.get("tenant_schema")
     if not tenant_schema:
         raise HTTPException(status_code=403, detail="No tenant assigned")
-    async for session in get_tenant_session(tenant_schema):
+    async with contextlib.asynccontextmanager(get_tenant_session)(tenant_schema) as session:
         yield session
 
 

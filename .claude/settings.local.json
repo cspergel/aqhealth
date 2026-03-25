@@ -22,7 +22,8 @@
       "Bash(npm run:*)",
       "Bash(curl -s http://localhost:5174)",
       "Bash(curl -s http://localhost:5173)",
-      "Bash(xargs -I{} basename {} .tsx)"
+      "Bash(xargs -I{} basename {} .tsx)",
+      "Bash(python -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in [''backend/app/database.py'', ''backend/app/routers/clinical.py'', ''backend/app/services/ingestion_service.py'', ''backend/app/workers/hcc_worker.py'', ''backend/app/workers/insight_worker.py'', ''backend/app/workers/ingestion_worker.py'']]\")"
     ]
   }
 }

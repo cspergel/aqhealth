@@ -387,13 +387,13 @@ Return ONLY valid JSON — no markdown, no explanation outside the array."""
 
 
 def _get_anthropic_client():
-    """Create an Anthropic client, returning None if unavailable."""
+    """Create an async Anthropic client, returning None if unavailable."""
     if not settings.anthropic_api_key:
         logger.warning("ANTHROPIC_API_KEY not set — skipping LLM call")
         return None
     try:
         import anthropic
-        return anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     except ImportError:
         logger.warning("anthropic SDK not installed — skipping LLM call")
         return None
@@ -496,7 +496,7 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
     ) + learning_addendum + discovery_addendum
 
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
             system=POPULATION_SYSTEM_PROMPT,
@@ -685,7 +685,7 @@ async def generate_member_insights(db: AsyncSession, member_id: int) -> list[dic
     }
 
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2048,
             system=MEMBER_SYSTEM_PROMPT,
@@ -812,7 +812,7 @@ async def generate_provider_insights(db: AsyncSession, provider_id: int) -> list
     }
 
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2048,
             system=PROVIDER_SYSTEM_PROMPT,

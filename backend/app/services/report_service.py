@@ -228,12 +228,12 @@ async def _pull_recommendations(db: AsyncSession) -> dict:
 # ---------------------------------------------------------------------------
 
 def _get_anthropic_client():
-    """Create an Anthropic client, returning None if unavailable."""
+    """Create an async Anthropic client, returning None if unavailable."""
     if not settings.anthropic_api_key:
         return None
     try:
         import anthropic
-        return anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     except ImportError:
         return None
 
@@ -245,7 +245,7 @@ async def _generate_section_narrative(section_type: str, title: str, data: dict)
         return f"[AI narrative for {title} would appear here with live data.]"
 
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1024,
             system="You are a healthcare analytics report writer for a Medicare Advantage MSO. Write concise, data-driven narratives suitable for board reports and regulatory submissions. Use specific numbers from the data provided. Write in professional third person.",
@@ -271,7 +271,7 @@ async def _generate_executive_summary(report_name: str, period: str, sections: l
         sections_text += f"\n## {s['title']}\n{s.get('narrative', '')}\n"
 
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=2048,
             system="You are a healthcare analytics executive report writer. Write a compelling executive summary that synthesizes key findings across all sections. Focus on the most impactful data points, risks, and opportunities. Write for a board audience.",

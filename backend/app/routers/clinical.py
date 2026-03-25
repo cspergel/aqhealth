@@ -15,8 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_tenant_session
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_tenant_db
 from app.models.care_gap import GapStatus, MemberGap
 from app.models.hcc import HccSuspect, SuspectStatus
 from app.services.patient_context_service import get_patient_context, get_provider_worklist
@@ -45,7 +44,7 @@ class CloseGapRequest(BaseModel):
 @router.get("/patient/{member_id}")
 async def patient_context(
     member_id: int,
-    db: AsyncSession = Depends(get_tenant_session),
+    db: AsyncSession = Depends(get_tenant_db),
     user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Full patient context for the clinical encounter view."""
@@ -58,7 +57,7 @@ async def patient_context(
 @router.get("/worklist")
 async def worklist(
     provider_id: int,
-    db: AsyncSession = Depends(get_tenant_session),
+    db: AsyncSession = Depends(get_tenant_db),
     user: dict = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """Provider's prioritized patient list."""
@@ -68,7 +67,7 @@ async def worklist(
 @router.post("/capture")
 async def capture_suspect(
     req: CaptureRequest,
-    db: AsyncSession = Depends(get_tenant_session),
+    db: AsyncSession = Depends(get_tenant_db),
     user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Mark a suspect HCC as captured by the provider."""
@@ -97,7 +96,7 @@ async def capture_suspect(
 @router.post("/close-gap")
 async def close_gap(
     req: CloseGapRequest,
-    db: AsyncSession = Depends(get_tenant_session),
+    db: AsyncSession = Depends(get_tenant_db),
     user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Close an open care gap."""

@@ -32,7 +32,7 @@ from app.services.hcc_engine import (
     _extract_medications,
     CMS_PMPM_BASE,
     ANNUAL_MULTIPLIER,
-    CURRENT_PAYMENT_YEAR,
+    get_current_payment_year,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     suspects_result = await db.execute(
         select(HccSuspect).where(
             HccSuspect.member_id == member_id,
-            HccSuspect.payment_year == CURRENT_PAYMENT_YEAR,
+            HccSuspect.payment_year == get_current_payment_year(),
             HccSuspect.status == SuspectStatus.open,
         )
     )
@@ -136,7 +136,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     claims_result = await db.execute(
         select(Claim).where(
             Claim.member_id == member_id,
-            Claim.service_date >= date(CURRENT_PAYMENT_YEAR, 1, 1),
+            Claim.service_date >= date(get_current_payment_year(), 1, 1),
         )
     )
     current_claims = claims_result.scalars().all()
@@ -146,7 +146,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     confirmed_result = await db.execute(
         select(HccSuspect).where(
             HccSuspect.member_id == member_id,
-            HccSuspect.payment_year == CURRENT_PAYMENT_YEAR,
+            HccSuspect.payment_year == get_current_payment_year(),
             HccSuspect.status == SuspectStatus.captured,
         )
     )

@@ -1,7 +1,11 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 from app.routers import actions, adt, annotations, auth, care_gaps, clinical, cohorts, dashboard, discovery, expenditure, financial, filters, groups, hcc, ingestion, insights, journey, learning, members, patterns, predictions, providers, query, reconciliation, reports, scenarios, watchlist
 
 app = FastAPI(
@@ -47,6 +51,15 @@ app.include_router(annotations.router)
 app.include_router(watchlist.router)
 app.include_router(reports.router)
 app.include_router(actions.router)
+
+
+@app.on_event("startup")
+async def _warn_default_secrets():
+    if settings.secret_key == "CHANGE-ME-IN-PRODUCTION":
+        logger.warning(
+            "SECRET_KEY is set to the default value. "
+            "This is insecure — set a strong SECRET_KEY environment variable before deploying to production."
+        )
 
 
 @app.get("/api/health")

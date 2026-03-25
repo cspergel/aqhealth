@@ -3,7 +3,7 @@ import { InsightCard } from "../ui/InsightCard";
 
 interface DashboardInsight {
   id: number;
-  category: "revenue" | "cost" | "quality" | "provider" | "trend";
+  category: "revenue" | "cost" | "quality" | "provider" | "trend" | "cross_module";
   title: string;
   description: string;
   dollar_impact: number | null;
