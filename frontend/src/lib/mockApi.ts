@@ -203,7 +203,10 @@ function mockExpenditureDrillDown(category: string) {
 // ---------------------------------------------------------------------------
 
 export function enableDemoMode() {
-  api.interceptors.request.use((config) => {
+  // Override the adapter to return mock data directly — bypasses the network
+  // and all request/response interceptors (auth 401 handler, global filter
+  // handler, etc.) which are unnecessary for demo/mock mode.
+  api.defaults.adapter = (config) => {
     const url = config.url || "";
     const method = (config.method || "get").toLowerCase();
     let mockResponse: unknown = null;
@@ -1066,31 +1069,14 @@ export function enableDemoMode() {
       }
     }
 
-    if (mockResponse !== null) {
-      return Promise.reject({
-        __MOCK__: true,
-        data: mockResponse,
-        status: 200,
-        config,
-      });
-    }
-    return config;
-  });
+    const data = mockResponse !== null ? mockResponse : null;
 
-  // Resolve mock "errors" as successful responses
-  api.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (error?.__MOCK__) {
-        return Promise.resolve({
-          data: error.data,
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config: error.config,
-        });
-      }
-      return Promise.reject(error);
-    }
-  );
+    return Promise.resolve({
+      data,
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config,
+    } as any);
+  };
 }
