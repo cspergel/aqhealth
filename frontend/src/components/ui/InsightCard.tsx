@@ -1,5 +1,6 @@
 import api from "../../lib/api";
 import { tokens } from "../../lib/tokens";
+import { CreateFromInsight } from "../actions/CreateFromInsight";
 
 function trackInteraction(type: string, targetType: string, targetId?: number, meta?: Record<string, unknown>) {
   api.post("/api/learning/track", {
@@ -52,8 +53,16 @@ export function InsightCard({ id, title, description, impact, category, onDismis
       {impact && (
         <div className="text-[13px] font-semibold mt-2" style={{ color: colors.accent }}>{impact}</div>
       )}
-      {(onDismiss || onBookmark) && (
+      {(onDismiss || onBookmark || id) && (
         <div className="flex gap-2 mt-3">
+          {id && (
+            <CreateFromInsight
+              sourceType="insight"
+              sourceId={id}
+              sourceTitle={title}
+              sourceDescription={description}
+            />
+          )}
           {onBookmark && (
             <button
               onClick={handleBookmark}

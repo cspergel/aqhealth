@@ -12,3 +12,7 @@ from app.models.insight import Insight
 from app.models.learning import PredictionOutcome, LearningMetric, UserInteraction
 from app.models.adt import ADTSource, ADTEvent, CareAlert
 from app.models.saved_filter import SavedFilter
+from app.models.annotation import Annotation
+from app.models.watchlist import WatchlistItem
+from app.models.report import ReportTemplate, GeneratedReport
+from app.models.action import ActionItem

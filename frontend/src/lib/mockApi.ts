@@ -51,6 +51,11 @@ import {
   mockMembers,
   mockFilterFields,
   mockSavedFilters,
+  mockAnnotations,
+  mockWatchlistItems,
+  mockReportTemplates,
+  mockGeneratedReports,
+  mockActionItems,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -203,7 +208,36 @@ export function enableDemoMode() {
 
     // ---------- PATCH endpoints (mutations) ----------
     if (method === "patch") {
-      if (url.includes("/api/adt/alerts/")) {
+      if (url.includes("/api/annotations/")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const annotationId = parseInt(url.split("/api/annotations/")[1]);
+        // Find annotation across all entity keys
+        for (const key of Object.keys(mockAnnotations)) {
+          const idx = mockAnnotations[key].findIndex((a) => a.id === annotationId);
+          if (idx !== -1) {
+            const updated = { ...mockAnnotations[key][idx] };
+            if (body.content !== undefined) updated.content = body.content;
+            if (body.is_pinned !== undefined) updated.is_pinned = body.is_pinned;
+            if (body.follow_up_completed !== undefined) updated.follow_up_completed = body.follow_up_completed;
+            updated.updated_at = new Date().toISOString();
+            mockAnnotations[key][idx] = updated;
+            mockResponse = updated;
+            break;
+          }
+        }
+        if (!mockResponse) mockResponse = { success: true };
+      } else if (url.match(/\/api\/watchlist\/\d+\/acknowledge/)) {
+        const itemId = parseInt(url.match(/\/api\/watchlist\/(\d+)/)![1]);
+        const item = mockWatchlistItems.find((i) => i.id === itemId);
+        if (item) {
+          item.has_changes = false;
+          item.changes_detected = null;
+          item.last_checked = new Date().toISOString();
+          mockResponse = item;
+        } else {
+          mockResponse = { success: true };
+        }
+      } else if (url.includes("/api/adt/alerts/")) {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         const alertId = parseInt(url.split("/api/adt/alerts/")[1]);
         const alert = mockCareAlerts.find((a) => a.id === alertId);
@@ -219,6 +253,26 @@ export function enableDemoMode() {
       } else if (url.includes("/api/adt/sources/")) {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         mockResponse = { ...body, id: parseInt(url.split("/api/adt/sources/")[1]) };
+      } else if (/\/api\/actions\/\d+/.test(url)) {
+        const actionId = parseInt(url.match(/\/api\/actions\/(\d+)/)![1]);
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const idx = mockActionItems.findIndex((a) => a.id === actionId);
+        if (idx !== -1) {
+          const updated = { ...mockActionItems[idx] };
+          if (body.status) updated.status = body.status;
+          if (body.priority) updated.priority = body.priority;
+          if (body.assigned_to !== undefined) updated.assigned_to = body.assigned_to;
+          if (body.assigned_to_name !== undefined) updated.assigned_to_name = body.assigned_to_name;
+          if (body.due_date !== undefined) updated.due_date = body.due_date;
+          if (body.actual_outcome) { updated.actual_outcome = body.actual_outcome; updated.outcome_measured = true; }
+          if (body.resolution_notes) updated.resolution_notes = body.resolution_notes;
+          if (body.status === "completed") updated.completed_date = new Date().toISOString().split("T")[0];
+          updated.updated_at = new Date().toISOString();
+          mockActionItems[idx] = updated;
+          mockResponse = updated;
+        } else {
+          mockResponse = { success: true };
+        }
       } else {
         mockResponse = { success: true };
       }
@@ -226,7 +280,22 @@ export function enableDemoMode() {
 
     // ---------- DELETE endpoints ----------
     else if (method === "delete") {
-      if (url.includes("/api/filters/")) {
+      if (url.match(/\/api\/annotations\/\d+/)) {
+        const annotationId = parseInt(url.split("/api/annotations/")[1]);
+        for (const key of Object.keys(mockAnnotations)) {
+          const idx = mockAnnotations[key].findIndex((a) => a.id === annotationId);
+          if (idx !== -1) {
+            mockAnnotations[key].splice(idx, 1);
+            break;
+          }
+        }
+        mockResponse = { deleted: true };
+      } else if (url.match(/\/api\/watchlist\/\d+/)) {
+        const itemId = parseInt(url.split("/api/watchlist/")[1]);
+        const idx = mockWatchlistItems.findIndex((i) => i.id === itemId);
+        if (idx !== -1) mockWatchlistItems.splice(idx, 1);
+        mockResponse = { deleted: true };
+      } else if (url.includes("/api/filters/")) {
         mockResponse = { deleted: true };
       } else {
         mockResponse = { deleted: true };
@@ -235,7 +304,46 @@ export function enableDemoMode() {
 
     // ---------- POST endpoints ----------
     else if (method === "post") {
-      if (url.includes("/api/adt/webhook")) {
+      if (url.includes("/api/annotations")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newAnnotation = {
+          id: Date.now(),
+          entity_type: body.entity_type,
+          entity_id: body.entity_id,
+          content: body.content,
+          note_type: body.note_type || "general",
+          author_id: 1,
+          author_name: "Sarah Mitchell, RN",
+          requires_follow_up: !!body.follow_up_date,
+          follow_up_date: body.follow_up_date || null,
+          follow_up_completed: false,
+          is_pinned: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        const key = `${body.entity_type}:${body.entity_id}`;
+        if (!mockAnnotations[key]) mockAnnotations[key] = [];
+        mockAnnotations[key].unshift(newAnnotation);
+        mockResponse = newAnnotation;
+      } else if (url.includes("/api/watchlist/check")) {
+        // Simulate change detection -- return current state
+        mockResponse = mockWatchlistItems.map((i) => ({
+          item_id: i.id, entity_type: i.entity_type, entity_id: i.entity_id,
+          entity_name: i.entity_name, has_changes: i.has_changes, changes: i.changes_detected,
+        }));
+      } else if (url.match(/\/api\/watchlist\/?$/)) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newItem = {
+          id: Date.now(), user_id: 1, entity_type: body.entity_type,
+          entity_id: body.entity_id, entity_name: body.entity_name,
+          reason: body.reason || null, watch_for: body.watch_for || null,
+          last_snapshot: {}, changes_detected: null,
+          last_checked: new Date().toISOString(), has_changes: false,
+          created_at: new Date().toISOString(),
+        };
+        mockWatchlistItems.push(newItem);
+        mockResponse = newItem;
+      } else if (url.includes("/api/adt/webhook")) {
         mockResponse = { status: "processed", event_id: Date.now(), alerts: 1 };
       } else if (url.includes("/api/adt/events")) {
         mockResponse = { id: Date.now(), event_type: "admit", alerts: [] };
@@ -304,7 +412,91 @@ export function enableDemoMode() {
         mockResponse = { total_signals: 23, matched: 18, unmatched: 5, avg_accuracy: 91.3, accuracy_by_category: { inpatient: { count: 10, avg_error: 10.3, avg_bias: -2.4 }, ed_observation: { count: 5, avg_error: 5.9, avg_bias: -1.1 }, snf_postacute: { count: 3, avg_error: 6.4, avg_bias: 1.4 } } };
       } else if (url.includes("/api/care-gaps/measures")) {
         mockResponse = { id: 999, code: "CUSTOM-01", name: "Custom Measure", success: true };
-      } else {
+      }
+      // Reports: generate
+      else if (url.includes("/api/reports/generate")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const template = mockReportTemplates.find((t) => t.id === body?.template_id);
+        const newReport = {
+          id: Date.now(),
+          template_id: body?.template_id || 1,
+          title: `${template?.name || "Report"} - ${body?.period || "Current"}`,
+          period: body?.period || "Current",
+          status: "ready",
+          content: mockGeneratedReports[0].content,
+          ai_narrative: mockGeneratedReports[0].ai_narrative,
+          generated_by: 1,
+          file_url: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        (mockGeneratedReports as any[]).unshift(newReport);
+        mockResponse = newReport;
+      }
+      // Actions: create from insight
+      else if (/\/api\/actions\/from-insight\/\d+/.test(url)) {
+        const insightId = parseInt(url.match(/\/api\/actions\/from-insight\/(\d+)/)![1]);
+        const insight = mockInsights.find((i) => i.id === insightId);
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : (config.data || {});
+        const newAction = {
+          id: Date.now(), source_type: "insight", source_id: insightId,
+          title: insight?.title || "Action from insight",
+          description: insight?.description || null,
+          action_type: "investigation", assigned_to: body.assigned_to || null,
+          assigned_to_name: body.assigned_to_name || null,
+          priority: (insight?.dollar_impact && insight.dollar_impact >= 100000) ? "high" : "medium",
+          status: "open", due_date: null, completed_date: null,
+          member_id: null, provider_id: null, group_id: null,
+          expected_impact: insight?.dollar_impact ? `$${(insight.dollar_impact / 1000).toFixed(0)}K estimated impact` : null,
+          actual_outcome: null, outcome_measured: false, resolution_notes: null,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        };
+        (mockActionItems as any[]).unshift(newAction);
+        mockResponse = newAction;
+      }
+      // Actions: create from alert
+      else if (/\/api\/actions\/from-alert\/\d+/.test(url)) {
+        const alertId = parseInt(url.match(/\/api\/actions\/from-alert\/(\d+)/)![1]);
+        const alert = mockCareAlerts.find((a) => a.id === alertId);
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : (config.data || {});
+        const newAction = {
+          id: Date.now(), source_type: "alert", source_id: alertId,
+          title: alert?.title || "Action from alert",
+          description: alert?.description || null,
+          action_type: "care_plan", assigned_to: body.assigned_to || null,
+          assigned_to_name: body.assigned_to_name || null,
+          priority: alert?.priority || "medium",
+          status: "open", due_date: null, completed_date: null,
+          member_id: alert?.member_id || null, provider_id: null, group_id: null,
+          expected_impact: null, actual_outcome: null, outcome_measured: false,
+          resolution_notes: null,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        };
+        (mockActionItems as any[]).unshift(newAction);
+        mockResponse = newAction;
+      }
+      // Actions: create
+      else if (url.match(/\/api\/actions\/?$/)) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newAction = {
+          id: Date.now(), source_type: body?.source_type || "manual", source_id: body?.source_id || null,
+          title: body?.title || "New Action",
+          description: body?.description || null,
+          action_type: body?.action_type || "other",
+          assigned_to: body?.assigned_to || null,
+          assigned_to_name: body?.assigned_to_name || null,
+          priority: body?.priority || "medium", status: "open",
+          due_date: body?.due_date || null, completed_date: null,
+          member_id: body?.member_id || null, provider_id: body?.provider_id || null,
+          group_id: body?.group_id || null,
+          expected_impact: body?.expected_impact || null,
+          actual_outcome: null, outcome_measured: false, resolution_notes: null,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        };
+        (mockActionItems as any[]).unshift(newAction);
+        mockResponse = newAction;
+      }
+      else {
         mockResponse = { success: true };
       }
     }
@@ -743,6 +935,75 @@ export function enableDemoMode() {
         const start = (page - 1) * pageSize;
         const items = filtered.slice(start, start + pageSize);
         mockResponse = { items, total, page, page_size: pageSize, total_pages: totalPages };
+      }
+
+      // Annotations: follow-ups due
+      else if (url.includes("/api/annotations/follow-ups")) {
+        const allNotes = Object.values(mockAnnotations).flat();
+        mockResponse = allNotes.filter(
+          (n) => n.requires_follow_up && !n.follow_up_completed
+        );
+      }
+      // Annotations: list for entity
+      else if (url.includes("/api/annotations")) {
+        const params = config.params || {};
+        const entityType = params.entity_type || "";
+        const entityId = params.entity_id ? parseInt(params.entity_id) : 0;
+        const key = `${entityType}:${entityId}`;
+        const notes = mockAnnotations[key] || [];
+        // Sort: pinned first, then by date desc
+        mockResponse = [...notes].sort((a, b) => {
+          if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+      }
+
+      // Watchlist
+      else if (url.includes("/api/watchlist")) {
+        mockResponse = mockWatchlistItems.sort((a, b) => {
+          if (a.has_changes !== b.has_changes) return a.has_changes ? -1 : 1;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+      }
+
+      // Report templates
+      else if (url.includes("/api/reports/templates")) {
+        mockResponse = mockReportTemplates;
+      }
+      // Report detail: /api/reports/:id
+      else if (/\/api\/reports\/\d+/.test(url)) {
+        const reportId = parseInt(url.match(/\/api\/reports\/(\d+)/)![1]);
+        mockResponse = mockGeneratedReports.find((r) => r.id === reportId) || mockGeneratedReports[0];
+      }
+      // Report list
+      else if (url.match(/\/api\/reports\/?$/) || url.match(/\/api\/reports\?/)) {
+        mockResponse = mockGeneratedReports;
+      }
+
+      // Action stats
+      else if (url.includes("/api/actions/stats")) {
+        // Compute stats dynamically from current mock data
+        const open = mockActionItems.filter((a) => a.status === "open").length;
+        const inProgress = mockActionItems.filter((a) => a.status === "in_progress").length;
+        const completed = mockActionItems.filter((a) => a.status === "completed").length;
+        const cancelled = mockActionItems.filter((a) => a.status === "cancelled").length;
+        const total = mockActionItems.length;
+        const overdue = mockActionItems.filter((a) => (a.status === "open" || a.status === "in_progress") && a.due_date && a.due_date < new Date().toISOString().split("T")[0]).length;
+        mockResponse = { total, open, in_progress: inProgress, completed, cancelled, overdue, completion_rate: total > 0 ? Math.round(completed / total * 1000) / 10 : 0 };
+      }
+      // Action list
+      else if (url.match(/\/api\/actions\/?$/) || url.match(/\/api\/actions\?/)) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        let filtered = [...mockActionItems];
+        const status = params.get("status");
+        const priority = params.get("priority");
+        const assignedTo = params.get("assigned_to");
+        const sourceType = params.get("source_type");
+        if (status) filtered = filtered.filter((a) => a.status === status);
+        if (priority) filtered = filtered.filter((a) => a.priority === priority);
+        if (assignedTo) filtered = filtered.filter((a) => a.assigned_to === parseInt(assignedTo));
+        if (sourceType) filtered = filtered.filter((a) => a.source_type === sourceType);
+        mockResponse = filtered;
       }
 
       // Generic insights

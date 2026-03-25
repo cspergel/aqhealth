@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
+import { CreateFromInsight } from "../actions/CreateFromInsight";
 
 export interface CareAlertData {
   id: number;
@@ -175,6 +176,16 @@ export function AlertCard({ alert, onAcknowledge, onResolve, onAssign }: AlertCa
               </div>
             </div>
           )}
+
+          {/* Create Action */}
+          <div className="mb-3">
+            <CreateFromInsight
+              sourceType="alert"
+              sourceId={alert.id}
+              sourceTitle={alert.title}
+              sourceDescription={alert.description || undefined}
+            />
+          </div>
 
           {/* Actions */}
           {alert.status !== "resolved" && (

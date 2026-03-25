@@ -3304,3 +3304,415 @@ export const mockSavedFilters: MockSavedFilter[] = [
     created_by: 1, is_shared: false, is_system: false, use_count: 8, last_used: "2026-03-21",
   },
 ];
+
+// ---- Annotations / Notes ----
+
+export const mockAnnotations: Record<string, Array<{
+  id: number;
+  entity_type: string;
+  entity_id: number;
+  content: string;
+  note_type: string;
+  author_id: number;
+  author_name: string;
+  requires_follow_up: boolean;
+  follow_up_date: string | null;
+  follow_up_completed: boolean;
+  is_pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}>> = {
+  "member:1001": [
+    {
+      id: 1, entity_type: "member", entity_id: 1001,
+      content: "Care plan updated for Q1 2026. Focus areas: CHF management, weight optimization, medication adherence. Coordinating with cardiology for echo follow-up. Patient engaged and willing to participate in telehealth monitoring.",
+      note_type: "care_plan", author_id: 1, author_name: "Sarah Mitchell, RN",
+      requires_follow_up: false, follow_up_date: null, follow_up_completed: false,
+      is_pinned: true, created_at: "2026-03-20T09:15:00Z", updated_at: "2026-03-20T09:15:00Z",
+    },
+    {
+      id: 2, entity_type: "member", entity_id: 1001,
+      content: "Called patient to schedule annual wellness visit. Patient confirmed appointment for 4/2. Discussed importance of bringing medication list. Patient reports increased shortness of breath with exertion -- flagged for PCP review.",
+      note_type: "call_log", author_id: 1, author_name: "Sarah Mitchell, RN",
+      requires_follow_up: true, follow_up_date: "2026-04-02", follow_up_completed: false,
+      is_pinned: false, created_at: "2026-03-24T14:30:00Z", updated_at: "2026-03-24T14:30:00Z",
+    },
+    {
+      id: 3, entity_type: "member", entity_id: 1001,
+      content: "Chart review: BMI 42.1 but only coded as E66.9 (unspecified obesity). Should be E66.01 (morbid obesity) given BMI >40. Albumin 2.8 suggests possible malnutrition -- recommend screening at next visit. Also noting CHF last coded in PY2024, needs recapture.",
+      note_type: "clinical", author_id: 2, author_name: "Dr. James Rivera",
+      requires_follow_up: true, follow_up_date: "2026-03-28", follow_up_completed: false,
+      is_pinned: false, created_at: "2026-03-22T11:00:00Z", updated_at: "2026-03-22T11:00:00Z",
+    },
+    {
+      id: 4, entity_type: "member", entity_id: 1001,
+      content: "Attempted outreach via phone -- no answer. Left voicemail regarding upcoming wellness visit and open care gaps (HbA1c, breast cancer screening). Will retry in 48 hours.",
+      note_type: "outreach", author_id: 3, author_name: "Maria Lopez, CMA",
+      requires_follow_up: true, follow_up_date: "2026-03-26", follow_up_completed: false,
+      is_pinned: false, created_at: "2026-03-24T10:00:00Z", updated_at: "2026-03-24T10:00:00Z",
+    },
+    {
+      id: 5, entity_type: "member", entity_id: 1001,
+      content: "Coordinated with Memorial Hospital discharge planning for recent ED visit (3/15). Patient presented with acute on chronic CHF exacerbation. Discharged with adjusted diuretic dose. Home health ordered for daily weight monitoring x 2 weeks.",
+      note_type: "general", author_id: 4, author_name: "Tom Bradley, LCSW",
+      requires_follow_up: false, follow_up_date: null, follow_up_completed: false,
+      is_pinned: false, created_at: "2026-03-18T16:45:00Z", updated_at: "2026-03-18T16:45:00Z",
+    },
+  ],
+};
+
+// ---- Watchlist ----
+
+export const mockWatchlistItems: Array<{
+  id: number;
+  user_id: number;
+  entity_type: string;
+  entity_id: number;
+  entity_name: string;
+  reason: string | null;
+  watch_for: Record<string, boolean> | null;
+  last_snapshot: Record<string, any> | null;
+  changes_detected: Record<string, { old: any; new: any }> | null;
+  last_checked: string | null;
+  has_changes: boolean;
+  created_at: string;
+}> = [
+  {
+    id: 1, user_id: 1, entity_type: "member", entity_id: 1001, entity_name: "Margaret Chen",
+    reason: "Complex CHF patient, multiple suspect HCCs",
+    watch_for: { raf_change: true, new_admission: true, gap_closed: true },
+    last_snapshot: { raf: 1.847, projected_raf: 2.312, open_suspects: 3, open_gaps: 2 },
+    changes_detected: { raf: { old: 1.782, new: 1.847 }, open_gaps: { old: 3, new: 2 } },
+    last_checked: "2026-03-25T06:00:00Z", has_changes: true, created_at: "2026-03-10T09:00:00Z",
+  },
+  {
+    id: 2, user_id: 1, entity_type: "member", entity_id: 1003, entity_name: "Dorothy Martinez",
+    reason: "Highest RAF in panel, 4 open suspects",
+    watch_for: { raf_change: true, suspect_captured: true },
+    last_snapshot: { raf: 2.456, projected_raf: 2.812, open_suspects: 4, open_gaps: 1 },
+    changes_detected: null,
+    last_checked: "2026-03-25T06:00:00Z", has_changes: false, created_at: "2026-03-12T14:00:00Z",
+  },
+  {
+    id: 3, user_id: 1, entity_type: "member", entity_id: 1006, entity_name: "Gerald Foster",
+    reason: "Recent admission, high uplift potential",
+    watch_for: { raf_change: true, new_admission: true },
+    last_snapshot: { raf: 0.950, projected_raf: 1.502, open_suspects: 3, open_gaps: 0 },
+    changes_detected: { projected_raf: { old: 1.380, new: 1.502 } },
+    last_checked: "2026-03-25T06:00:00Z", has_changes: true, created_at: "2026-03-15T11:00:00Z",
+  },
+  {
+    id: 4, user_id: 1, entity_type: "provider", entity_id: 8, entity_name: "Dr. Robert Kim",
+    reason: "Low capture rate, coding education scheduled",
+    watch_for: { capture_rate_change: true },
+    last_snapshot: { capture_rate: 42.1, recapture_rate: 38.5, panel_size: 234, gap_closure_rate: 41.2 },
+    changes_detected: null,
+    last_checked: "2026-03-25T06:00:00Z", has_changes: false, created_at: "2026-03-08T10:00:00Z",
+  },
+  {
+    id: 5, user_id: 1, entity_type: "provider", entity_id: 9, entity_name: "Dr. David Wilson",
+    reason: "Peer comparison with Dr. Kim",
+    watch_for: { capture_rate_change: true },
+    last_snapshot: { capture_rate: 45.8, recapture_rate: 42.1, panel_size: 178, gap_closure_rate: 44.5 },
+    changes_detected: null,
+    last_checked: "2026-03-25T06:00:00Z", has_changes: false, created_at: "2026-03-08T10:05:00Z",
+  },
+  {
+    id: 6, user_id: 1, entity_type: "group", entity_id: 2, entity_name: "Sunrise Health Partners",
+    reason: "Lowest capture rate group, improvement initiative",
+    watch_for: { capture_rate_change: true, gap_closed: true },
+    last_snapshot: { capture_rate: 12.4, panel_size: 412, gap_closure_rate: 38.9 },
+    changes_detected: null,
+    last_checked: "2026-03-25T06:00:00Z", has_changes: false, created_at: "2026-03-05T09:00:00Z",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Report Templates & Generated Reports
+// ---------------------------------------------------------------------------
+
+export const mockReportTemplates = [
+  {
+    id: 1,
+    name: "Monthly Plan Report",
+    description: "Comprehensive monthly report for health plan partners covering RAF performance, quality metrics, expenditure trends, and provider network updates.",
+    report_type: "plan_report",
+    sections: [
+      { type: "raf_summary", title: "Risk Adjustment Performance" },
+      { type: "quality_metrics", title: "Quality & HEDIS Measures" },
+      { type: "expenditure_overview", title: "Expenditure Overview" },
+      { type: "hcc_capture", title: "HCC Capture Activity" },
+      { type: "recommendations", title: "Recommendations" },
+    ],
+    schedule: "monthly",
+    is_system: true,
+  },
+  {
+    id: 2,
+    name: "Quarterly Board Report",
+    description: "Executive-level quarterly report for board of directors with financial summary, population health outcomes, and strategic recommendations.",
+    report_type: "board_report",
+    sections: [
+      { type: "financial_summary", title: "Financial Summary" },
+      { type: "raf_summary", title: "Risk Adjustment Performance" },
+      { type: "quality_metrics", title: "Quality Metrics" },
+      { type: "expenditure_overview", title: "Cost Management" },
+      { type: "provider_performance", title: "Provider Network Performance" },
+      { type: "care_management", title: "Care Management Operations" },
+      { type: "recommendations", title: "Strategic Recommendations" },
+    ],
+    schedule: "quarterly",
+    is_system: true,
+  },
+  {
+    id: 3,
+    name: "Provider Summary",
+    description: "Provider-level performance summary with capture rates, quality scores, panel metrics, and peer benchmarks for provider meetings.",
+    report_type: "provider_summary",
+    sections: [
+      { type: "provider_performance", title: "Provider Performance Summary" },
+      { type: "hcc_capture", title: "HCC Capture Opportunities" },
+      { type: "quality_metrics", title: "Quality Measure Compliance" },
+      { type: "recommendations", title: "Improvement Recommendations" },
+    ],
+    schedule: "monthly",
+    is_system: true,
+  },
+  {
+    id: 4,
+    name: "RADV Audit Package",
+    description: "Regulatory audit documentation package with risk adjustment data validation, coding accuracy metrics, and compliance attestations.",
+    report_type: "regulatory",
+    sections: [
+      { type: "raf_summary", title: "Risk Adjustment Data Validation" },
+      { type: "hcc_capture", title: "HCC Documentation & Capture" },
+      { type: "provider_performance", title: "Provider Coding Accuracy" },
+      { type: "quality_metrics", title: "Quality Compliance" },
+    ],
+    schedule: "on_demand",
+    is_system: true,
+  },
+];
+
+export const mockGeneratedReports = [
+  {
+    id: 1,
+    template_id: 2,
+    title: "Quarterly Board Report - Q1 2026",
+    period: "Q1 2026",
+    status: "ready" as const,
+    content: {
+      sections: [
+        {
+          type: "financial_summary",
+          title: "Financial Summary",
+          data: {
+            total_revenue: 17240000,
+            total_expenses: 14520000,
+            surplus: 2720000,
+            mlr: 84.2,
+            pmpm_revenue: 1189,
+            pmpm_expense: 1002,
+          },
+          narrative: "The MSO delivered strong financial performance in Q1 2026, generating $17.24M in total revenue against $14.52M in expenses, yielding a surplus of $2.72M. The medical loss ratio of 84.2% represents a 1.4 percentage point improvement over Q4 2025, driven primarily by reduced inpatient utilization and successful care management interventions. Revenue per-member-per-month increased 4.2% to $1,189, reflecting improved RAF capture and quality bonus payments.",
+        },
+        {
+          type: "raf_summary",
+          title: "Risk Adjustment Performance",
+          data: {
+            total_lives: 4832,
+            avg_raf: 1.247,
+            projected_raf: 1.312,
+            recapture_rate: 68.4,
+            open_suspects: 1847,
+            suspect_value: 3437500,
+          },
+          narrative: "The population-weighted RAF score improved to 1.247 in Q1 2026, up from 1.218 in Q4 2025 (+2.4%). The recapture rate of 68.4% exceeds the industry benchmark of 62% but remains below our target of 75%. There are 1,847 open suspect HCC opportunities valued at $3.44M in annualized revenue. The top opportunity categories remain Diabetes with Complications (342 members, $1.14M) and CHF/Heart Failure (189 members, $671K).",
+        },
+        {
+          type: "quality_metrics",
+          title: "Quality Metrics",
+          data: {
+            overall_stars: 3.8,
+            measures: [
+              { code: "CDC-HbA1c", name: "Diabetes HbA1c Control", closure_rate: 68.2, target: 75, stars_weight: 3 },
+              { code: "BCS", name: "Breast Cancer Screening", closure_rate: 74.0, target: 80, stars_weight: 3 },
+              { code: "COL", name: "Colorectal Screening", closure_rate: 71.4, target: 75, stars_weight: 3 },
+              { code: "SPD", name: "Statin Adherence (Diabetes)", closure_rate: 81.2, target: 80, stars_weight: 1 },
+              { code: "KED", name: "Kidney Health Evaluation", closure_rate: 41.2, target: 60, stars_weight: 1 },
+            ],
+          },
+          narrative: "Quality performance is on track with an estimated overall Stars rating of 3.8, positioning us for the 4-star quality bonus threshold. Statin Adherence for Diabetes (81.2%) exceeds target. However, Kidney Health Evaluation remains significantly below target at 41.2% (target: 60%), requiring urgent intervention.",
+        },
+        {
+          type: "expenditure_overview",
+          title: "Cost Management",
+          data: {
+            total_spend: 14520000,
+            pmpm: 1002,
+            categories: [
+              { category: "Inpatient", spend: 5940000, pmpm: 412, benchmark: 380, variance_pct: 8.4 },
+              { category: "Pharmacy", spend: 2851000, pmpm: 198, benchmark: 175, variance_pct: 13.1 },
+              { category: "Professional", spend: 2890000, pmpm: 200, benchmark: 195, variance_pct: 2.6 },
+              { category: "ED/Observation", spend: 2695000, pmpm: 187, benchmark: 155, variance_pct: 20.6 },
+            ],
+          },
+          narrative: "Total expenditure for Q1 2026 was $14.52M ($1,002 PMPM). ED/Observation spend continues to exceed benchmark by 20.6%, representing the largest cost management opportunity. Pharmacy spend increased 13.1% above benchmark, driven primarily by new specialty drug starts.",
+        },
+        {
+          type: "provider_performance",
+          title: "Provider Network Performance",
+          data: {
+            total_providers: 12,
+            avg_capture_rate: 63.2,
+            avg_gap_closure: 59.8,
+            top_performers: [
+              { name: "Dr. Sarah Patel", capture_rate: 84.2, gap_closure: 78.4 },
+              { name: "Dr. James Rivera", capture_rate: 79.8, gap_closure: 72.1 },
+              { name: "Dr. Lisa Chen", capture_rate: 77.1, gap_closure: 69.8 },
+            ],
+            bottom_performers: [
+              { name: "Dr. Robert Kim", capture_rate: 42.1, gap_closure: 38.2 },
+              { name: "Dr. David Wilson", capture_rate: 45.8, gap_closure: 41.5 },
+            ],
+          },
+          narrative: "The provider network of 12 active PCPs shows significant performance variation. The top quartile averages an 80.4% capture rate, while the bottom quartile averages 44.0% -- a 36 percentage point gap representing approximately $1.2M in unrealized revenue.",
+        },
+      ],
+    },
+    ai_narrative: "The Q1 2026 Quarterly Board Report reflects solid operational progress across the AQSoft Health Platform's managed population of 4,832 members. Financial performance was strong, with a $2.72M surplus and an improving MLR of 84.2%. Risk adjustment performance continues to trend upward, with the population-weighted RAF reaching 1.247 and a $3.44M pipeline of suspect HCC opportunities.\n\nQuality metrics position us favorably for a 4-star rating, though targeted intervention is needed for Kidney Health Evaluation (41.2% vs 60% target) and Diabetes HbA1c Control (68.2% vs 75% target). Cost management remains a focus area, particularly in ED/Observation (+20.6% vs benchmark) and pharmacy (+13.1%), the latter driven by specialty drug utilization.\n\nThe most significant strategic opportunity lies in closing the provider performance gap. With a 36-point spread between top and bottom quartile capture rates, standardizing best practices from high performers could unlock an estimated $1.2M in additional annual revenue. Combined with the active suspect pipeline and care gap closure campaigns, we project potential upside of $4.6M in annualized value if Q2 initiatives execute as planned.\n\nKey recommendations for Q2 2026: (1) Launch specialty pharmacy utilization review program, (2) Expand ED diversion protocols to all network facilities, (3) Implement peer mentoring for bottom-quartile providers, (4) Intensify KED measure outreach, and (5) Deploy targeted chart review campaigns for top 5 HCC suspect categories.",
+    generated_by: 1,
+    file_url: null,
+    created_at: "2026-03-20T14:30:00Z",
+    updated_at: "2026-03-20T14:32:00Z",
+  },
+  {
+    id: 2,
+    template_id: 1,
+    title: "Monthly Plan Report - February 2026",
+    period: "February 2026",
+    status: "ready" as const,
+    content: { sections: [] },
+    ai_narrative: "February 2026 operational metrics remained stable with continued improvement in RAF capture and care gap closure. Key highlights include a 2.1% month-over-month improvement in recapture rate and successful completion of the winter wellness campaign reaching 342 members.",
+    generated_by: 1,
+    file_url: null,
+    created_at: "2026-03-05T10:00:00Z",
+    updated_at: "2026-03-05T10:02:00Z",
+  },
+  {
+    id: 3,
+    template_id: 3,
+    title: "Provider Summary - March 2026",
+    period: "March 2026",
+    status: "ready" as const,
+    content: { sections: [] },
+    ai_narrative: "March provider performance review shows continued progress in network-wide capture rates. Three providers exceeded 75% capture rate target this month. Provider education sessions have driven measurable improvement in bottom-quartile performers.",
+    generated_by: 1,
+    file_url: null,
+    created_at: "2026-03-22T09:15:00Z",
+    updated_at: "2026-03-22T09:17:00Z",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Action Items
+// ---------------------------------------------------------------------------
+
+export const mockActionItems = [
+  {
+    id: 1, source_type: "insight", source_id: 1,
+    title: "Investigate Sunrise SNF LOS spike for CHF patients",
+    description: "Anomaly scan detected Sunrise SNF averaging 22.3 days LOS for CHF patients vs 18-day benchmark. Affecting 31 admits with estimated excess spend of $186K.",
+    action_type: "investigation", assigned_to: 1, assigned_to_name: "Maria Santos",
+    priority: "high", status: "in_progress", due_date: "2026-04-01", completed_date: null,
+    member_id: null, provider_id: null, group_id: null,
+    expected_impact: "$186K annual savings from LOS reduction", actual_outcome: null, outcome_measured: false,
+    resolution_notes: null, created_at: "2026-03-15T10:30:00Z", updated_at: "2026-03-18T14:20:00Z",
+  },
+  {
+    id: 2, source_type: "insight", source_id: 2,
+    title: "Implement HH diversion protocol for low-acuity UTI patients",
+    description: "47 UTI patients admitted to SNF who met home health eligibility criteria. Average SNF stay cost $11,800 vs estimated HH episode of $4,100.",
+    action_type: "care_plan", assigned_to: 2, assigned_to_name: "James Rivera",
+    priority: "high", status: "open", due_date: "2026-04-15", completed_date: null,
+    member_id: null, provider_id: null, group_id: null,
+    expected_impact: "$365K annual savings from SNF-to-HH diversion", actual_outcome: null, outcome_measured: false,
+    resolution_notes: null, created_at: "2026-03-16T09:00:00Z", updated_at: "2026-03-16T09:00:00Z",
+  },
+  {
+    id: 3, source_type: "insight", source_id: 3,
+    title: "Deploy Brookdale coding workflows to Sunrise Health Partners",
+    description: "29 percentage point gap in HCC capture rates between Brookdale (41.2%) and Sunrise (12.4%) despite similar RAF distributions.",
+    action_type: "coding_education", assigned_to: 3, assigned_to_name: "Lisa Chen",
+    priority: "critical", status: "in_progress", due_date: "2026-03-31", completed_date: null,
+    member_id: null, provider_id: null, group_id: 2,
+    expected_impact: "$289K annual revenue uplift from improved capture", actual_outcome: null, outcome_measured: false,
+    resolution_notes: null, created_at: "2026-03-10T11:00:00Z", updated_at: "2026-03-20T16:45:00Z",
+  },
+  {
+    id: 4, source_type: "alert", source_id: 1,
+    title: "Coordinate post-discharge follow-up for Margaret Chen",
+    description: "Patient admitted to Memorial General with acute exacerbation of CHF. High readmission risk (RAF 1.847). Ensure 48-hour post-discharge PCP follow-up.",
+    action_type: "care_plan", assigned_to: 1, assigned_to_name: "Maria Santos",
+    priority: "critical", status: "completed", due_date: "2026-03-22", completed_date: "2026-03-21",
+    member_id: 1001, provider_id: 1, group_id: null,
+    expected_impact: "Prevent 30-day readmission ($18K avoided cost)",
+    actual_outcome: "Follow-up completed within 48 hours. Patient stable at home. No readmission at 30 days.",
+    outcome_measured: true,
+    resolution_notes: "Coordinated with Dr. Patel for same-day follow-up. Arranged visiting nurse for medication reconciliation. Patient enrolled in CHF telemonitoring.",
+    created_at: "2026-03-18T08:00:00Z", updated_at: "2026-03-21T15:30:00Z",
+  },
+  {
+    id: 5, source_type: "alert", source_id: 3,
+    title: "Schedule diabetes education for Robert Williams post-ER visit",
+    description: "Patient presented to ER with uncontrolled diabetes (A1c 9.2). Has 3 open care gaps including HbA1c control.",
+    action_type: "outreach", assigned_to: 4, assigned_to_name: "Angela Brooks",
+    priority: "high", status: "in_progress", due_date: "2026-03-28", completed_date: null,
+    member_id: 1003, provider_id: null, group_id: null,
+    expected_impact: "Close 3 care gaps, reduce ER utilization", actual_outcome: null, outcome_measured: false,
+    resolution_notes: null, created_at: "2026-03-19T10:15:00Z", updated_at: "2026-03-22T11:00:00Z",
+  },
+  {
+    id: 6, source_type: "manual", source_id: null,
+    title: "Review specialty pharmacy prior auth criteria for GLP-1 agonists",
+    description: "Pharmacy PMPM increased 13.1% above benchmark driven by new GLP-1 starts. Review prior authorization criteria and evaluate step therapy requirements.",
+    action_type: "investigation", assigned_to: 2, assigned_to_name: "James Rivera",
+    priority: "medium", status: "open", due_date: "2026-04-10", completed_date: null,
+    member_id: null, provider_id: null, group_id: null,
+    expected_impact: "Potential $120K annual pharmacy savings", actual_outcome: null, outcome_measured: false,
+    resolution_notes: null, created_at: "2026-03-20T14:00:00Z", updated_at: "2026-03-20T14:00:00Z",
+  },
+  {
+    id: 7, source_type: "manual", source_id: null,
+    title: "Schedule Q2 provider education workshops",
+    description: "Organize monthly coding education workshops for all network providers. Focus on HCC documentation best practices and CMS-HCC V28 model changes.",
+    action_type: "coding_education", assigned_to: 3, assigned_to_name: "Lisa Chen",
+    priority: "medium", status: "completed", due_date: "2026-03-25", completed_date: "2026-03-24",
+    member_id: null, provider_id: null, group_id: null,
+    expected_impact: "Improve network-wide capture rate by 5 percentage points",
+    actual_outcome: "4 monthly sessions scheduled (April-July). All 12 providers confirmed. Guest speaker from CMS arranged for May.",
+    outcome_measured: true,
+    resolution_notes: "Workshops scheduled for first Tuesday of each month. Materials prepared covering V28 changes, suspect HCC documentation, and specificity coding.",
+    created_at: "2026-03-12T09:00:00Z", updated_at: "2026-03-24T16:00:00Z",
+  },
+  {
+    id: 8, source_type: "manual", source_id: null,
+    title: "Expand ED diversion protocols to Clearwater facilities",
+    description: "ED/Observation spend is 20.6% above benchmark. Current diversion protocols at Tampa facilities reduced ED visits by 12%. Extend to Clearwater.",
+    action_type: "care_plan", assigned_to: 1, assigned_to_name: "Maria Santos",
+    priority: "high", status: "open", due_date: "2026-04-30", completed_date: null,
+    member_id: null, provider_id: null, group_id: null,
+    expected_impact: "$200K annual savings from ED diversion", actual_outcome: null, outcome_measured: false,
+    resolution_notes: null, created_at: "2026-03-21T10:00:00Z", updated_at: "2026-03-21T10:00:00Z",
+  },
+];
+
+export const mockActionStats = {
+  total: 8,
+  open: 3,
+  in_progress: 3,
+  completed: 2,
+  cancelled: 0,
+  overdue: 0,
+  completion_rate: 25.0,
+};

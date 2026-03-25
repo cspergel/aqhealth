@@ -21,6 +21,9 @@ import { CensusPage } from "../../pages/CensusPage";
 import { AlertsPage } from "../../pages/AlertsPage";
 import { ADTConfigPage } from "../../pages/ADTConfigPage";
 import { MembersPage } from "../../pages/MembersPage";
+import { WatchlistPage } from "../../pages/WatchlistPage";
+import { ReportsPage } from "../../pages/ReportsPage";
+import { ActionsPage } from "../../pages/ActionsPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -72,6 +75,7 @@ export function AppShell() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/census" element={<CensusPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/watchlist" element={<WatchlistPage />} />
             <Route path="/adt-sources" element={<ADTConfigPage />} />
             <Route path="/members" element={<MembersPage />} />
             <Route path="/suspects" element={<SuspectsPage />} />
@@ -86,6 +90,8 @@ export function AppShell() {
             <Route path="/cohorts" element={<CohortsPage />} />
             <Route path="/predictions" element={<PredictionsPage />} />
             <Route path="/scenarios" element={<ScenariosPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/actions" element={<ActionsPage />} />
             <Route path="/ingestion" element={<IngestionPage />} />
           </Routes>
         </main>

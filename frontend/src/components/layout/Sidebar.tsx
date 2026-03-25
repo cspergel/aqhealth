@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { tokens, fonts } from "../../lib/tokens";
-import { mockCareAlerts } from "../../lib/mockData";
+import { mockCareAlerts, mockWatchlistItems } from "../../lib/mockData";
 
 /* ------------------------------------------------------------------ */
 /* Navigation structure                                                */
@@ -21,6 +21,8 @@ const openAlertCount = mockCareAlerts.filter(
   (a) => a.status === "open" || a.status === "acknowledged" || a.status === "in_progress",
 ).length;
 
+const watchlistChangeCount = mockWatchlistItems.filter((i) => i.has_changes).length;
+
 const navSections: NavSection[] = [
   {
     title: "Overview",
@@ -28,6 +30,8 @@ const navSections: NavSection[] = [
       { path: "/", label: "Dashboard" },
       { path: "/census", label: "Live Census" },
       { path: "/alerts", label: "Alerts", badge: openAlertCount },
+      { path: "/watchlist", label: "Watchlist", badge: watchlistChangeCount || undefined },
+      { path: "/actions", label: "Actions" },
     ],
   },
   {
@@ -68,7 +72,10 @@ const navSections: NavSection[] = [
   },
   {
     title: "Finance",
-    items: [{ path: "/financial", label: "Financial" }],
+    items: [
+      { path: "/financial", label: "Financial" },
+      { path: "/reports", label: "Reports" },
+    ],
   },
   {
     title: "Data",
