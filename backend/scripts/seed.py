@@ -857,8 +857,8 @@ def _seed_user(session: Session, email: str, password: str, name: str, role: str
         return
     hashed = pwd_ctx.hash(password)
     session.execute(text(
-        "INSERT INTO platform.users (email, hashed_password, full_name, role, tenant_id) "
-        "VALUES (:email, :pw, :name, :role, :tid)"
+        "INSERT INTO platform.users (email, hashed_password, full_name, role, tenant_id, is_active) "
+        "VALUES (:email, :pw, :name, :role, :tid, true)"
     ), {"email": email, "pw": hashed, "name": name, "role": role, "tid": tenant_id})
     session.commit()
     print(f"  Created user '{email}' (role={role})")

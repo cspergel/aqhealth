@@ -38,7 +38,13 @@
       "Bash(python -m pytest tests/test_auth.py tests/test_database.py tests/test_hcc_engine.py tests/test_ingestion.py -v --tb=short)",
       "Bash(python -m pytest tests/test_database.py tests/test_hcc_engine.py tests/test_ingestion.py -v --tb=short)",
       "Bash(python -m pytest tests/test_integration.py -v --tb=short)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(pg_isready -h localhost -p 5433)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(redis-cli ping:*)",
+      "Bash(docker compose:*)",
+      "Bash(alembic upgrade:*)",
+      "Bash(python -m scripts.seed)"
     ]
   }
 }
