@@ -44,7 +44,8 @@
       "Bash(redis-cli ping:*)",
       "Bash(docker compose:*)",
       "Bash(alembic upgrade:*)",
-      "Bash(python -m scripts.seed)"
+      "Bash(python -m scripts.seed)",
+      "Bash(python -m scripts.seed_extended)"
     ]
   }
 }

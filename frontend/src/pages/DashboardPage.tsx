@@ -89,14 +89,15 @@ interface DashboardInsight {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmtDollar(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
-  return `$${value.toFixed(0)}`;
+function fmtDollar(value: number | null | undefined): string {
+  const v = value ?? 0;
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
 }
 
-function fmtNumber(value: number): string {
-  return value.toLocaleString();
+function fmtNumber(value: number | null | undefined): string {
+  return (value ?? 0).toLocaleString();
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -158,7 +159,12 @@ export function DashboardPage() {
     );
   }
 
-  const { metrics, raf_distribution, revenue_opportunities, cost_hotspots, provider_leaderboard, care_gap_summary } = data;
+  const metrics = data.metrics ?? {} as Metrics;
+  const raf_distribution = data.raf_distribution ?? [];
+  const revenue_opportunities = data.revenue_opportunities ?? [];
+  const cost_hotspots = data.cost_hotspots ?? [];
+  const provider_leaderboard = data.provider_leaderboard ?? { top: [], bottom: [] };
+  const care_gap_summary = data.care_gap_summary ?? [];
 
   return (
     <div className="p-7 flex flex-col gap-6">
@@ -179,30 +185,30 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <MetricCard
           label="Total Lives"
-          value={fmtNumber(metrics.total_lives)}
+          value={fmtNumber(metrics.total_lives ?? 0)}
         />
         <MetricCard
           label="Avg RAF Score"
-          value={metrics.avg_raf.toFixed(3)}
+          value={(metrics.avg_raf ?? 0).toFixed(3)}
         />
         <MetricCard
           label="Recapture Rate"
-          value={`${metrics.recapture_rate.toFixed(1)}%`}
+          value={`${(metrics.recapture_rate ?? 0).toFixed(1)}%`}
         />
         <MetricCard
           label="Suspect Inventory"
-          value={fmtNumber(metrics.suspect_inventory.count)}
-          trend={fmtDollar(metrics.suspect_inventory.total_annual_value) + " opportunity"}
+          value={fmtNumber(metrics.suspect_inventory?.count ?? 0)}
+          trend={fmtDollar(metrics.suspect_inventory?.total_annual_value ?? 0) + " opportunity"}
         />
         <MetricCard
           label="Total PMPM"
-          value={`$${metrics.total_pmpm.toFixed(0)}`}
+          value={`$${(metrics.total_pmpm ?? 0).toFixed(0)}`}
         />
         <MetricCard
           label="MLR"
-          value={`${metrics.mlr.toFixed(1)}%`}
-          trendDirection={metrics.mlr > 85 ? "down" : "up"}
-          trend={metrics.mlr > 85 ? "Above target" : "On track"}
+          value={`${(metrics.mlr ?? 0).toFixed(1)}%`}
+          trendDirection={(metrics.mlr ?? 0) > 85 ? "down" : "up"}
+          trend={(metrics.mlr ?? 0) > 85 ? "Above target" : "On track"}
         />
       </div>
 
@@ -249,7 +255,7 @@ export function DashboardPage() {
                         {opp.member_count}
                       </td>
                       <td className="text-right py-2" style={{ color: tokens.textSecondary, fontFamily: fonts.code, fontSize: 12 }}>
-                        {opp.total_raf.toFixed(2)}
+                        {(opp.total_raf ?? 0).toFixed(2)}
                       </td>
                       <td className="text-right py-2 font-semibold" style={{ color: tokens.accentText, fontFamily: fonts.code, fontSize: 12 }}>
                         {fmtDollar(opp.total_value)}
@@ -289,7 +295,7 @@ export function DashboardPage() {
                 </thead>
                 <tbody>
                   {cost_hotspots.map((spot) => {
-                    const isOver = spot.variance_pct > 0;
+                    const isOver = (spot.variance_pct ?? 0) > 0;
                     return (
                       <tr key={spot.category} className="border-t" style={{ borderColor: tokens.borderSoft }}>
                         <td className="py-2 font-medium" style={{ color: tokens.text }}>
@@ -299,7 +305,7 @@ export function DashboardPage() {
                           {fmtDollar(spot.total_spend)}
                         </td>
                         <td className="text-right py-2" style={{ color: tokens.textSecondary, fontFamily: fonts.code, fontSize: 12 }}>
-                          ${spot.pmpm.toFixed(0)}
+                          ${(spot.pmpm ?? 0).toFixed(0)}
                         </td>
                         <td className="text-right py-2" style={{ color: tokens.textMuted, fontFamily: fonts.code, fontSize: 12 }}>
                           ${spot.benchmark_pmpm}
@@ -312,7 +318,7 @@ export function DashboardPage() {
                             color: isOver ? tokens.red : tokens.accentText,
                           }}
                         >
-                          {isOver ? "+" : ""}{spot.variance_pct.toFixed(1)}%
+                          {isOver ? "+" : ""}{(spot.variance_pct ?? 0).toFixed(1)}%
                         </td>
                       </tr>
                     );
@@ -370,7 +376,7 @@ export function DashboardPage() {
                         className="text-[12px] font-semibold"
                         style={{ color: tokens.accentText, fontFamily: fonts.code }}
                       >
-                        {gap.closure_rate.toFixed(1)}%
+                        {(gap.closure_rate ?? 0).toFixed(1)}%
                       </span>
                     </div>
                     {/* Progress bar */}
@@ -378,7 +384,7 @@ export function DashboardPage() {
                       <div
                         className="h-1.5 rounded-full transition-all"
                         style={{
-                          width: `${Math.min(gap.closure_rate, 100)}%`,
+                          width: `${Math.min(gap.closure_rate ?? 0, 100)}%`,
                           background: tokens.accent,
                         }}
                       />

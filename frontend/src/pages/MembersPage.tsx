@@ -74,15 +74,24 @@ export function MembersPage() {
     setLoading(true);
     const params = buildParams();
 
-    Promise.all([
+    Promise.allSettled([
       api.get<MemberListResponse>("/api/members", { params }),
       api.get<MemberStats>("/api/members/stats", { params }),
     ]).then(([listRes, statsRes]) => {
       if (cancelled) return;
-      setMembers(listRes.data.items);
-      setTotalPages(listRes.data.total_pages);
-      setTotal(listRes.data.total);
-      setStats(statsRes.data);
+      if (listRes.status === "fulfilled" && listRes.value.data) {
+        const data = listRes.value.data;
+        setMembers(data.items ?? []);
+        setTotalPages(data.total_pages ?? 1);
+        setTotal(data.total ?? 0);
+      } else {
+        setMembers([]);
+        setTotalPages(1);
+        setTotal(0);
+      }
+      if (statsRes.status === "fulfilled" && statsRes.value.data) {
+        setStats(statsRes.value.data);
+      }
       setLoading(false);
     }).catch(() => {
       if (!cancelled) setLoading(false);
@@ -236,10 +245,10 @@ export function MembersPage() {
           border: `1px solid ${tokens.border}`,
         }}
       >
-        <StatItem label="Members" value={stats.count.toLocaleString()} />
-        <StatItem label="Avg RAF" value={stats.avg_raf.toFixed(3)} mono />
-        <StatItem label="Total Suspects" value={stats.total_suspects.toLocaleString()} color={stats.total_suspects > 0 ? tokens.amber : undefined} />
-        <StatItem label="Total Gaps" value={stats.total_gaps.toLocaleString()} color={stats.total_gaps > 0 ? tokens.red : undefined} />
+        <StatItem label="Members" value={(stats.count ?? 0).toLocaleString()} />
+        <StatItem label="Avg RAF" value={(stats.avg_raf ?? 0).toFixed(3)} mono />
+        <StatItem label="Total Suspects" value={(stats.total_suspects ?? 0).toLocaleString()} color={(stats.total_suspects ?? 0) > 0 ? tokens.amber : undefined} />
+        <StatItem label="Total Gaps" value={(stats.total_gaps ?? 0).toLocaleString()} color={(stats.total_gaps ?? 0) > 0 ? tokens.red : undefined} />
         {filterConditions && (
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
             <span

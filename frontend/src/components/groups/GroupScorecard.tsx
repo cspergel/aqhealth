@@ -69,17 +69,17 @@ export function GroupScorecard() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    Promise.all([
+    Promise.allSettled([
       api.get(`/api/groups/${id}`),
       api.get(`/api/groups/${id}/providers`),
       api.get(`/api/groups/${id}/trends`),
       api.get("/api/groups/insights"),
     ])
       .then(([g, p, t, i]) => {
-        setGroup(g.data);
-        setProviders(p.data);
-        setTrends(t.data);
-        setInsights(i.data);
+        if (g.status === "fulfilled") setGroup(g.value.data);
+        if (p.status === "fulfilled") setProviders(Array.isArray(p.value.data) ? p.value.data : []);
+        if (t.status === "fulfilled") setTrends(t.value.data);
+        if (i.status === "fulfilled") setInsights(Array.isArray(i.value.data) ? i.value.data : []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));

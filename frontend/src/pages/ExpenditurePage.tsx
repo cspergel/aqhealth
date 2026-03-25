@@ -42,10 +42,11 @@ interface InsightData {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatDollars(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
+function formatDollars(n: number | null | undefined): string {
+  const v = n ?? 0;
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +117,7 @@ export function ExpenditurePage() {
             Expenditure Analytics
           </h1>
           <p className="text-[13px] mt-1" style={{ color: tokens.textMuted }}>
-            Total medical spend across {overview.member_count.toLocaleString()} members
+            Total medical spend across {(overview.member_count ?? 0).toLocaleString()} members
           </p>
         </div>
         <button
@@ -141,11 +142,11 @@ export function ExpenditurePage() {
         />
         <MetricCard
           label="PMPM"
-          value={`$${overview.pmpm.toFixed(2)}`}
+          value={`$${(overview.pmpm ?? 0).toFixed(2)}`}
         />
         <MetricCard
           label="Medical Loss Ratio"
-          value={`${(overview.mlr * 100).toFixed(1)}%`}
+          value={`${((overview.mlr ?? 0) * 100).toFixed(1)}%`}
         />
       </div>
 
@@ -157,7 +158,7 @@ export function ExpenditurePage() {
         Spend by Service Category
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        {overview.categories.map((cat) => (
+        {(overview.categories ?? []).map((cat) => (
           <CategoryCard
             key={cat.key}
             categoryKey={cat.key}

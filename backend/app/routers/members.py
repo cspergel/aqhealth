@@ -33,23 +33,23 @@ class MemberRow(BaseModel):
     member_id: str
     name: str
     dob: str
-    pcp: str
-    pcp_id: int
-    group: str
-    group_id: int
-    current_raf: float
-    risk_tier: str
-    last_visit_date: str
-    days_since_visit: int
-    suspect_count: int
-    gap_count: int
-    total_spend_12mo: float
-    plan: str
-    has_suspects: bool
-    has_gaps: bool
-    er_visits_12mo: int
-    admissions_12mo: int
-    snf_days_12mo: int
+    pcp: str = ""
+    pcp_id: int | None = None
+    group: str = ""
+    group_id: int | None = None
+    current_raf: float = 0.0
+    risk_tier: str = "low"
+    last_visit_date: str = ""
+    days_since_visit: int = 999
+    suspect_count: int = 0
+    gap_count: int = 0
+    total_spend_12mo: float = 0.0
+    plan: str = ""
+    has_suspects: bool = False
+    has_gaps: bool = False
+    er_visits_12mo: int = 0
+    admissions_12mo: int = 0
+    snf_days_12mo: int = 0
 
 
 class MemberListOut(BaseModel):

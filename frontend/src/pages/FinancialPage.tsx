@@ -254,7 +254,7 @@ function MarginTable({
                   {name}
                 </td>
                 <td className="px-4 py-2.5 text-[13px]" style={{ fontFamily: fonts.code, color: tokens.textSecondary }}>
-                  {r.members.toLocaleString()}
+                  {(r.members ?? 0).toLocaleString()}
                 </td>
                 <td className="px-4 py-2.5 text-[13px]" style={{ fontFamily: fonts.code, color: tokens.text }}>
                   {fmt(r.revenue)}
@@ -544,7 +544,7 @@ export function FinancialPage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    Promise.all([
+    Promise.allSettled([
       api.get("/api/financial/pnl"),
       api.get("/api/financial/pnl/by-plan"),
       api.get("/api/financial/pnl/by-group"),
@@ -552,11 +552,12 @@ export function FinancialPage() {
       api.get("/api/reconciliation/report"),
     ])
       .then(([pnlRes, planRes, groupRes, forecastRes, reconRes]) => {
-        setPnl(pnlRes.data);
-        setByPlan(planRes.data);
-        setByGroup(groupRes.data);
-        setForecast(forecastRes.data);
-        setReconciliation(reconRes.data);
+        if (pnlRes.status === "fulfilled") setPnl(pnlRes.value.data);
+        else { setError("Failed to load P&L data."); return; }
+        if (planRes.status === "fulfilled") setByPlan(Array.isArray(planRes.value.data) ? planRes.value.data : []);
+        if (groupRes.status === "fulfilled") setByGroup(Array.isArray(groupRes.value.data) ? groupRes.value.data : []);
+        if (forecastRes.status === "fulfilled") setForecast(forecastRes.value.data);
+        if (reconRes.status === "fulfilled") setReconciliation(reconRes.value.data);
       })
       .catch((err) => {
         console.error("Failed to load financial data:", err);
@@ -602,7 +603,7 @@ export function FinancialPage() {
             Financial Performance
           </h1>
           <p className="text-[13px] mt-1" style={{ color: tokens.textMuted }}>
-            MSO profit & loss analysis across {pnl.member_count.toLocaleString()} members
+            MSO profit & loss analysis across {(pnl.member_count ?? 0).toLocaleString()} members
           </p>
         </div>
 

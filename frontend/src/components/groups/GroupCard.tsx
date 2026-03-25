@@ -7,9 +7,9 @@ interface GroupCardProps {
   state: string;
   provider_count: number;
   total_panel_size: number;
-  avg_capture_rate: number;
-  group_pmpm: number;
-  gap_closure_rate: number;
+  avg_capture_rate: number | null;
+  group_pmpm: number | null;
+  gap_closure_rate: number | null;
   tier: "green" | "amber" | "red";
   selected?: boolean;
   compareMode?: boolean;
@@ -53,7 +53,7 @@ export function GroupCard({
             </h3>
           </div>
           <div className="text-[12px] mt-0.5" style={{ color: tokens.textMuted }}>
-            {city}, {state} &middot; {provider_count} providers &middot; {total_panel_size.toLocaleString()} lives
+            {city}, {state} &middot; {provider_count ?? 0} providers &middot; {(total_panel_size ?? 0).toLocaleString()} lives
           </div>
         </div>
         <div
@@ -67,9 +67,9 @@ export function GroupCard({
       {/* Metrics */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Capture Rate", value: `${avg_capture_rate.toFixed(1)}%` },
-          { label: "PMPM", value: `$${group_pmpm.toLocaleString()}` },
-          { label: "Gap Closure", value: `${gap_closure_rate.toFixed(1)}%` },
+          { label: "Capture Rate", value: avg_capture_rate != null ? `${avg_capture_rate.toFixed(1)}%` : "--" },
+          { label: "PMPM", value: group_pmpm != null ? `$${group_pmpm.toLocaleString()}` : "--" },
+          { label: "Gap Closure", value: gap_closure_rate != null ? `${gap_closure_rate.toFixed(1)}%` : "--" },
         ].map(({ label, value }) => (
           <div key={label}>
             <div className="text-[10px] uppercase tracking-wide font-medium" style={{ color: tokens.textMuted }}>

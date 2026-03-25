@@ -49,7 +49,7 @@ export function CensusPage() {
   }, []);
 
   // Compute total accruing daily cost
-  const totalDailyCost = census.reduce((sum, item) => sum + item.estimated_daily_cost, 0);
+  const totalDailyCost = census.reduce((sum, item) => sum + (item.estimated_daily_cost ?? 0), 0);
 
   return (
     <div className="px-7 py-6">

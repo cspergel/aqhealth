@@ -23,9 +23,11 @@ interface BenchmarkTier {
 
 interface Benchmarks {
   provider_count: number;
-  group_count: number;
-  provider_metrics: Record<string, BenchmarkTier>;
-  group_metrics: Record<string, BenchmarkTier>;
+  group_count?: number;
+  provider_metrics?: Record<string, BenchmarkTier>;
+  group_metrics?: Record<string, BenchmarkTier>;
+  // Backend may also return a flat "metrics" key instead of provider_metrics/group_metrics
+  metrics?: Record<string, BenchmarkTier>;
 }
 
 const TABS: { key: Tab; label: string }[] = [
@@ -78,13 +80,21 @@ export function PatternsPage() {
 
     api.get(endpoint)
       .then((res) => {
-        if (tab === "playbooks") setPlaybooks(res.data);
-        else if (tab === "code-utilization") setCodeData(res.data);
-        else if (tab === "whats-working") setStories(res.data);
-        else if (tab === "needs-improvement") setImprovements(res.data);
+        if (tab === "playbooks") setPlaybooks(Array.isArray(res.data) ? res.data : []);
+        else if (tab === "code-utilization") setCodeData(res.data ?? { codes: [] });
+        else if (tab === "whats-working") setStories(Array.isArray(res.data) ? res.data : []);
+        else if (tab === "needs-improvement") setImprovements(Array.isArray(res.data) ? res.data : []);
         else setBenchmarks(res.data);
       })
-      .catch((err) => console.error("Failed to load pattern data:", err))
+      .catch((err) => {
+        console.error("Failed to load pattern data:", err);
+        // Gracefully handle 404s by setting empty state
+        if (tab === "playbooks") setPlaybooks([]);
+        else if (tab === "code-utilization") setCodeData({ codes: [] });
+        else if (tab === "whats-working") setStories([]);
+        else if (tab === "needs-improvement") setImprovements([]);
+        else setBenchmarks(null);
+      })
       .finally(() => setLoading(false));
   }, [tab]);
 
@@ -218,13 +228,23 @@ export function PatternsPage() {
                 className="rounded-md px-4 py-3 mb-6 text-[13px]"
                 style={{ background: tokens.surfaceAlt, color: tokens.textSecondary }}
               >
-                These benchmarks are from <strong>your own network</strong> — {benchmarks.provider_count} providers
-                across {benchmarks.group_count} practice groups. This is what your best performers actually achieve.
+                These benchmarks are from <strong>your own network</strong> — {benchmarks.provider_count ?? 0} providers
+                {benchmarks.group_count != null && <> across {benchmarks.group_count} practice groups</>}. This is what your best performers actually achieve.
               </div>
+              {/* Support both provider_metrics/group_metrics and flat metrics key from API */}
               {benchmarks.provider_metrics && Object.keys(benchmarks.provider_metrics).length > 0 &&
                 renderBenchmarkTable("Provider Benchmarks", benchmarks.provider_metrics)}
               {benchmarks.group_metrics && Object.keys(benchmarks.group_metrics).length > 0 &&
                 renderBenchmarkTable("Practice Group Benchmarks", benchmarks.group_metrics)}
+              {benchmarks.metrics && Object.keys(benchmarks.metrics).length > 0 &&
+                !benchmarks.provider_metrics && !benchmarks.group_metrics &&
+                renderBenchmarkTable("Network Benchmarks", benchmarks.metrics)}
+              {!benchmarks.provider_metrics && !benchmarks.group_metrics &&
+                (!benchmarks.metrics || Object.keys(benchmarks.metrics).length === 0) && (
+                <div className="text-[13px] text-center py-8" style={{ color: tokens.textMuted }}>
+                  No benchmark data available yet. Benchmarks will appear once provider performance data is sufficient.
+                </div>
+              )}
             </div>
           )}
         </>

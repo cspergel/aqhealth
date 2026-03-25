@@ -56,13 +56,13 @@ export function GroupComparison({ groupIdA, groupIdB, onClose }: GroupComparison
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
+    Promise.allSettled([
       api.get(`/api/groups/compare?a=${groupIdA}&b=${groupIdB}`),
       api.get("/api/groups/insights"),
     ])
       .then(([cmp, ins]) => {
-        setData(cmp.data);
-        setInsights(ins.data);
+        if (cmp.status === "fulfilled") setData(cmp.value.data);
+        if (ins.status === "fulfilled") setInsights(Array.isArray(ins.value.data) ? ins.value.data : []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));

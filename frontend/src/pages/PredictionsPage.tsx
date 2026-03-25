@@ -109,13 +109,17 @@ export function PredictionsPage() {
 
     api.get(endpoint)
       .then((res) => {
-        if (tab === "risk") setRiskMembers(res.data);
+        if (tab === "risk") setRiskMembers(Array.isArray(res.data) ? res.data : []);
         else if (tab === "costs") setCostProjection(res.data);
         else setRafProjection(res.data);
       })
       .catch((err) => {
         console.error("Failed to load predictions:", err);
         setError("Failed to load prediction data.");
+        // Reset state to avoid stale data
+        if (tab === "risk") setRiskMembers([]);
+        else if (tab === "costs") setCostProjection(null);
+        else setRafProjection(null);
       })
       .finally(() => setLoading(false));
   }, [tab]);
@@ -365,7 +369,7 @@ export function PredictionsPage() {
             <div className="rounded-[10px] border p-4" style={{ borderColor: tokens.border, background: tokens.surface }}>
               <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: tokens.textMuted }}>Open Suspects</div>
               <div className="text-2xl font-semibold" style={{ fontFamily: fonts.code, color: tokens.text }}>
-                {rafProjection.current_state.open_suspects.toLocaleString()}
+                {(rafProjection.current_state.open_suspects ?? 0).toLocaleString()}
               </div>
             </div>
           </div>
@@ -478,19 +482,19 @@ export function PredictionsPage() {
               <div>
                 <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: tokens.textMuted }}>Open Suspects</div>
                 <div className="text-lg font-semibold" style={{ fontFamily: fonts.code, color: tokens.text }}>
-                  {rafProjection.suspect_summary.open_count.toLocaleString()}
+                  {(rafProjection.suspect_summary?.open_count ?? 0).toLocaleString()}
                 </div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: tokens.textMuted }}>Captured</div>
                 <div className="text-lg font-semibold" style={{ fontFamily: fonts.code, color: tokens.accentText }}>
-                  {rafProjection.suspect_summary.captured_count.toLocaleString()}
+                  {(rafProjection.suspect_summary?.captured_count ?? 0).toLocaleString()}
                 </div>
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: tokens.textMuted }}>Total Suspect RAF</div>
                 <div className="text-lg font-semibold" style={{ fontFamily: fonts.code, color: tokens.text }}>
-                  {rafProjection.suspect_summary.total_suspect_raf_value.toFixed(1)}
+                  {(rafProjection.suspect_summary?.total_suspect_raf_value ?? 0).toFixed(1)}
                 </div>
               </div>
               <div>

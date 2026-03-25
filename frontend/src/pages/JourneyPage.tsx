@@ -87,7 +87,12 @@ export function JourneyPage() {
 
   // Load member list for search
   useEffect(() => {
-    api.get("/api/journey/members").then((res) => setMembers(res.data));
+    api.get("/api/journey/members")
+      .then((res) => setMembers(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {
+        // Endpoint may not exist; members list will be empty
+        setMembers([]);
+      });
   }, []);
 
   // Load journey data when memberId changes
@@ -216,7 +221,7 @@ export function JourneyPage() {
                   className="text-xs font-medium"
                   style={{ fontFamily: fonts.code, color: tokens.textSecondary }}
                 >
-                  RAF {m.current_raf.toFixed(3)}
+                  RAF {(m.current_raf ?? 0).toFixed(3)}
                 </span>
               </button>
             ))}

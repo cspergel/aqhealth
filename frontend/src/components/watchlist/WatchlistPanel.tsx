@@ -84,7 +84,7 @@ export function WatchlistPanel() {
     setLoading(true);
     api
       .get("/api/watchlist")
-      .then((res) => setItems(res.data))
+      .then((res) => setItems(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error("Failed to load watchlist:", err))
       .finally(() => setLoading(false));
   };

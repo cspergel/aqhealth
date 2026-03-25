@@ -9,7 +9,7 @@ interface ReportTemplate {
   name: string;
   description: string | null;
   report_type: string;
-  sections: { type: string; title: string }[];
+  sections: { key?: string; type: string; title: string }[];
   schedule: string | null;
   is_system: boolean;
 }
@@ -20,7 +20,7 @@ interface GeneratedReport {
   title: string;
   period: string;
   status: string;
-  content: { sections: any[] } | null;
+  content: Record<string, unknown> | null;
   ai_narrative: string | null;
   generated_by: number;
   file_url: string | null;
@@ -38,6 +38,9 @@ const reportTypeIcon: Record<string, string> = {
   plan_report: "P",
   board_report: "B",
   provider_summary: "S",
+  provider_scorecard: "S",
+  monthly: "M",
+  quarterly: "Q",
   regulatory: "R",
   custom: "C",
 };
@@ -46,6 +49,9 @@ const reportTypeColor: Record<string, { bg: string; border: string; text: string
   plan_report: { bg: tokens.blueSoft, border: "#bfdbfe", text: "#1e40af" },
   board_report: { bg: tokens.accentSoft, border: "#bbf7d0", text: tokens.accentText },
   provider_summary: { bg: tokens.amberSoft, border: "#fde68a", text: "#92400e" },
+  provider_scorecard: { bg: tokens.amberSoft, border: "#fde68a", text: "#92400e" },
+  monthly: { bg: tokens.blueSoft, border: "#bfdbfe", text: "#1e40af" },
+  quarterly: { bg: tokens.blueSoft, border: "#bfdbfe", text: "#1e40af" },
   regulatory: { bg: tokens.redSoft, border: "#fecaca", text: "#991b1b" },
   custom: { bg: tokens.surfaceAlt, border: tokens.border, text: tokens.textSecondary },
 };
@@ -125,7 +131,7 @@ export function ReportsPage() {
         <MetricCard label="Reports Generated" value={String(reports.length)} />
         <MetricCard
           label="Ready"
-          value={String(reports.filter((r) => r.status === "ready").length)}
+          value={String(reports.filter((r) => r.status === "ready" || r.status === "completed").length)}
           trendDirection="up"
         />
         <MetricCard
@@ -181,9 +187,9 @@ export function ReportsPage() {
 
                 {/* Section tags */}
                 <div className="flex flex-wrap gap-1.5 mb-4">
-                  {template.sections.map((s) => (
+                  {(template.sections ?? []).map((s, idx) => (
                     <span
-                      key={s.type}
+                      key={s.key || s.type || idx}
                       className="text-[10px] px-2 py-0.5 rounded-full"
                       style={{
                         background: tokens.surfaceAlt,
@@ -256,7 +262,7 @@ export function ReportsPage() {
                     className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{
                       background:
-                        report.status === "ready" ? tokens.accent :
+                        (report.status === "ready" || report.status === "completed") ? tokens.accent :
                         report.status === "generating" ? tokens.amber :
                         tokens.red,
                     }}
@@ -284,8 +290,8 @@ export function ReportsPage() {
                   <span
                     className="text-[10px] font-medium px-2.5 py-1 rounded-full shrink-0"
                     style={{
-                      background: report.status === "ready" ? tokens.accentSoft : report.status === "generating" ? tokens.amberSoft : tokens.redSoft,
-                      color: report.status === "ready" ? tokens.accentText : report.status === "generating" ? "#92400e" : "#991b1b",
+                      background: (report.status === "ready" || report.status === "completed") ? tokens.accentSoft : report.status === "generating" ? tokens.amberSoft : tokens.redSoft,
+                      color: (report.status === "ready" || report.status === "completed") ? tokens.accentText : report.status === "generating" ? "#92400e" : "#991b1b",
                     }}
                   >
                     {report.status}

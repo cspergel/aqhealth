@@ -18,11 +18,11 @@ interface GroupRow {
   state: string;
   provider_count: number;
   total_panel_size: number;
-  avg_capture_rate: number;
-  avg_recapture_rate: number;
-  avg_raf: number;
-  group_pmpm: number;
-  gap_closure_rate: number;
+  avg_capture_rate: number | null;
+  avg_recapture_rate: number | null;
+  avg_raf: number | null;
+  group_pmpm: number | null;
+  gap_closure_rate: number | null;
   tier: "green" | "amber" | "red";
 }
 

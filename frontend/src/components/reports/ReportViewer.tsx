@@ -13,7 +13,7 @@ interface GeneratedReport {
   title: string;
   period: string;
   status: string;
-  content: { sections: ReportSection[] } | null;
+  content: Record<string, unknown> | null;
   ai_narrative: string | null;
   generated_by: number;
   file_url: string | null;
@@ -33,7 +33,18 @@ function formatCurrency(n: number): string {
 }
 
 export function ReportViewer({ report, onBack }: ReportViewerProps) {
-  const sections = report.content?.sections || [];
+  // Handle both array and object shapes for content.sections
+  const rawSections = (report.content as Record<string, unknown>)?.sections;
+  const sections: ReportSection[] = Array.isArray(rawSections)
+    ? rawSections
+    : rawSections && typeof rawSections === "object"
+      ? Object.entries(rawSections as Record<string, unknown>).map(([key, data]) => ({
+          type: key,
+          title: key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          data: (typeof data === "object" && data !== null ? data : { value: data }) as Record<string, unknown>,
+          narrative: "",
+        }))
+      : [];
 
   return (
     <div style={{ padding: "28px 32px", maxWidth: 960 }}>

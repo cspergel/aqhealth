@@ -98,15 +98,15 @@ export function Scorecard() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    Promise.all([
+    Promise.allSettled([
       api.get(`/api/providers/${id}`),
       api.get(`/api/providers/${id}/comparison`),
       api.get(`/api/providers/${id}/insights`),
     ])
       .then(([sc, cmp, ins]) => {
-        setScorecard(sc.data);
-        setComparison(cmp.data);
-        setInsights(ins.data);
+        if (sc.status === "fulfilled") setScorecard(sc.value.data);
+        if (cmp.status === "fulfilled") setComparison(cmp.value.data);
+        if (ins.status === "fulfilled") setInsights(Array.isArray(ins.value.data) ? ins.value.data : []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));

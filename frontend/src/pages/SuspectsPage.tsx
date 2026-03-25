@@ -6,10 +6,11 @@ import { ChaseList, type SuspectRow } from "../components/suspects/ChaseList";
 
 interface Summary {
   total_suspects: number;
+  total_open: number;
+  total_captured: number;
   total_raf_opportunity: number;
-  estimated_annual_value: number;
-  capture_rate: number;
-  providers: { id: string; name: string }[];
+  total_dollar_opportunity: number;
+  by_provider: { provider_id: number; provider_name: string; count: number }[];
 }
 
 type SortField = "raf_value" | "member_name" | "date_identified" | "annual_value";
@@ -165,11 +166,11 @@ export function SuspectsPage() {
         />
         <MetricCard
           label="Estimated Annual Value"
-          value={summary ? `$${summary.estimated_annual_value.toLocaleString()}` : "--"}
+          value={summary ? `$${Math.round(summary.total_dollar_opportunity).toLocaleString()}` : "--"}
         />
         <MetricCard
           label="Capture Rate"
-          value={summary ? `${summary.capture_rate.toFixed(1)}%` : "--"}
+          value={summary ? `${summary.total_suspects > 0 ? ((summary.total_captured / summary.total_suspects) * 100).toFixed(1) : "0.0"}%` : "--"}
         />
       </div>
 
@@ -186,8 +187,8 @@ export function SuspectsPage() {
           style={selectStyle}
         >
           <option value="">All Providers</option>
-          {summary?.providers?.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
+          {summary?.by_provider?.map((p: { provider_id: number; provider_name: string }) => (
+            <option key={p.provider_id} value={p.provider_id}>{p.provider_name}</option>
           ))}
         </select>
 
