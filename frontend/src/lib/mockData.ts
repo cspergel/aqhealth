@@ -2926,3 +2926,29 @@ export const mockRecentADTEvents = [
   { id: 3024, source_id: 1, source_name: "Bamboo Health", event_type: "discharge", event_timestamp: "2026-03-18T15:00:00", patient_name: "Janet Cook", patient_class: "inpatient", facility_name: "Tampa General Hospital", diagnosis_codes: ["N18.4", "I12.9"], is_processed: true, member_id: 129, match_confidence: 100 },
   { id: 3025, source_id: 1, source_name: "Bamboo Health", event_type: "admit", event_timestamp: "2026-03-18T07:30:00", patient_name: "Sharon Peterson", patient_class: "inpatient", facility_name: "Bayshore Medical Center", diagnosis_codes: ["G20", "G40.909"], is_processed: true, member_id: 130, match_confidence: 100 },
 ];
+
+// ---------------------------------------------------------------------------
+// ---- Global Filter Options ----
+// ---------------------------------------------------------------------------
+
+export const mockFilterOptions = {
+  groups: [
+    { id: 1, name: "ISG Tampa" },
+    { id: 2, name: "FMG St. Petersburg" },
+    { id: 3, name: "ISG Brandon" },
+    { id: 4, name: "FMG Clearwater" },
+    { id: 5, name: "TPSG Downtown" },
+  ],
+  providers: [
+    { id: 1, name: "Dr. Sarah Patel", group_id: 1 },
+    { id: 2, name: "Dr. James Rivera", group_id: 1 },
+    { id: 3, name: "Dr. Lisa Chen", group_id: 4 },
+    { id: 4, name: "Dr. Michael Torres", group_id: 1 },
+    { id: 5, name: "Dr. Angela Brooks", group_id: 1 },
+    { id: 6, name: "Dr. Thomas Lee", group_id: 2 },
+    { id: 7, name: "Dr. Karen Murphy", group_id: 3 },
+    { id: 8, name: "Dr. Robert Kim", group_id: 3 },
+    { id: 9, name: "Dr. David Wilson", group_id: 2 },
+    { id: 10, name: "Dr. Jennifer Adams", group_id: 2 },
+  ],
+};

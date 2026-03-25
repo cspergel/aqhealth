@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { FilterProvider } from "./lib/filterContext";
 import { AppShell } from "./components/layout/AppShell";
 import { LoginPage } from "./pages/LoginPage";
 
@@ -26,7 +27,9 @@ export default function App() {
             path="/*"
             element={
               <ProtectedRoute>
-                <AppShell />
+                <FilterProvider>
+                  <AppShell />
+                </FilterProvider>
               </ProtectedRoute>
             }
           />

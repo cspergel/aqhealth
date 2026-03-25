@@ -12,6 +12,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// ---------------------------------------------------------------------------
+// Global filter interceptor — appends group_id / provider_id query params
+// when the global filter is active. Values are written to localStorage by
+// the FilterProvider so the interceptor stays framework-agnostic.
+// ---------------------------------------------------------------------------
+
+api.interceptors.request.use((config) => {
+  const groupId = localStorage.getItem("global_filter_group_id");
+  const providerId = localStorage.getItem("global_filter_provider_id");
+
+  if (groupId || providerId) {
+    config.params = config.params || {};
+    if (groupId) config.params.group_id = groupId;
+    if (providerId) config.params.provider_id = providerId;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {

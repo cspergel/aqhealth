@@ -49,6 +49,50 @@ import {
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
+// Global-filter helpers — extract group_id / provider_id from axios params
+// and use them to narrow mock data before returning it.
+// ---------------------------------------------------------------------------
+
+/** Provider name (full) -> provider id lookup */
+const providerNameToId: Record<string, number> = {};
+mockProviders.forEach((p) => { providerNameToId[p.name] = p.id; });
+
+/** Short PCP name (e.g. "Dr. Rivera") -> provider id lookup */
+const pcpShortNameToId: Record<string, number> = {};
+mockProviders.forEach((p) => {
+  // "Dr. James Rivera" -> "Dr. Rivera"
+  const parts = p.name.split(" ");
+  const shortName = `${parts[0]} ${parts[parts.length - 1]}`;
+  pcpShortNameToId[shortName] = p.id;
+});
+
+function getFilterIds(config: { params?: Record<string, string> }): { groupId: number | null; providerId: number | null; providerIds: number[] } {
+  const params = config.params || {};
+  const groupId = params.group_id ? parseInt(params.group_id) : null;
+  const providerId = params.provider_id ? parseInt(params.provider_id) : null;
+
+  // Determine the set of provider ids in scope
+  let providerIds: number[] = [];
+  if (providerId) {
+    providerIds = [providerId];
+  } else if (groupId) {
+    const group = mockGroups.find((g) => g.id === groupId);
+    if (group) providerIds = group.provider_ids;
+  }
+  return { groupId, providerId, providerIds };
+}
+
+/** Check if a provider name (full or short PCP style) matches the filter */
+function providerNameMatchesFilter(name: string, providerIds: number[]): boolean {
+  if (providerIds.length === 0) return true;
+  const fullId = providerNameToId[name];
+  if (fullId && providerIds.includes(fullId)) return true;
+  const shortId = pcpShortNameToId[name];
+  if (shortId && providerIds.includes(shortId)) return true;
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers to build mock response data for specific routes
 // ---------------------------------------------------------------------------
 
@@ -209,6 +253,8 @@ export function enableDemoMode() {
 
     // ---------- GET endpoints (order: most specific first) ----------
     else if (method === "get") {
+      const { groupId, providerId, providerIds } = getFilterIds(config as { params?: Record<string, string> });
+      const hasFilter = groupId !== null || providerId !== null;
 
       // Query suggestions
       if (url.includes("/api/query/suggestions")) {
@@ -254,7 +300,14 @@ export function enableDemoMode() {
       }
       // HCC suspects list: /api/hcc/suspects (with query params)
       else if (url === "/api/hcc/suspects" || url.endsWith("/api/hcc/suspects")) {
-        mockResponse = mockSuspectsData;
+        if (hasFilter && providerIds.length > 0) {
+          const filtered = mockSuspectsData.items.filter((item) =>
+            providerNameMatchesFilter(item.pcp, providerIds),
+          );
+          mockResponse = { ...mockSuspectsData, items: filtered, total_pages: Math.max(1, Math.ceil(filtered.length / 10)) };
+        } else {
+          mockResponse = mockSuspectsData;
+        }
       }
 
       // Expenditure drill-down insights: /api/expenditure/:category/insights
@@ -323,7 +376,11 @@ export function enableDemoMode() {
       }
       // Group list: /api/groups
       else if (url.includes("/api/groups")) {
-        mockResponse = mockGroups;
+        if (groupId) {
+          mockResponse = mockGroups.filter((g) => g.id === groupId);
+        } else {
+          mockResponse = mockGroups;
+        }
       }
 
       // Provider scorecard comparison: /api/providers/:id/comparison
@@ -346,7 +403,11 @@ export function enableDemoMode() {
       }
       // Provider list
       else if (url.includes("/api/providers")) {
-        mockResponse = mockProviders;
+        if (hasFilter && providerIds.length > 0) {
+          mockResponse = mockProviders.filter((p) => providerIds.includes(p.id));
+        } else {
+          mockResponse = mockProviders;
+        }
       }
 
       // Care gap measures list
@@ -355,7 +416,13 @@ export function enableDemoMode() {
       }
       // Care gap member gaps
       else if (url.includes("/api/care-gaps/members")) {
-        mockResponse = mockMemberGaps;
+        if (hasFilter && providerIds.length > 0) {
+          mockResponse = mockMemberGaps.filter((g) =>
+            providerNameMatchesFilter(g.provider_name, providerIds),
+          );
+        } else {
+          mockResponse = mockMemberGaps;
+        }
       }
       // Care gap export
       else if (url.includes("/api/care-gaps/export")) {
@@ -406,7 +473,14 @@ export function enableDemoMode() {
 
       // Journey: member search
       else if (url.includes("/api/journey/members")) {
-        mockResponse = mockJourneyMembers;
+        if (hasFilter && providerIds.length > 0) {
+          mockResponse = (mockJourneyMembers as { id: number; name: string; pcp?: string }[]).filter((m) => {
+            if (!m.pcp) return true;
+            return providerNameMatchesFilter(m.pcp, providerIds);
+          });
+        } else {
+          mockResponse = mockJourneyMembers;
+        }
       }
       // Journey: trajectory for a member
       else if (/\/api\/journey\/\d+\/trajectory/.test(url)) {
@@ -448,7 +522,13 @@ export function enableDemoMode() {
 
       // Predictions
       else if (url.includes("/api/predictions/hospitalization-risk")) {
-        mockResponse = mockHospitalizationRisk;
+        if (hasFilter && providerIds.length > 0) {
+          mockResponse = (mockHospitalizationRisk as { pcp: string }[]).filter((m) =>
+            providerNameMatchesFilter(m.pcp, providerIds),
+          );
+        } else {
+          mockResponse = mockHospitalizationRisk;
+        }
       }
       else if (url.includes("/api/predictions/cost-trajectory")) {
         mockResponse = mockCostProjections;
@@ -467,7 +547,14 @@ export function enableDemoMode() {
         mockResponse = mockCensusSummary;
       }
       else if (url.includes("/api/adt/census")) {
-        mockResponse = { total_census: mockCensusItems.length, items: mockCensusItems };
+        if (hasFilter && providerIds.length > 0) {
+          const filtered = mockCensusItems.filter((item) =>
+            providerNameMatchesFilter(item.attending_provider, providerIds),
+          );
+          mockResponse = { total_census: filtered.length, items: filtered };
+        } else {
+          mockResponse = { total_census: mockCensusItems.length, items: mockCensusItems };
+        }
       }
 
       // ADT Alerts
@@ -480,6 +567,14 @@ export function enableDemoMode() {
         if (statusParam) filtered = filtered.filter((a) => a.status === statusParam);
         if (priorityParam) filtered = filtered.filter((a) => a.priority === priorityParam);
         if (typeParam) filtered = filtered.filter((a) => a.alert_type === typeParam);
+        // Apply global filter: match alerts to census items by member_id to find attending provider
+        if (hasFilter && providerIds.length > 0) {
+          filtered = filtered.filter((a) => {
+            const census = mockCensusItems.find((c) => c.member_id === a.member_id);
+            if (!census) return false;
+            return providerNameMatchesFilter(census.attending_provider, providerIds);
+          });
+        }
         mockResponse = filtered;
       }
 
