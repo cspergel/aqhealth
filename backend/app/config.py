@@ -3,10 +3,10 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Database
-    database_url: str = "postgresql+asyncpg://aqsoft:aqsoft@localhost:5432/aqsoft_health"
+    database_url: str = "postgresql+asyncpg://aqsoft:aqsoft@localhost:5433/aqsoft_health"
 
     # Redis
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://localhost:6380/0"
 
     # Auth
     secret_key: str = "CHANGE-ME-IN-PRODUCTION"
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:5180"]
 
     # SNF Admit Assist
     snf_assist_url: str = "http://localhost:8000"
