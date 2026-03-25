@@ -46,6 +46,8 @@ import {
   mockCareAlerts,
   mockADTSources,
   mockRecentADTEvents,
+  mockReconciliationReport,
+  mockIbnrEstimate,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -244,6 +246,8 @@ export function enableDemoMode() {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         const scenarioType = body?.type || "capture_improvement";
         mockResponse = mockScenarioResults[scenarioType] || mockScenarioResults["capture_improvement"];
+      } else if (url.includes("/api/reconciliation/run")) {
+        mockResponse = { total_signals: 23, matched: 18, unmatched: 5, avg_accuracy: 91.3, accuracy_by_category: { inpatient: { count: 10, avg_error: 10.3, avg_bias: -2.4 }, ed_observation: { count: 5, avg_error: 5.9, avg_bias: -1.1 }, snf_postacute: { count: 3, avg_error: 6.4, avg_bias: 1.4 } } };
       } else if (url.includes("/api/care-gaps/measures")) {
         mockResponse = { id: 999, code: "CUSTOM-01", name: "Custom Measure", success: true };
       } else {
@@ -505,6 +509,14 @@ export function enableDemoMode() {
       }
       else if (url.includes("/api/financial/forecast")) {
         mockResponse = mockFinancialForecast;
+      }
+
+      // Reconciliation
+      else if (url.includes("/api/reconciliation/report")) {
+        mockResponse = mockReconciliationReport;
+      }
+      else if (url.includes("/api/reconciliation/ibnr")) {
+        mockResponse = mockIbnrEstimate;
       }
 
       // Cohorts

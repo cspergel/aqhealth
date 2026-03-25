@@ -143,6 +143,69 @@ async def process_adt_event(
 
     await db.commit()
 
+    # --- Dual Data Tier: estimate cost and create signal-tier claim ---
+    if event_type in ("admit", "observation", "ed_visit"):
+        patient_class = event_data.get("patient_class") or "inpatient"
+        daily_cost = DAILY_COST_ESTIMATES.get(patient_class, 2000)
+        typical_los = TYPICAL_LOS.get(patient_class, 5)
+        estimated_total = daily_cost * typical_los
+
+        # Store estimates on the ADT event
+        await db.execute(
+            text("""
+                UPDATE adt_events
+                SET estimated_total_cost = :total, estimated_daily_cost = :daily
+                WHERE id = :eid
+            """),
+            {"total": estimated_total, "daily": daily_cost, "eid": event_id},
+        )
+
+        # Determine service category from patient class
+        svc_category_map = {
+            "inpatient": "inpatient",
+            "emergency": "ed_observation",
+            "observation": "ed_observation",
+            "snf": "snf_postacute",
+            "rehab": "snf_postacute",
+        }
+        svc_category = svc_category_map.get(patient_class, "inpatient")
+
+        # Create signal-tier Claim so it shows up in expenditure analytics
+        if member_id:
+            svc_date = admit_date.date() if admit_date else event_timestamp.date()
+            diag_codes = event_data.get("diagnosis_codes", [])
+            diag_array = "{" + ",".join(str(d) for d in diag_codes) + "}" if diag_codes else None
+
+            await db.execute(
+                text("""
+                    INSERT INTO claims (
+                        member_id, claim_type, service_date,
+                        diagnosis_codes, facility_name, facility_npi,
+                        estimated_amount, service_category,
+                        data_tier, is_estimated, signal_source, signal_event_id,
+                        reconciled
+                    ) VALUES (
+                        :member_id, 'institutional', :svc_date,
+                        :diag_codes, :facility_name, :facility_npi,
+                        :estimated_amount, :svc_category,
+                        'signal', true, 'adt_event', :event_id,
+                        false
+                    )
+                """),
+                {
+                    "member_id": member_id,
+                    "svc_date": svc_date,
+                    "diag_codes": diag_array,
+                    "facility_name": event_data.get("facility_name"),
+                    "facility_npi": event_data.get("facility_npi"),
+                    "estimated_amount": estimated_total,
+                    "svc_category": svc_category,
+                    "event_id": event_id,
+                },
+            )
+
+        await db.commit()
+
     # Build event dict for alert generation
     event = {
         "id": event_id,

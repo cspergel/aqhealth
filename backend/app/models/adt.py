@@ -6,8 +6,9 @@ health plan SFTPs, HL7 feeds) and generates care management alerts.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -71,6 +72,12 @@ class ADTEvent(Base, TimestampMixin):
     # Processing
     is_processed: Mapped[bool] = mapped_column(default=False)
     alerts_sent: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # which alerts were triggered
+
+    # --- Dual Data Tier: cost estimation ---
+    estimated_total_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)  # estimated cost based on DRG averages
+    estimated_daily_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    actual_claim_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # linked when actual claim arrives
+    estimation_accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)  # calculated after reconciliation
 
 
 class CareAlert(Base, TimestampMixin):

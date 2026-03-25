@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../lib/api";
 import { tokens, fonts } from "../lib/tokens";
 import { MetricCard } from "../components/ui/MetricCard";
+import { DataTierBadge } from "../components/ui/DataTierBadge";
 import { CensusTable, type CensusItem } from "../components/census/CensusTable";
 
 interface CensusSummary {
@@ -118,10 +119,17 @@ export function CensusPage() {
               value={String(summary?.today_admits ?? 0)}
               trend={`${summary?.today_discharges ?? 0} discharges`}
             />
-            <MetricCard
-              label="Daily Cost Accruing"
-              value={`$${totalDailyCost.toLocaleString()}`}
-            />
+            <div className="relative">
+              <MetricCard
+                label="Daily Cost Accruing"
+                value={`$${totalDailyCost.toLocaleString()}`}
+              />
+              <div className="absolute top-2.5 right-3">
+                <DataTierBadge
+                  tooltip="All census costs are estimated from ADT data (signal tier). Actual claims have not been received yet."
+                />
+              </div>
+            </div>
           </div>
 
           {/* Facility breakdown bar */}

@@ -2417,6 +2417,36 @@ export const mockFinancialPnl = {
     prior_year: { revenue: 6_480_000, expenses: 5_720_000, surplus: 760_000, mlr: 0.8827 },
     prior_quarter: { revenue: 1_750_000, expenses: 1_580_000, surplus: 170_000, mlr: 0.9029 },
   },
+  ibnr_estimate: 342_000,
+  ibnr_confidence: 89.0,
+  projected: {
+    expenses: {
+      inpatient: 2_248_000,
+      pharmacy: 1_002_000,
+      professional: 904_000,
+      ed_observation: 662_000,
+      snf_postacute: 608_000,
+      home_health: 438_000,
+      dme: 300_000,
+      administrative: 180_000,
+      care_management: 100_000,
+      ibnr_reserve: 342_000,
+      total: 6_784_000,
+    },
+    surplus: 416_000,
+    mlr: 0.9422,
+    per_member_margin: 86.09,
+  },
+  signal_estimates: {
+    inpatient: 148_000,
+    ed_observation: 42_000,
+    snf_postacute: 68_000,
+    pharmacy: 22_000,
+    professional: 34_000,
+    home_health: 18_000,
+    dme: 10_000,
+  },
+  data_completeness: 94.7,
 };
 
 export const mockFinancialByPlan = [
@@ -2455,6 +2485,77 @@ export const mockFinancialForecast = {
     total_projected_margin: 2_178_470,
     avg_monthly_margin: 181_539,
   },
+};
+
+// ---- Dual Data Tier: Reconciliation & IBNR ----
+
+export const mockReconciliationReport = {
+  overall_accuracy: 91.3,
+  total_reconciled: 847,
+  avg_bias_pct: -2.4,
+  trend: "improving" as const,
+  trend_pct: 2.0,
+  by_facility: [
+    { facility: "Tampa General Hospital", count: 312, accuracy: 92.1, bias: -1.8 },
+    { facility: "St. Joseph's Hospital", count: 198, accuracy: 94.2, bias: -0.9 },
+    { facility: "Memorial Hospital of Tampa", count: 142, accuracy: 87.4, bias: -5.1 },
+    { facility: "Bayshore Medical Center", count: 108, accuracy: 90.8, bias: -2.2 },
+    { facility: "Sunrise SNF & Rehab", count: 87, accuracy: 93.6, bias: 1.4 },
+  ],
+  by_patient_class: [
+    { patient_class: "inpatient", count: 412, accuracy: 89.7 },
+    { patient_class: "emergency", count: 198, accuracy: 94.1 },
+    { patient_class: "observation", count: 108, accuracy: 92.8 },
+    { patient_class: "snf", count: 87, accuracy: 93.6 },
+    { patient_class: "rehab", count: 42, accuracy: 88.2 },
+  ],
+  by_service_category: [
+    { category: "inpatient", count: 412, accuracy: 89.7 },
+    { category: "ed_observation", count: 306, accuracy: 93.4 },
+    { category: "snf_postacute", count: 129, accuracy: 91.8 },
+  ],
+  biggest_misses: [
+    { event_id: 4001, facility: "Memorial Hospital of Tampa", patient_class: "inpatient", error_pct: 42.3, estimated: 16000, actual: 27480 },
+    { event_id: 4002, facility: "Tampa General Hospital", patient_class: "inpatient", error_pct: -38.1, estimated: 16000, actual: 9900 },
+    { event_id: 4003, facility: "Bayshore Medical Center", patient_class: "snf", error_pct: 31.7, estimated: 17850, actual: 23510 },
+    { event_id: 4004, facility: "St. Joseph's Hospital", patient_class: "inpatient", error_pct: -27.4, estimated: 16000, actual: 11620 },
+    { event_id: 4005, facility: "Tampa General Hospital", patient_class: "observation", error_pct: 25.9, estimated: 4200, actual: 5290 },
+  ],
+};
+
+export const mockIbnrEstimate = {
+  total_ibnr: 342_000,
+  total_raw: 375_400,
+  by_category: {
+    inpatient: { count: 8, raw_estimate: 148_000, adjusted_estimate: 135_200 },
+    ed_observation: { count: 7, raw_estimate: 42_000, adjusted_estimate: 38_350 },
+    snf_postacute: { count: 3, raw_estimate: 68_000, adjusted_estimate: 62_100 },
+    pharmacy: { count: 12, raw_estimate: 22_000, adjusted_estimate: 20_100 },
+    professional: { count: 15, raw_estimate: 34_000, adjusted_estimate: 31_050 },
+    home_health: { count: 4, raw_estimate: 18_000, adjusted_estimate: 16_440 },
+    dme: { count: 6, raw_estimate: 10_000, adjusted_estimate: 9_130 },
+  },
+  confidence: 89.0,
+  adjustment_factor: 0.9110,
+};
+
+export const mockProjectedPnl = {
+  expenses: {
+    inpatient: 2_248_000,
+    pharmacy: 1_002_000,
+    professional: 904_000,
+    ed_observation: 662_000,
+    snf_postacute: 608_000,
+    home_health: 438_000,
+    dme: 300_000,
+    administrative: 180_000,
+    care_management: 100_000,
+    ibnr_reserve: 342_000,
+    total: 6_784_000,
+  },
+  surplus: 416_000,
+  mlr: 0.9422,
+  per_member_margin: 86.09,
 };
 
 // ---- Dynamic Cohort Builder ----
@@ -2743,27 +2844,27 @@ export const mockCensusSummary = {
 
 export const mockCensusItems = [
   // Inpatient (8)
-  { event_id: 1001, member_id: 101, patient_name: "Margaret Chen", patient_class: "inpatient", admit_date: "2026-03-17T08:30:00", los_days: 7, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["I50.9", "E11.65", "N18.3"], estimated_daily_cost: 3200, total_accrued_cost: 22400, typical_los: 5, projected_discharge: "2026-03-22", los_status: "extended" as const },
-  { event_id: 1002, member_id: 102, patient_name: "Robert Williams", patient_class: "inpatient", admit_date: "2026-03-20T14:15:00", los_days: 4, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. James Rivera", diagnosis_codes: ["J44.1", "J96.11"], estimated_daily_cost: 3200, total_accrued_cost: 12800, typical_los: 5, projected_discharge: "2026-03-25", los_status: "normal" as const },
-  { event_id: 1003, member_id: 103, patient_name: "Dorothy Garcia", patient_class: "inpatient", admit_date: "2026-03-21T09:00:00", los_days: 3, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["I25.10", "I48.0"], estimated_daily_cost: 3200, total_accrued_cost: 9600, typical_los: 5, projected_discharge: "2026-03-26", los_status: "normal" as const },
-  { event_id: 1004, member_id: 104, patient_name: "James Thompson", patient_class: "inpatient", admit_date: "2026-03-22T11:30:00", los_days: 2, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Michael Torres", diagnosis_codes: ["K80.10", "K81.0"], estimated_daily_cost: 3200, total_accrued_cost: 6400, typical_los: 3, projected_discharge: "2026-03-25", los_status: "normal" as const },
-  { event_id: 1005, member_id: 105, patient_name: "Helen Martinez", patient_class: "inpatient", admit_date: "2026-03-13T07:00:00", los_days: 11, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["S72.001A", "W01.0"], estimated_daily_cost: 3200, total_accrued_cost: 35200, typical_los: 5, projected_discharge: "2026-03-18", los_status: "critical" as const },
-  { event_id: 1006, member_id: 106, patient_name: "Charles Brown", patient_class: "inpatient", admit_date: "2026-03-23T16:00:00", los_days: 1, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Angela Brooks", diagnosis_codes: ["I63.9", "I10"], estimated_daily_cost: 3200, total_accrued_cost: 3200, typical_los: 5, projected_discharge: "2026-03-28", los_status: "normal" as const },
-  { event_id: 1007, member_id: 107, patient_name: "Patricia Davis", patient_class: "inpatient", admit_date: "2026-03-22T08:00:00", los_days: 2, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Thomas Lee", diagnosis_codes: ["C34.90", "J18.9"], estimated_daily_cost: 3200, total_accrued_cost: 6400, typical_los: 5, projected_discharge: "2026-03-27", los_status: "normal" as const },
-  { event_id: 1008, member_id: 108, patient_name: "Richard Wilson", patient_class: "inpatient", admit_date: "2026-03-24T06:45:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "acute", attending_provider: "Dr. Karen Murphy", diagnosis_codes: ["N17.9", "E87.1"], estimated_daily_cost: 3200, total_accrued_cost: 3200, typical_los: 4, projected_discharge: "2026-03-28", los_status: "normal" as const },
+  { event_id: 1001, member_id: 101, patient_name: "Margaret Chen", patient_class: "inpatient", admit_date: "2026-03-17T08:30:00", los_days: 7, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["I50.9", "E11.65", "N18.3"], estimated_daily_cost: 3200, total_accrued_cost: 22400, typical_los: 5, projected_discharge: "2026-03-22", los_status: "extended" as const, is_estimated: true },
+  { event_id: 1002, member_id: 102, patient_name: "Robert Williams", patient_class: "inpatient", admit_date: "2026-03-20T14:15:00", los_days: 4, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. James Rivera", diagnosis_codes: ["J44.1", "J96.11"], estimated_daily_cost: 3200, total_accrued_cost: 12800, typical_los: 5, projected_discharge: "2026-03-25", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1003, member_id: 103, patient_name: "Dorothy Garcia", patient_class: "inpatient", admit_date: "2026-03-21T09:00:00", los_days: 3, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["I25.10", "I48.0"], estimated_daily_cost: 3200, total_accrued_cost: 9600, typical_los: 5, projected_discharge: "2026-03-26", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1004, member_id: 104, patient_name: "James Thompson", patient_class: "inpatient", admit_date: "2026-03-22T11:30:00", los_days: 2, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Michael Torres", diagnosis_codes: ["K80.10", "K81.0"], estimated_daily_cost: 3200, total_accrued_cost: 6400, typical_los: 3, projected_discharge: "2026-03-25", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1005, member_id: 105, patient_name: "Helen Martinez", patient_class: "inpatient", admit_date: "2026-03-13T07:00:00", los_days: 11, facility_name: "Tampa General Hospital", facility_type: "acute", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["S72.001A", "W01.0"], estimated_daily_cost: 3200, total_accrued_cost: 35200, typical_los: 5, projected_discharge: "2026-03-18", los_status: "critical" as const, is_estimated: true },
+  { event_id: 1006, member_id: 106, patient_name: "Charles Brown", patient_class: "inpatient", admit_date: "2026-03-23T16:00:00", los_days: 1, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Angela Brooks", diagnosis_codes: ["I63.9", "I10"], estimated_daily_cost: 3200, total_accrued_cost: 3200, typical_los: 5, projected_discharge: "2026-03-28", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1007, member_id: 107, patient_name: "Patricia Davis", patient_class: "inpatient", admit_date: "2026-03-22T08:00:00", los_days: 2, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Thomas Lee", diagnosis_codes: ["C34.90", "J18.9"], estimated_daily_cost: 3200, total_accrued_cost: 6400, typical_los: 5, projected_discharge: "2026-03-27", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1008, member_id: 108, patient_name: "Richard Wilson", patient_class: "inpatient", admit_date: "2026-03-24T06:45:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "acute", attending_provider: "Dr. Karen Murphy", diagnosis_codes: ["N17.9", "E87.1"], estimated_daily_cost: 3200, total_accrued_cost: 3200, typical_los: 4, projected_discharge: "2026-03-28", los_status: "normal" as const, is_estimated: true },
   // Emergency (4)
-  { event_id: 1009, member_id: 109, patient_name: "Barbara Anderson", patient_class: "emergency", admit_date: "2026-03-24T02:15:00", los_days: 0, facility_name: "Tampa General Hospital", facility_type: "ed", attending_provider: "Dr. David Wilson", diagnosis_codes: ["R07.9", "I20.9"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const },
-  { event_id: 1010, member_id: 110, patient_name: "Thomas Jackson", patient_class: "emergency", admit_date: "2026-03-24T05:30:00", los_days: 0, facility_name: "St. Joseph's Hospital", facility_type: "ed", attending_provider: "Dr. Jennifer Adams", diagnosis_codes: ["J06.9", "R50.9"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const },
-  { event_id: 1011, member_id: 111, patient_name: "Nancy White", patient_class: "emergency", admit_date: "2026-03-24T08:00:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "ed", attending_provider: "Dr. Robert Kim", diagnosis_codes: ["S52.501A"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const },
-  { event_id: 1012, member_id: 112, patient_name: "Daniel Harris", patient_class: "emergency", admit_date: "2026-03-23T22:00:00", los_days: 1, facility_name: "Tampa General Hospital", facility_type: "ed", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["E11.65", "E87.6"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const },
+  { event_id: 1009, member_id: 109, patient_name: "Barbara Anderson", patient_class: "emergency", admit_date: "2026-03-24T02:15:00", los_days: 0, facility_name: "Tampa General Hospital", facility_type: "ed", attending_provider: "Dr. David Wilson", diagnosis_codes: ["R07.9", "I20.9"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1010, member_id: 110, patient_name: "Thomas Jackson", patient_class: "emergency", admit_date: "2026-03-24T05:30:00", los_days: 0, facility_name: "St. Joseph's Hospital", facility_type: "ed", attending_provider: "Dr. Jennifer Adams", diagnosis_codes: ["J06.9", "R50.9"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1011, member_id: 111, patient_name: "Nancy White", patient_class: "emergency", admit_date: "2026-03-24T08:00:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "ed", attending_provider: "Dr. Robert Kim", diagnosis_codes: ["S52.501A"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1012, member_id: 112, patient_name: "Daniel Harris", patient_class: "emergency", admit_date: "2026-03-23T22:00:00", los_days: 1, facility_name: "Tampa General Hospital", facility_type: "ed", attending_provider: "Dr. Sarah Patel", diagnosis_codes: ["E11.65", "E87.6"], estimated_daily_cost: 1800, total_accrued_cost: 1800, typical_los: 1, projected_discharge: "2026-03-24", los_status: "normal" as const, is_estimated: true },
   // Observation (3)
-  { event_id: 1013, member_id: 113, patient_name: "Susan Clark", patient_class: "observation", admit_date: "2026-03-23T14:00:00", los_days: 1, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["R55", "I49.9"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-25", los_status: "normal" as const },
-  { event_id: 1014, member_id: 114, patient_name: "Joseph Lewis", patient_class: "observation", admit_date: "2026-03-23T18:30:00", los_days: 1, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Angela Brooks", diagnosis_codes: ["R06.02", "J45.41"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-25", los_status: "normal" as const },
-  { event_id: 1015, member_id: 115, patient_name: "Karen Robinson", patient_class: "observation", admit_date: "2026-03-24T01:00:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "acute", attending_provider: "Dr. Karen Murphy", diagnosis_codes: ["R42", "G43.909"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-26", los_status: "normal" as const },
+  { event_id: 1013, member_id: 113, patient_name: "Susan Clark", patient_class: "observation", admit_date: "2026-03-23T14:00:00", los_days: 1, facility_name: "St. Joseph's Hospital", facility_type: "acute", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["R55", "I49.9"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-25", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1014, member_id: 114, patient_name: "Joseph Lewis", patient_class: "observation", admit_date: "2026-03-23T18:30:00", los_days: 1, facility_name: "Bayshore Medical Center", facility_type: "acute", attending_provider: "Dr. Angela Brooks", diagnosis_codes: ["R06.02", "J45.41"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-25", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1015, member_id: 115, patient_name: "Karen Robinson", patient_class: "observation", admit_date: "2026-03-24T01:00:00", los_days: 0, facility_name: "Memorial Hospital of Tampa", facility_type: "acute", attending_provider: "Dr. Karen Murphy", diagnosis_codes: ["R42", "G43.909"], estimated_daily_cost: 2100, total_accrued_cost: 2100, typical_los: 2, projected_discharge: "2026-03-26", los_status: "normal" as const, is_estimated: true },
   // SNF (3)
-  { event_id: 1016, member_id: 116, patient_name: "Edward Walker", patient_class: "snf", admit_date: "2026-03-10T10:00:00", los_days: 14, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. James Rivera", diagnosis_codes: ["S72.001D", "M80.08"], estimated_daily_cost: 850, total_accrued_cost: 11900, typical_los: 21, projected_discharge: "2026-03-31", los_status: "normal" as const },
-  { event_id: 1017, member_id: 117, patient_name: "Betty Hall", patient_class: "snf", admit_date: "2026-03-05T09:00:00", los_days: 19, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. Michael Torres", diagnosis_codes: ["I63.9", "G81.90"], estimated_daily_cost: 850, total_accrued_cost: 16150, typical_los: 21, projected_discharge: "2026-03-26", los_status: "normal" as const },
-  { event_id: 1018, member_id: 118, patient_name: "George Young", patient_class: "snf", admit_date: "2026-02-28T11:00:00", los_days: 24, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["M17.11", "Z96.641"], estimated_daily_cost: 850, total_accrued_cost: 20400, typical_los: 21, projected_discharge: "2026-03-21", los_status: "extended" as const },
+  { event_id: 1016, member_id: 116, patient_name: "Edward Walker", patient_class: "snf", admit_date: "2026-03-10T10:00:00", los_days: 14, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. James Rivera", diagnosis_codes: ["S72.001D", "M80.08"], estimated_daily_cost: 850, total_accrued_cost: 11900, typical_los: 21, projected_discharge: "2026-03-31", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1017, member_id: 117, patient_name: "Betty Hall", patient_class: "snf", admit_date: "2026-03-05T09:00:00", los_days: 19, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. Michael Torres", diagnosis_codes: ["I63.9", "G81.90"], estimated_daily_cost: 850, total_accrued_cost: 16150, typical_los: 21, projected_discharge: "2026-03-26", los_status: "normal" as const, is_estimated: true },
+  { event_id: 1018, member_id: 118, patient_name: "George Young", patient_class: "snf", admit_date: "2026-02-28T11:00:00", los_days: 24, facility_name: "Sunrise SNF & Rehab", facility_type: "snf", attending_provider: "Dr. Lisa Chen", diagnosis_codes: ["M17.11", "Z96.641"], estimated_daily_cost: 850, total_accrued_cost: 20400, typical_los: 21, projected_discharge: "2026-03-21", los_status: "extended" as const, is_estimated: true },
 ];
 
 // ---------------------------------------------------------------------------

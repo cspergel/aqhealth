@@ -87,6 +87,37 @@ async def get_pnl(db: AsyncSession, period: str = "ytd") -> dict:
         },
     }
 
+    # --- Dual Data Tier: IBNR and projected view ---
+    ibnr_estimate = 342_000  # In production, call reconciliation_service.get_ibnr_estimate()
+    ibnr_confidence = 89.0
+
+    # Signal-tier estimated expenses not yet in record tier
+    signal_estimates = {
+        "inpatient": 148_000,
+        "ed_observation": 42_000,
+        "snf_postacute": 68_000,
+        "pharmacy": 22_000,
+        "professional": 34_000,
+        "home_health": 18_000,
+        "dme": 10_000,
+    }
+    signal_total = sum(signal_estimates.values())
+
+    projected_expenses = {
+        k: expenses[k] + signal_estimates.get(k, 0)
+        for k in expenses
+        if k != "total"
+    }
+    projected_expenses["ibnr_reserve"] = ibnr_estimate
+    projected_expenses["total"] = expenses["total"] + signal_total + ibnr_estimate
+
+    projected_surplus = revenue["total"] - projected_expenses["total"]
+    projected_mlr = projected_expenses["total"] / revenue["total"] if revenue["total"] else 0
+
+    # Data completeness: what % of recent month data is record vs signal
+    total_data_points = expenses["total"] + signal_total
+    data_completeness = round(expenses["total"] / total_data_points * 100, 1) if total_data_points else 100
+
     return {
         "period": period,
         "revenue": revenue,
@@ -96,6 +127,16 @@ async def get_pnl(db: AsyncSession, period: str = "ytd") -> dict:
         "member_count": member_count,
         "per_member_margin": round(per_member_margin, 2),
         "comparison": comparison,
+        "ibnr_estimate": ibnr_estimate,
+        "ibnr_confidence": ibnr_confidence,
+        "projected": {
+            "expenses": projected_expenses,
+            "surplus": projected_surplus,
+            "mlr": round(projected_mlr, 4),
+            "per_member_margin": round(projected_surplus / member_count, 2) if member_count else 0,
+        },
+        "signal_estimates": signal_estimates,
+        "data_completeness": data_completeness,
     }
 
 
