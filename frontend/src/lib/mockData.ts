@@ -74,33 +74,64 @@ export const mockInsights: {
   dollar_impact: number | null;
   recommended_action: string | null;
   confidence: number | null;
+  scan_type?: string;
 }[] = [
   {
-    id: 1, category: "revenue", title: "High-value member cluster needs immediate attention",
-    description: "47 members have 3+ suspect HCCs, 2+ open care gaps, AND a hospital admission in the last 90 days. Combined RAF uplift opportunity: $412K/year.",
-    dollar_impact: 412000, recommended_action: "Prioritize these 47 members for care coordinator outreach this week.", confidence: 0.89,
+    id: 1, category: "cost", title: "SNF LOS for CHF jumped 4 days at Sunrise this quarter \u2014 investigating",
+    description: "Anomaly scan detected Sunrise SNF averaging 22.3 days LOS for CHF patients vs 18-day benchmark. This is a 24% deviation affecting 31 admits. Estimated excess spend: $186K.",
+    dollar_impact: 186000, recommended_action: "Request utilization review meeting with Sunrise SNF discharge planning team.", confidence: 91, scan_type: "anomaly",
   },
   {
-    id: 2, category: "cost", title: "Memorial Hospital readmission rate 47% above benchmark",
-    description: "Memorial Hospital's 30-day readmission rate is 16.2% vs 11% network average. 23 potentially avoidable readmissions in the past 12 months. Estimated excess spend: $423K.",
-    dollar_impact: 423000, recommended_action: "Engage Memorial Hospital care management team for joint readmission review.", confidence: 0.92,
+    id: 2, category: "revenue", title: "65% of UTI SNF patients could have gone home with HH \u2014 $365K savings",
+    description: "Opportunity scan found 47 UTI patients admitted to SNF facilities who met home health eligibility criteria. Average SNF stay cost $11,800 vs estimated HH episode of $4,100.",
+    dollar_impact: 365000, recommended_action: "Implement HH diversion protocol for low-acuity UTI patients at admission.", confidence: 87, scan_type: "opportunity",
   },
   {
-    id: 3, category: "revenue", title: "142 members on anticoagulants without AFib coded",
-    description: "Population scan found 142 members filling warfarin or apixaban prescriptions with no atrial fibrillation (I48.x) diagnosis in current year claims.",
-    dollar_impact: 86000, recommended_action: "Generate suspect flags for these 142 members and route to their PCPs.", confidence: 0.85,
+    id: 3, category: "provider", title: "Brookdale captures HCCs at 41% vs Sunrise at 12% \u2014 same patient mix",
+    description: "Comparative scan revealed a 29 percentage point gap in HCC capture rates between Brookdale Medical Group (41.2%) and Sunrise Health Partners (12.4%) despite similar RAF distributions.",
+    dollar_impact: 289000, recommended_action: "Deploy Brookdale's coding workflows to Sunrise. Schedule peer-to-peer education sessions.", confidence: 88, scan_type: "comparative",
   },
   {
-    id: 4, category: "quality", title: "Statin adherence dropping \u2014 4-star threshold at risk",
+    id: 4, category: "trend", title: "Pharmacy spend up 18% QoQ \u2014 driven by 3 new specialty drug starts",
+    description: "Temporal scan detected pharmacy PMPM increased from $198 to $234 quarter-over-quarter. Root cause: 3 members started Humira ($72K/yr each) and 8 started GLP-1 agonists ($15K/yr each).",
+    dollar_impact: 336000, recommended_action: "Review specialty drug prior auth criteria. Evaluate biosimilar alternatives for Humira starts.", confidence: 93, scan_type: "temporal",
+  },
+  {
+    id: 5, category: "revenue", title: "47 members have 3+ suspect HCCs AND 2+ care gaps AND recent admission",
+    description: "Cross-module scan identified 47 members flagged across all three alert categories simultaneously. These members represent $412K in RAF uplift, $890K in claims, and 94 open care gaps.",
+    dollar_impact: 412000, recommended_action: "Prioritize these 47 members for comprehensive care coordinator visits this week.", confidence: 94, scan_type: "cross_module",
+  },
+  {
+    id: 6, category: "cost", title: "142 claims filed >90 days \u2014 $89K at risk of timely filing denial",
+    description: "Revenue cycle scan found 142 claims still in pending status more than 90 days after service date. These claims total $89K and are at immediate risk of timely filing denial.",
+    dollar_impact: 89000, recommended_action: "Escalate to billing team for immediate resubmission. Audit claims workflow for bottlenecks.", confidence: 96, scan_type: "revenue_cycle",
+  },
+  {
+    id: 7, category: "quality", title: "Statin adherence dropping \u2014 4-star threshold at risk",
     description: "PDC for statin adherence (D12) dropped 4.1 points this quarter to 78.3%. You\u2019re now within 2 points of falling below the 4-star cutpoint (76%). This is a triple-weighted measure.",
-    dollar_impact: null, recommended_action: "Launch pharmacist outreach campaign targeting 89 members below 80% PDC.", confidence: 0.94,
+    dollar_impact: null, recommended_action: "Launch pharmacist outreach campaign targeting 89 members below 80% PDC.", confidence: 94, scan_type: "anomaly",
   },
   {
-    id: 5, category: "provider", title: "3 PCPs code unspecified diabetes 78% of the time",
-    description: "Drs. Kim, Wilson, and Murphy code E11.9 (Type 2 diabetes unspecified) on 78% of their diabetic patients. Network peers specify complications 44% of the time.",
-    dollar_impact: 67000, recommended_action: "Schedule coding education sessions with these three providers.", confidence: 0.88,
+    id: 8, category: "provider", title: "3 PCPs code unspecified diabetes 78% of the time",
+    description: "Drs. Kim, Wilson, and Murphy code E11.9 (Type 2 diabetes unspecified) on 78% of their diabetic patients. Network peers specify complications 44% of the time. Specificity upgrade value: $67K.",
+    dollar_impact: 67000, recommended_action: "Schedule coding education sessions with these three providers.", confidence: 88, scan_type: "opportunity",
   },
 ];
+
+export const mockDiscoveryLatest = {
+  total_findings: 34,
+  scan_summary: { anomaly: 8, opportunity: 12, comparative: 5, temporal: 4, cross_module: 3, revenue_cycle: 2 },
+  last_scan_at: "2026-03-24T06:00:00Z",
+  findings: mockInsights.map((i) => ({ ...i, scan: i.scan_type })),
+};
+
+export const mockDiscoveryRevenueCycle = {
+  total_findings: 2,
+  findings: [
+    { scan: "revenue_cycle", issue: "timely_filing_risk", affected_claims: 142, financial_impact: 89000, root_cause: "Claims pending >90 days from service date", dollar_impact: 89000, description: "142 claims filed >90 days \u2014 $89K at risk of timely filing denial" },
+    { scan: "revenue_cycle", issue: "denial_pattern", affected_claims: 38, financial_impact: 52000, root_cause: "High denial rate in snf_postacute", dollar_impact: 52000, description: "38 denied claims in snf_postacute \u2014 $52K impact" },
+  ],
+};
 
 // ---- Suspects Page ----
 // SuspectsPage expects: summary -> res.data (Summary), suspects -> res.data.items + res.data.total_pages

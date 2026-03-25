@@ -422,11 +422,26 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
     Build full context graph, call Claude for cross-module pattern detection,
     persist Insight records, and clean up stale insights.
 
+    Now runs the Autonomous Discovery Engine FIRST to find data-driven insights,
+    then feeds them into the LLM alongside the context graph.
+
     Injects learning context (past prediction accuracy, blind spots, user
     preferences) so the LLM can adjust confidence and prioritize accordingly.
     """
+    # --- Run Autonomous Discovery Engine first ---
+    from app.services.discovery_service import run_full_discovery
+    try:
+        discoveries = await run_full_discovery(db)
+        logger.info("Discovery engine returned %d findings", len(discoveries))
+    except Exception as e:
+        logger.error("Discovery engine failed, continuing with LLM-only: %s", e)
+        discoveries = []
+
     client = _get_anthropic_client()
     if client is None:
+        # If no LLM available, persist discovery results directly
+        if discoveries:
+            return await _persist_insights(db, discoveries)
         return []
 
     context = await build_context_graph(db)
@@ -468,9 +483,17 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
             top_dismissed = sorted(dismissals.items(), key=lambda x: x[1], reverse=True)[:3]
             learning_addendum += f"Users frequently dismiss: {', '.join(t[0] for t in top_dismissed)}. De-prioritize or improve quality for these.\n"
 
+    # --- Discovery injection ---
+    discovery_addendum = ""
+    if discoveries:
+        discovery_addendum = "\n\n=== AUTONOMOUS DISCOVERY ENGINE RESULTS ===\n"
+        discovery_addendum += "The following insights were discovered by systematic data scans.\n"
+        discovery_addendum += "These ARE the primary insights — polish and connect them, add context from the graph above.\n\n"
+        discovery_addendum += json.dumps(discoveries[:30], indent=2, default=str)
+
     enriched_prompt = POPULATION_USER_PROMPT.format(
         context_json=json.dumps(context, indent=2, default=str)
-    ) + learning_addendum
+    ) + learning_addendum + discovery_addendum
 
     try:
         response = client.messages.create(
@@ -487,8 +510,16 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
 
     insights_data = _parse_llm_json(response.content[0].text)
     if not insights_data:
+        # Fall back to discovery results if LLM parsing fails
+        if discoveries:
+            return await _persist_insights(db, discoveries)
         return []
 
+    return await _persist_insights(db, insights_data)
+
+
+async def _persist_insights(db: AsyncSession, insights_data: list[dict]) -> list[dict]:
+    """Dismiss old active insights and persist new ones."""
     # Dismiss old active insights before creating new ones
     await db.execute(
         update(Insight)
@@ -496,13 +527,17 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
         .values(status=InsightStatus.dismissed)
     )
 
-    # Persist new insights
     created = []
     category_map = {c.value: c for c in InsightCategory}
 
     for item in insights_data:
         cat_str = item.get("category", "cross_module")
         category = category_map.get(cat_str, InsightCategory.cross_module)
+
+        # Build connections, including scan_type if present
+        connections = item.get("connections") or {}
+        if item.get("scan_type"):
+            connections["scan_type"] = item["scan_type"]
 
         insight = Insight(
             category=category,
@@ -515,7 +550,7 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
             affected_members=item.get("affected_members") or [],
             affected_providers=item.get("affected_providers") or [],
             surface_on=item.get("surface_on") or ["dashboard"],
-            connections=item.get("connections") or {},
+            connections=connections,
             source_modules=item.get("source_modules") or [],
         )
         db.add(insight)
@@ -523,10 +558,11 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
             "category": cat_str,
             "title": insight.title,
             "dollar_impact": insight.dollar_impact,
+            "scan_type": item.get("scan_type"),
         })
 
     await db.commit()
-    logger.info("Generated %d population insights", len(created))
+    logger.info("Persisted %d population insights", len(created))
     return created
 
 

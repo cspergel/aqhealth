@@ -13,6 +13,7 @@ from sqlalchemy import text
 from app.config import settings
 from app.database import async_session_factory
 from app.services.insight_service import generate_insights
+from app.services.discovery_service import run_full_discovery
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +47,32 @@ async def run_insight_generation(ctx: dict, tenant_schema: str) -> dict[str, Any
     db = await _get_tenant_session(tenant_schema)
 
     try:
+        # Discovery engine runs as part of generate_insights now,
+        # which calls run_full_discovery() internally.
         results = await generate_insights(db)
+
+        # Tag each result with scan metadata for tracking
+        for r in results:
+            scan_type = r.get("scan_type", "llm_synthesis")
+            r["source_scan"] = scan_type
+
         logger.info(
-            "Insight generation completed for %s: %d insights created",
+            "Insight generation completed for %s: %d insights created (discovery-powered)",
             tenant_schema,
             len(results),
         )
-        return {"insights_created": len(results), "insights": results}
+
+        # Summary by scan type
+        scan_counts: dict[str, int] = {}
+        for r in results:
+            st = r.get("source_scan", "unknown")
+            scan_counts[st] = scan_counts.get(st, 0) + 1
+
+        return {
+            "insights_created": len(results),
+            "insights": results,
+            "scan_summary": scan_counts,
+        }
 
     except Exception as e:
         logger.error("Insight generation failed for %s: %s", tenant_schema, e, exc_info=True)

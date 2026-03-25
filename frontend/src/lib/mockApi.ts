@@ -24,6 +24,8 @@ import {
   mockLearningAccuracy,
   mockLearningInteractions,
   mockImprovementAreas,
+  mockDiscoveryLatest,
+  mockDiscoveryRevenueCycle,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -158,6 +160,17 @@ export function enableDemoMode() {
         // Find best matching context
         const matchedKey = Object.keys(mockQuerySuggestions).find((k) => ctx.startsWith(k) && k !== "/") || "/";
         mockResponse = mockQuerySuggestions[matchedKey] || mockQuerySuggestions["/"];
+      }
+
+      // Discovery endpoints
+      else if (url.includes("/api/discovery/revenue-cycle")) {
+        mockResponse = mockDiscoveryRevenueCycle;
+      }
+      else if (url.includes("/api/discovery/latest")) {
+        mockResponse = mockDiscoveryLatest;
+      }
+      else if (url.includes("/api/discovery/run")) {
+        mockResponse = { discoveries_created: mockInsights.length, discoveries: mockInsights };
       }
 
       // Dashboard insights

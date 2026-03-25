@@ -15,6 +15,7 @@ interface InsightPanelProps {
   insights: DashboardInsight[];
   onRefresh?: () => void;
   onDismiss?: (id: number) => void;
+  lastDiscoveryAt?: string;
 }
 
 function formatDollar(value: number | null): string | undefined {
@@ -24,26 +25,53 @@ function formatDollar(value: number | null): string | undefined {
   return `$${value.toFixed(0)} impact`;
 }
 
-export function InsightPanel({ insights, onRefresh, onDismiss }: InsightPanelProps) {
+function formatDiscoveryTime(iso?: string): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHrs = Math.floor(diffMins / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    return d.toLocaleDateString();
+  } catch {
+    return "";
+  }
+}
+
+export function InsightPanel({ insights, onRefresh, onDismiss, lastDiscoveryAt }: InsightPanelProps) {
   return (
     <div
       className="rounded-[10px] border bg-white p-5"
       style={{ borderColor: tokens.border }}
     >
       <div className="flex items-center justify-between mb-4">
-        <h3
-          className="text-sm font-semibold"
-          style={{ color: tokens.text, fontFamily: fonts.heading }}
-        >
-          Key Insights
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3
+            className="text-sm font-semibold"
+            style={{ color: tokens.text, fontFamily: fonts.heading }}
+          >
+            Discovered Insights
+          </h3>
+          {lastDiscoveryAt && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded"
+              style={{ background: tokens.accentSoft, color: tokens.accentText }}
+            >
+              Discovered {formatDiscoveryTime(lastDiscoveryAt)}
+            </span>
+          )}
+        </div>
         {onRefresh && (
           <button
             onClick={onRefresh}
             className="text-[11px] px-2.5 py-1 rounded border transition-colors hover:bg-stone-50"
             style={{ borderColor: tokens.border, color: tokens.textSecondary }}
           >
-            Refresh
+            Re-scan
           </button>
         )}
       </div>

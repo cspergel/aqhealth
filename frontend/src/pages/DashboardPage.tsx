@@ -327,6 +327,7 @@ export function DashboardPage() {
           {/* Insight Panel */}
           <InsightPanel
             insights={insights}
+            lastDiscoveryAt={new Date().toISOString()}
             onRefresh={() => {
               api.get("/api/dashboard/insights").then((res) => setInsights(res.data));
             }}
