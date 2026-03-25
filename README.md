@@ -56,7 +56,56 @@ AQSoft serves three customer segments. **Billing companies** use it for operatio
 
 ### Data
 - **Data Ingestion** — Intelligent file upload (CSV, Excel, flat files) with AI-powered column mapping. The system auto-detects data types, proposes mappings, and learns from corrections — second imports from the same source are one-click. Background processing via Redis workers with status tracking and rejected-row review.
+- **ICD-10 Direct Capture** — PCP office claims already contain actual ICD-10 codes entered by providers and coders. The platform reads these directly from claims data — no extraction or NLP needed. This is the fastest path for populating HCC profiles across PCP populations.
+- **AQTracker Pre-Claims Feed** — AQTracker processes hospital rounding sheets through OCR, coding, and billing. The platform ingests this data as a predictive source — it shows what is being billed *before* the insurance company receives the claim. For managed Medicare RAF forecasting, this means predicting revenue months before CMS payment cycles.
 - **ADT Sources** — ADT feed integration points (Bamboo Health, Availity) for real-time admit/discharge/transfer notifications.
+- **Data Quality** — Automated quality scoring on every ingested row, quarantine for bad data pending human review, AI-powered entity resolution for patient matching across sources, and full data lineage tracing any number back to its source file, row, and ingestion date.
+
+---
+
+## Data Integration
+
+The platform is designed to accept data from wherever it lives — clean or messy, structured or semi-structured, real-time or batch. There are five data input paths, ordered from simplest to most complex:
+
+### 1. Direct ICD-10 from Claims
+
+PCP office claims already contain actual ICD-10 codes entered by providers and coders. The platform reads these directly — no extraction needed. This is the fastest path for PCP populations. Upload a claims file, and the HCC engine immediately maps ICD-10 codes to HCC categories and calculates RAF impact.
+
+### 2. Batch File Upload
+
+MSOs upload roster CSVs, claims files, eligibility/enrollment files, and pharmacy claims from health plan portals. The AI column mapper auto-detects data types and proposes mappings. Corrections are learned — second uploads from the same source are one-click. This is how most data enters the system: someone downloads a file from a payer portal and uploads it here.
+
+### 3. AQTracker Live Feed
+
+AQTracker processes hospital rounding sheets through OCR, coding, and billing. The Health Platform can see what is being billed **before the insurance company receives the claim**. This is a predictive data source, not a confirmed one — but for managed Medicare RAF forecasting, it is transformative. You can forecast revenue months before CMS payment cycles catch up.
+
+### 4. ADT Notifications
+
+Real-time admit/discharge/transfer alerts from Bamboo Health, Availity, or health plan SFTP feeds. This is the only truly real-time signal in the system — "Margaret Chen was just admitted to Memorial Hospital." ADT events trigger census updates, care coordination alerts, and downstream workflows.
+
+### 5. SNF Admit Assist Pipeline
+
+For hospital and SNF documents that need extraction: PDF upload, document classification, multi-pass extraction, ICD-10 coding, code optimization, and RAF calculation. This handles the complex cases that do not come with clean ICD-10 codes — discharge summaries, H&P notes, operative reports. The SNF Admit Assist service runs as a separate API and returns structured, validated HCC data back to the platform.
+
+### Data Tiers
+
+Data flows through three tiers:
+
+- **Signal (Tier 1)** — Real-time and estimated data from ADT notifications, AQTracker pre-claims, AI-generated suspects, and predictive models. This data is actionable immediately but not yet confirmed. Act on it, but know it may be revised.
+- **Record (Tier 2)** — Adjudicated claims, confirmed HCCs, actual payments, closed care gaps. This is the source of truth for reporting, financial reconciliation, and regulatory submissions.
+- **Reconciliation** — When Tier 2 data arrives, it validates Tier 1 predictions. The system tracks prediction accuracy, learns from discrepancies, and continuously improves its signal-tier confidence scores.
+
+---
+
+## Data Quality & Governance
+
+Every row of data passes through a quality gate before entering production tables. Nothing is silently imported.
+
+- **Format Validation** — ICD-10 code format validation, NPI Luhn check, date sanity checks, amount bounds verification. Invalid records are caught before they pollute downstream analytics.
+- **Entity Resolution** — AI-powered patient matching across data sources. The system runs a three-stage pipeline: exact match (MBI, SSN), fuzzy match (name + DOB + address), and AI evaluation for ambiguous cases. This ensures that Margaret Chen from the claims file and M. Chen from the ADT feed resolve to the same patient record.
+- **Data Quarantine** — Records that fail validation are held in quarantine for human review, not silently dropped or force-imported. A quarantine dashboard shows what failed, why, and lets authorized users approve, correct, or reject.
+- **Data Lineage** — Every number in the system can be traced back to its source file, row number, and ingestion date. When a CFO asks "where did this RAF score come from?", the answer is one click away.
+- **Quality Scoring** — Each data source receives an ongoing quality score based on validation pass rates, mapping accuracy, and timeliness. Sources that consistently produce bad data are flagged for review.
 
 ---
 
@@ -79,8 +128,9 @@ The platform's intelligence layer is not a single feature — it is woven throug
 |-------|------------|
 | **Backend** | Python 3.12, FastAPI, SQLAlchemy 2.0 (async), PostgreSQL 16, Redis 7 |
 | **Frontend** | React 19, TypeScript, Vite, Tailwind CSS, Radix UI, Recharts |
-| **AI** | Anthropic Claude API for insights, column mapping, narrative reports |
+| **AI** | Anthropic Claude API (primary), OpenAI API (fallback) for insights, column mapping, narrative reports |
 | **Workers** | ARQ (async Redis queue) for background ingestion and batch analytics |
+| **HCC Engine** | SNF Admit Assist Platform API — ICD-10 coding, code optimization, RAF calculation |
 | **Design** | Warm stone palette, invisible AI philosophy (Linear/Stripe inspired) |
 
 ---
@@ -127,6 +177,24 @@ The frontend dev server starts at `localhost:5180`.
 
 Visit [http://localhost:5180/?demo=true](http://localhost:5180/?demo=true) to explore the platform with synthetic data — no backend required.
 
+### Full Stack Development (with SNF Admit Assist)
+
+For full HCC coding and RAF calculation capabilities, run the SNF Admit Assist service alongside the platform:
+
+```bash
+# Terminal 1: SNF Admit Assist (HCC engine)
+cd "SNF Admit Assist/backend"
+uvicorn app.main:app --port 8000
+
+# Terminal 2: Health Platform backend
+cd "AQSoft Health Platform/backend"
+uvicorn app.main:app --port 8090
+
+# Terminal 3: Frontend
+cd "AQSoft Health Platform/frontend"
+npm run dev
+```
+
 ### Backend Development (without Docker)
 
 ```bash
@@ -150,7 +218,7 @@ aqsoft-health-platform/
 │       ├── config.py            # Settings and environment config
 │       ├── database.py          # Async SQLAlchemy engine, session
 │       ├── models/              # SQLAlchemy ORM models
-│       ├── routers/             # API route handlers (27 routers)
+│       ├── routers/             # API route handlers (30 routers)
 │       │   ├── auth.py          #   Authentication & sessions
 │       │   ├── clinical.py      #   Provider point-of-care
 │       │   ├── dashboard.py     #   Population dashboard
@@ -159,6 +227,9 @@ aqsoft-health-platform/
 │       │   ├── ingestion.py     #   Data upload & mapping
 │       │   ├── discovery.py     #   Autonomous discovery engine
 │       │   ├── learning.py      #   Self-learning feedback
+│       │   ├── data_quality.py  #   Quality gates & quarantine
+│       │   ├── claims.py        #   Claims processing & ICD-10 capture
+│       │   ├── tenants.py       #   Multi-tenant management
 │       │   └── ...              #   (and 19 more)
 │       ├── services/            # Business logic layer
 │       ├── workers/             # ARQ background workers
@@ -190,16 +261,16 @@ The Health Platform is the intelligence hub connecting a broader ecosystem of sp
 
 | Service | Role | Status |
 |---------|------|--------|
-| **AQTracker** | Encounter management, billing, provider scheduling, patient tracking | Active integration |
+| **AQTracker** | Encounter management, billing, provider scheduling, patient tracking. **Predictive data source** — the platform sees what AQTracker is billing before the payer receives the claim, enabling RAF forecasting months ahead of CMS payment cycles. | Active integration |
 | **AQCoder** | AI-powered CPT/ICD-10 coding, MIPS measures, MDM scoring | Active integration |
-| **SNF Admit Assist** | HCC coding pipeline, med-dx gap detection, RAF calculation | Active (internal API) |
+| **SNF Admit Assist** | HCC coding pipeline, med-dx gap detection, RAF calculation. Exposes `/api/validate` (ICD-10 validation), `/api/optimize` (code optimization), and `/api/raf` (RAF scoring) endpoints. | Active (internal API) |
 | **AutoCoder** | Additional AI coding intelligence layer | Active (external API) |
 | **AIClaim** | Denial prevention, claim scrubbing | Future integration |
 | **redact.health** | PHI de-identification for external data sharing | Available |
 
 ### API Surface
 
-The backend exposes 27 routers covering: `actions`, `adt`, `annotations`, `auth`, `care_gaps`, `clinical`, `cohorts`, `dashboard`, `discovery`, `expenditure`, `financial`, `filters`, `groups`, `hcc`, `ingestion`, `insights`, `journey`, `learning`, `members`, `patterns`, `predictions`, `providers`, `query`, `reconciliation`, `reports`, `scenarios`, and `watchlist`.
+The backend exposes 30 routers covering: `actions`, `adt`, `annotations`, `auth`, `care_gaps`, `claims`, `clinical`, `cohorts`, `dashboard`, `data_quality`, `discovery`, `expenditure`, `financial`, `filters`, `groups`, `hcc`, `ingestion`, `insights`, `journey`, `learning`, `members`, `patterns`, `predictions`, `providers`, `query`, `reconciliation`, `reports`, `scenarios`, `tenants`, and `watchlist`.
 
 ---
 
