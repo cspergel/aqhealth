@@ -25,8 +25,10 @@ class Settings(BaseSettings):
     autocoder_url: str = ""
     autocoder_api_key: str = ""
 
-    # LLM
+    # LLM — Anthropic is primary, OpenAI is fallback
     anthropic_api_key: str = ""
+    openai_api_key: str = ""
+    llm_primary: str = "anthropic"  # "anthropic" or "openai"
 
     # File uploads
     uploads_dir: str = "uploads"
