@@ -1660,6 +1660,18 @@ export const mockLearningReport = {
   ],
 };
 
+export const mockSystemPerformance = {
+  overall_accuracy: 91.3,
+  overall_accuracy_trend: 2.0,
+  cost_accuracy: 89.2,
+  cost_accuracy_trend: 1.4,
+  suspect_confirmation_rate: 72.4,
+  suspect_confirmation_trend: 3.1,
+  risk_prediction_hits: 8,
+  risk_prediction_total: 11,
+  risk_prediction_trend: 0,
+};
+
 export const mockLearningAccuracy = {
   evaluated_date: "2026-03-24",
   hcc_suspects: {

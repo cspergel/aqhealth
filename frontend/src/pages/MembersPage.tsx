@@ -130,6 +130,34 @@ export function MembersPage() {
         setSortBy("gap_count");
         setOrder("desc");
         break;
+      case "low_raf_undercoded":
+        // RAF < 1.0 AND (has_suspects OR has_gaps) — likely undercoded
+        setFilters({ ...defaultFilters, raf_max: 1.0, has_suspects: true });
+        setSortBy("suspect_count");
+        setOrder("desc");
+        break;
+      case "healthy_keep_well":
+        // RAF < 0.5, no suspects, no gaps, seen recently
+        setFilters({ ...defaultFilters, raf_max: 0.5 });
+        setSortBy("raf");
+        setOrder("asc");
+        break;
+      case "rising_risk":
+        setFilters({ ...defaultFilters, risk_tier: "rising" });
+        setSortBy("raf");
+        setOrder("desc");
+        break;
+      case "not_seen_6mo":
+        setFilters({ ...defaultFilters, days_not_seen: 180 });
+        setSortBy("days_since_visit");
+        setOrder("desc");
+        break;
+      case "complex_active":
+        // risk_tier = "complex" OR RAF > 3.0 — use complex tier as primary
+        setFilters({ ...defaultFilters, risk_tier: "complex" });
+        setSortBy("raf");
+        setOrder("desc");
+        break;
     }
     setPage(1);
   };

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { tokens, fonts } from "../../lib/tokens";
 
 /* ------------------------------------------------------------------ */
@@ -21,13 +22,53 @@ interface Props {
 }
 
 /* ------------------------------------------------------------------ */
-/* Presets                                                              */
+/* Preset groups                                                       */
 /* ------------------------------------------------------------------ */
 
-const presets = [
-  { key: "high_raf_not_seen", label: "High RAF, Not Seen 90+ Days" },
-  { key: "all_suspects", label: "All Open Suspects" },
-  { key: "all_gaps", label: "All Open Gaps" },
+interface PresetGroup {
+  label: string;
+  color: string;
+  softColor: string;
+  presets: { key: string; label: string }[];
+}
+
+const presetGroups: PresetGroup[] = [
+  {
+    label: "Revenue",
+    color: tokens.accentText,
+    softColor: tokens.accentSoft,
+    presets: [
+      { key: "high_raf_not_seen", label: "High RAF Not Seen 90+" },
+      { key: "all_suspects", label: "Open Suspects" },
+    ],
+  },
+  {
+    label: "Quality",
+    color: tokens.blue,
+    softColor: tokens.blueSoft,
+    presets: [
+      { key: "all_gaps", label: "Open Gaps" },
+      { key: "low_raf_undercoded", label: "Low RAF Likely Undercoded" },
+    ],
+  },
+  {
+    label: "Care Mgmt",
+    color: tokens.amber,
+    softColor: tokens.amberSoft,
+    presets: [
+      { key: "rising_risk", label: "Rising Risk" },
+      { key: "complex_active", label: "Complex Active Mgmt" },
+      { key: "not_seen_6mo", label: "Not Seen 6+ Mo" },
+    ],
+  },
+  {
+    label: "Wellness",
+    color: "#7c3aed",
+    softColor: "#f3e8ff",
+    presets: [
+      { key: "healthy_keep_well", label: "Healthy Keep Well" },
+    ],
+  },
 ];
 
 const riskTiers = ["low", "rising", "high", "complex"] as const;
@@ -49,33 +90,92 @@ export function MemberFilters({ filters, onChange, onPreset }: Props) {
   const update = (patch: Partial<MemberFilterState>) =>
     onChange({ ...filters, ...patch });
 
+  const [showQuickFilters, setShowQuickFilters] = useState(true);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* Preset buttons */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {presets.map((p) => (
-          <button
-            key={p.key}
-            onClick={() => onPreset(p.key)}
-            style={{
-              padding: "5px 14px",
-              borderRadius: 9999,
-              border: `1px solid ${tokens.border}`,
-              background: tokens.accentSoft,
-              color: tokens.accentText,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 150ms",
-              fontFamily: fonts.body,
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = tokens.accent; e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = tokens.accentSoft; e.currentTarget.style.color = tokens.accentText; }}
-          >
-            {p.label}
-          </button>
-        ))}
+      {/* Quick Filters header row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button
+          onClick={() => setShowQuickFilters(!showQuickFilters)}
+          style={{
+            padding: "4px 12px",
+            borderRadius: 6,
+            border: `1px solid ${tokens.border}`,
+            background: tokens.surface,
+            color: tokens.textSecondary,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: fonts.body,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: 10 }}>{showQuickFilters ? "\u25BC" : "\u25B6"}</span>
+          Quick Filters
+        </button>
+        <span style={{ fontSize: 11, color: tokens.textMuted }}>
+          Click a preset to apply filters instantly
+        </span>
       </div>
+
+      {/* Grouped preset buttons */}
+      {showQuickFilters && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            padding: "12px 16px",
+            background: tokens.surface,
+            borderRadius: 8,
+            border: `1px solid ${tokens.border}`,
+          }}
+        >
+          {presetGroups.map((group) => (
+            <div key={group.label} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: group.color,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  width: 70,
+                  flexShrink: 0,
+                }}
+              >
+                {group.label}
+              </span>
+              {group.presets.map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => onPreset(p.key)}
+                  style={{
+                    padding: "5px 14px",
+                    borderRadius: 9999,
+                    border: `1px solid ${tokens.border}`,
+                    background: group.softColor,
+                    color: group.color,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "background 150ms, color 150ms",
+                    fontFamily: fonts.body,
+                    whiteSpace: "nowrap",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = group.color; e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = group.color; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = group.softColor; e.currentTarget.style.color = group.color; e.currentTarget.style.borderColor = tokens.border; }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Filter row */}
       <div

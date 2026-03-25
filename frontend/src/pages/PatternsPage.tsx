@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import api from "../lib/api";
 import { tokens, fonts } from "../lib/tokens";
 import { PlaybookCard, type Playbook } from "../components/patterns/PlaybookCard";
@@ -52,7 +52,13 @@ const METRIC_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export function PatternsPage() {
-  const [tab, setTab] = useState<Tab>("playbooks");
+  const initialTab = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("tab");
+    const validTabs: Tab[] = ["playbooks", "code-utilization", "whats-working", "needs-improvement", "benchmarks", "system-learning"];
+    return validTabs.includes(t as Tab) ? (t as Tab) : "playbooks";
+  }, []);
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [codeData, setCodeData] = useState<{ codes: CodeUtilization[] }>({ codes: [] });
   const [stories, setStories] = useState<SuccessStoryData[]>([]);

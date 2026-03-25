@@ -5,6 +5,7 @@ import { MetricCard } from "../components/ui/MetricCard";
 import { RafDistribution } from "../components/dashboard/RafDistribution";
 import { InsightPanel } from "../components/dashboard/InsightPanel";
 import { ProviderLeaderboard } from "../components/dashboard/ProviderLeaderboard";
+import { SystemPerformance } from "../components/dashboard/SystemPerformance";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -338,6 +339,9 @@ export function DashboardPage() {
             top={provider_leaderboard.top}
             bottom={provider_leaderboard.bottom}
           />
+
+          {/* System Performance */}
+          <SystemPerformance />
 
           {/* Care Gap Summary */}
           <div
