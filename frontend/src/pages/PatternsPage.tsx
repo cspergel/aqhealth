@@ -4,12 +4,13 @@ import { tokens, fonts } from "../lib/tokens";
 import { PlaybookCard, type Playbook } from "../components/patterns/PlaybookCard";
 import { CodeUtilizationTable, type CodeUtilization } from "../components/patterns/CodeUtilizationTable";
 import { SuccessStory, type SuccessStoryData } from "../components/patterns/SuccessStory";
+import { LearningDashboard } from "../components/learning/LearningDashboard";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Tab = "playbooks" | "code-utilization" | "whats-working" | "benchmarks";
+type Tab = "playbooks" | "code-utilization" | "whats-working" | "benchmarks" | "system-learning";
 
 interface BenchmarkTier {
   network_avg: number;
@@ -31,6 +32,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "code-utilization", label: "Code Utilization" },
   { key: "whats-working", label: "What's Working" },
   { key: "benchmarks", label: "Benchmarks" },
+  { key: "system-learning", label: "System Learning" },
 ];
 
 const METRIC_LABELS: Record<string, string> = {
@@ -56,6 +58,7 @@ export function PatternsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (tab === "system-learning") return; // LearningDashboard handles its own data
     setLoading(true);
     const endpoint =
       tab === "playbooks" ? "/api/patterns/playbooks" :
@@ -179,6 +182,11 @@ export function PatternsPage() {
                 stories.map((s) => <SuccessStory key={s.id} story={s} />)
               )}
             </div>
+          )}
+
+          {/* System Learning tab */}
+          {tab === "system-learning" && (
+            <LearningDashboard />
           )}
 
           {/* Benchmarks tab */}

@@ -46,6 +46,16 @@ export function AskBar({ pageContext }: { pageContext: string }) {
     setExpanded(true);
     setLoading(true);
     setAnswer(null);
+
+    // Track the question for learning
+    api.post("/api/learning/track", {
+      interaction_type: "ask_question",
+      target_type: "query",
+      target_id: null,
+      page_context: pageContext,
+      metadata: { question: text },
+    }).catch(() => {});
+
     try {
       const res = await api.post("/api/query/ask", {
         question: text,

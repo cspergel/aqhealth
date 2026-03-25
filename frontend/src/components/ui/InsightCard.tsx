@@ -1,6 +1,18 @@
+import api from "../../lib/api";
 import { tokens } from "../../lib/tokens";
 
+function trackInteraction(type: string, targetType: string, targetId?: number, meta?: Record<string, unknown>) {
+  api.post("/api/learning/track", {
+    interaction_type: type,
+    target_type: targetType,
+    target_id: targetId ?? null,
+    page_context: window.location.pathname,
+    metadata: meta ?? null,
+  }).catch(() => {}); // fire-and-forget
+}
+
 interface InsightCardProps {
+  id?: number;
   title: string;
   description: string;
   impact?: string;
@@ -17,8 +29,19 @@ const categoryColors = {
   trend: { bg: tokens.redSoft, border: "#fecaca", accent: "#991b1b" },
 };
 
-export function InsightCard({ title, description, impact, category, onDismiss }: InsightCardProps) {
+export function InsightCard({ id, title, description, impact, category, onDismiss, onBookmark }: InsightCardProps) {
   const colors = categoryColors[category];
+
+  const handleDismiss = () => {
+    trackInteraction("dismiss", "insight", id, { category, title });
+    onDismiss?.();
+  };
+
+  const handleBookmark = () => {
+    trackInteraction("bookmark", "insight", id, { category, title });
+    onBookmark?.();
+  };
+
   return (
     <div
       className="rounded-[10px] p-4"
@@ -29,15 +52,26 @@ export function InsightCard({ title, description, impact, category, onDismiss }:
       {impact && (
         <div className="text-[13px] font-semibold mt-2" style={{ color: colors.accent }}>{impact}</div>
       )}
-      {onDismiss && (
+      {(onDismiss || onBookmark) && (
         <div className="flex gap-2 mt-3">
-          <button
-            onClick={onDismiss}
-            className="text-[11px] px-2 py-1 rounded border"
-            style={{ borderColor: tokens.border, color: tokens.textMuted }}
-          >
-            Dismiss
-          </button>
+          {onBookmark && (
+            <button
+              onClick={handleBookmark}
+              className="text-[11px] px-2 py-1 rounded border"
+              style={{ borderColor: tokens.border, color: tokens.accentText }}
+            >
+              Bookmark
+            </button>
+          )}
+          {onDismiss && (
+            <button
+              onClick={handleDismiss}
+              className="text-[11px] px-2 py-1 rounded border"
+              style={{ borderColor: tokens.border, color: tokens.textMuted }}
+            >
+              Dismiss
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -20,6 +20,9 @@ import {
   mockBenchmarks,
   mockQuerySuggestions,
   mockQueryAnswers,
+  mockLearningReport,
+  mockLearningAccuracy,
+  mockLearningInteractions,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -135,6 +138,8 @@ export function enableDemoMode() {
             ],
           };
         }
+      } else if (url.includes("/api/learning/track")) {
+        mockResponse = { id: Date.now(), interaction_type: "tracked", target_type: "mock", success: true };
       } else if (url.includes("/api/care-gaps/measures")) {
         mockResponse = { id: 999, code: "CUSTOM-01", name: "Custom Measure", success: true };
       } else {
@@ -292,6 +297,17 @@ export function enableDemoMode() {
       // Care gap summaries list
       else if (url.includes("/api/care-gaps")) {
         mockResponse = mockCareGapSummaries;
+      }
+
+      // Learning / Self-Learning System
+      else if (url.includes("/api/learning/report")) {
+        mockResponse = mockLearningReport;
+      }
+      else if (url.includes("/api/learning/accuracy")) {
+        mockResponse = mockLearningAccuracy;
+      }
+      else if (url.includes("/api/learning/interactions")) {
+        mockResponse = mockLearningInteractions;
       }
 
       // Patterns / Intelligence

@@ -50,12 +50,23 @@ export function MemberDetail({ memberId, suspects, medications, onSuspectUpdated
   const [dismissReason, setDismissReason] = useState("");
   const [localStatuses, setLocalStatuses] = useState<Record<string, string>>({});
 
+  const trackInteraction = (type: string, suspectId: string, extra?: Record<string, unknown>) => {
+    api.post("/api/learning/track", {
+      interaction_type: type,
+      target_type: "suspect",
+      target_id: parseInt(suspectId) || null,
+      page_context: window.location.pathname,
+      metadata: { member_id: memberId, ...extra },
+    }).catch(() => {});
+  };
+
   const handleCapture = async (suspectId: string) => {
     setActionLoading((prev) => ({ ...prev, [suspectId]: true }));
     try {
       await api.patch(`/api/hcc/suspects/${suspectId}`, { status: "captured" });
       setLocalStatuses((prev) => ({ ...prev, [suspectId]: "captured" }));
       onSuspectUpdated(suspectId, "captured");
+      trackInteraction("capture", suspectId);
     } catch {
       // silently fail — user will see no change
     } finally {
@@ -73,6 +84,7 @@ export function MemberDetail({ memberId, suspects, medications, onSuspectUpdated
       });
       setLocalStatuses((prev) => ({ ...prev, [suspectId]: "dismissed" }));
       onSuspectUpdated(suspectId, "dismissed");
+      trackInteraction("dismiss", suspectId, { reason: dismissReason.trim() });
       setDismissingId(null);
       setDismissReason("");
     } catch {

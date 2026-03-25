@@ -421,6 +421,9 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
     """
     Build full context graph, call Claude for cross-module pattern detection,
     persist Insight records, and clean up stale insights.
+
+    Injects learning context (past prediction accuracy, blind spots, user
+    preferences) so the LLM can adjust confidence and prioritize accordingly.
     """
     client = _get_anthropic_client()
     if client is None:
@@ -432,15 +435,50 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
         logger.info("No active members — skipping insight generation")
         return []
 
+    # --- Self-learning injection ---
+    from app.services.learning_service import get_learning_context_for_insights, get_user_preference_model
+    learning_context = await get_learning_context_for_insights(db)
+    user_prefs = await get_user_preference_model(db)
+
+    learning_addendum = ""
+    if learning_context.get("has_learning_data"):
+        learning_addendum += "\n\nBased on past prediction accuracy:\n"
+        for ptype, data in learning_context.get("accuracy_by_type", {}).items():
+            learning_addendum += f"- {ptype}: {data['accuracy']}% accurate ({data['total']} predictions)\n"
+        if learning_context.get("hcc_blind_spots"):
+            learning_addendum += "\nKnown blind spots (lower accuracy — weight these predictions lower):\n"
+            for code, data in learning_context["hcc_blind_spots"].items():
+                learning_addendum += f"- HCC {code}: {data['accuracy']}% accuracy\n"
+        if learning_context.get("hcc_strong_areas"):
+            learning_addendum += "\nStrong areas (high accuracy — weight these higher):\n"
+            for code, data in learning_context["hcc_strong_areas"].items():
+                learning_addendum += f"- HCC {code}: {data['accuracy']}% accuracy\n"
+        if learning_context.get("confidence_calibration"):
+            learning_addendum += "\nConfidence calibration:\n"
+            for bucket, data in learning_context["confidence_calibration"].items():
+                learning_addendum += f"- {bucket} confidence predictions: {data['actual_accuracy']}% actual accuracy\n"
+
+    if user_prefs.get("has_preference_data"):
+        engagement = user_prefs.get("engagement_by_target", {})
+        if engagement:
+            top_engaged = sorted(engagement.items(), key=lambda x: x[1], reverse=True)[:3]
+            learning_addendum += f"\nUser engagement: Users interact most with {', '.join(t[0] + ' (' + str(t[1]) + 'x)' for t in top_engaged)}. Prioritize these categories.\n"
+        dismissals = user_prefs.get("dismissals_by_target", {})
+        if dismissals:
+            top_dismissed = sorted(dismissals.items(), key=lambda x: x[1], reverse=True)[:3]
+            learning_addendum += f"Users frequently dismiss: {', '.join(t[0] for t in top_dismissed)}. De-prioritize or improve quality for these.\n"
+
+    enriched_prompt = POPULATION_USER_PROMPT.format(
+        context_json=json.dumps(context, indent=2, default=str)
+    ) + learning_addendum
+
     try:
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
             system=POPULATION_SYSTEM_PROMPT,
             messages=[
-                {"role": "user", "content": POPULATION_USER_PROMPT.format(
-                    context_json=json.dumps(context, indent=2, default=str)
-                )}
+                {"role": "user", "content": enriched_prompt}
             ],
         )
     except Exception as e:

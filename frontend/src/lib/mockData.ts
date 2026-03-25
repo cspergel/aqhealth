@@ -1499,6 +1499,86 @@ export const mockQueryAnswers: Record<string, {
   },
 };
 
+// ---- Learning / Self-Learning System ----
+
+export const mockLearningReport = {
+  generated_date: "2026-03-24",
+  accuracy_over_time: [
+    { month: "Oct", accuracy: 58.2, total: 312 },
+    { month: "Nov", accuracy: 61.7, total: 347 },
+    { month: "Dec", accuracy: 64.3, total: 389 },
+    { month: "Jan", accuracy: 68.1, total: 421 },
+    { month: "Feb", accuracy: 71.4, total: 456 },
+    { month: "Mar", accuracy: 74.8, total: 498 },
+  ],
+  accuracy_by_type: [
+    { type: "hcc_suspect", label: "HCC Suspect Predictions", accuracy: 76.3, total: 1847, confirmed: 1410 },
+    { type: "cost_recommendation", label: "Cost Recommendations", accuracy: 68.5, total: 234, confirmed: 160 },
+    { type: "gap_prediction", label: "Care Gap Predictions", accuracy: 82.1, total: 512, confirmed: 420 },
+    { type: "pattern_match", label: "Pattern Matches", accuracy: 71.2, total: 189, confirmed: 135 },
+  ],
+  lessons: [
+    {
+      text: "CHF + CKD comorbidity predictions have 92% accuracy. When both conditions are suspected, confidence should be weighted 20% higher than baseline.",
+      category: "strength" as const,
+    },
+    {
+      text: "Depression predictions in patients under 50 have only 58% accuracy — many are anxiety-only cases. Consider requiring PHQ-9 evidence before flagging depression suspects in this cohort.",
+      category: "blind_spot" as const,
+    },
+    {
+      text: "Medication-diagnosis gap suspects (e.g., patient on metformin without diabetes code) have improved from 61% to 78% accuracy after incorporating pharmacy claims history.",
+      category: "improvement" as const,
+    },
+    {
+      text: "Provider coding pattern analysis shows that specificity predictions are most accurate for endocrinology (89%) and least accurate for behavioral health (52%).",
+      category: "improvement" as const,
+    },
+  ],
+  blind_spots: [
+    { area: "Depression (under 50)", accuracy: 58, description: "Often anxiety-only cases misclassified as depression suspects" },
+    { area: "Obesity (BMI 30-35)", accuracy: 52, description: "Borderline BMI cases frequently not coded even when flagged" },
+    { area: "Vascular Disease", accuracy: 61, description: "Peripheral vascular suspects have high false-positive rate" },
+  ],
+  improving_areas: [
+    { area: "CHF + CKD Comorbidity", accuracy: 92, trend: 8, description: "Dual-condition predictions consistently confirmed" },
+    { area: "Diabetes Specificity", accuracy: 87, trend: 12, description: "Upgraded from unspecified to specific codes at high rates" },
+    { area: "Med-Dx Gap Detection", accuracy: 78, trend: 17, description: "Pharmacy-driven suspects improving with claims history" },
+    { area: "CKD Staging", accuracy: 84, trend: 6, description: "eGFR-based staging predictions reliably confirmed" },
+  ],
+};
+
+export const mockLearningAccuracy = {
+  evaluated_date: "2026-03-24",
+  hcc_suspects: {
+    total: 1847,
+    confirmed: 1410,
+    rejected: 289,
+    expired: 148,
+    accuracy_rate: 76.3,
+  },
+  gap_predictions: { closed: 420, still_open: 92, closure_rate: 82.0 },
+  overall: { total_predictions_evaluated: 2782, total_correct: 2125, overall_accuracy: 76.4 },
+};
+
+export const mockLearningInteractions = {
+  engagement_by_target: { insight: 342, suspect: 567, query: 189, playbook: 78, chase_list: 45 },
+  dismissals_by_target: { insight: 89, suspect: 134 },
+  top_pages: [
+    { page: "/hcc", interactions: 423 },
+    { page: "/dashboard", interactions: 312 },
+    { page: "/expenditure", interactions: 198 },
+    { page: "/providers", interactions: 167 },
+    { page: "/care-gaps", interactions: 134 },
+  ],
+  recent_questions: [
+    "Which providers have the most suspect HCCs?",
+    "What's driving high ED utilization?",
+    "Show me patients with CHF and open care gaps",
+  ],
+  has_preference_data: true,
+};
+
 export const mockBenchmarks = {
   provider_count: 24,
   group_count: 6,
