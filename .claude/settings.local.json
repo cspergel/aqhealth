@@ -71,7 +71,9 @@
       "Bash(python -m py_compile backend/app/services/journey_service.py)",
       "Bash(python -m py_compile backend/app/services/learning_service.py)",
       "Bash(python -m scripts.setup_db)",
-      "Bash(python -c \"from app.main import app; print\\(f''Registered {len\\(app.routes\\)} routes''\\)\")"
+      "Bash(python -c \"from app.main import app; print\\(f''Registered {len\\(app.routes\\)} routes''\\)\")",
+      "Bash(python -m scripts.generate_insights)",
+      "Bash(alembic current:*)"
     ]
   }
 }
