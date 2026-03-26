@@ -68,7 +68,8 @@ class DrillDownOut(BaseModel):
     claim_count: int
     unique_members: int
     kpis: list[KpiOut]
-    tables: list[TableOut]
+    sections: list[dict] = []
+    tables: list[TableOut] = []  # legacy, may be empty
 
 
 class InsightOut(BaseModel):
@@ -129,7 +130,7 @@ async def expenditure_export(
 # GET /api/expenditure/{category} — drill-down for specific category
 # ---------------------------------------------------------------------------
 
-@router.get("/{category}", response_model=DrillDownOut)
+@router.get("/{category}")
 async def expenditure_drilldown(
     category: str,
     current_user: dict = Depends(get_current_user),
@@ -139,7 +140,7 @@ async def expenditure_drilldown(
     if category not in VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
     data = await get_category_drilldown(db, category)
-    return DrillDownOut(**data)
+    return data
 
 
 # ---------------------------------------------------------------------------

@@ -51,7 +51,9 @@
       "Bash(while read:*)",
       "Bash(do echo:*)",
       "Read(//c/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/**)",
-      "Bash(timeout 30 python -c \":*)"
+      "Bash(timeout 30 python -c \":*)",
+      "Bash(curl -s http://localhost:8090/api/health)",
+      "Bash(netstat -ano)"
     ]
   }
 }
