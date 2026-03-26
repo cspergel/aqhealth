@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_tenant_db
@@ -50,7 +50,19 @@ async def patient_context(
     """Full patient context for the clinical encounter view."""
     result = await get_patient_context(db, member_id)
     if result.get("error"):
-        raise HTTPException(status_code=404, detail=result["error"])
+        # Query valid member ID range so the caller knows what IDs exist
+        from app.models.member import Member
+        min_max = await db.execute(
+            select(func.min(Member.id), func.max(Member.id), func.count(Member.id))
+        )
+        row = min_max.one()
+        detail = {
+            "error": result["error"],
+            "member_id_requested": member_id,
+            "valid_member_id_range": {"min": row[0], "max": row[1], "total": row[2]},
+            "hint": f"Try a member_id between {row[0]} and {row[1]}" if row[0] else "No members found in database",
+        }
+        raise HTTPException(status_code=404, detail=detail)
     return result
 
 

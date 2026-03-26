@@ -1,151 +1,87 @@
-# Database Setup Guide
+# Database Setup
 
-## Current State
-
-The initial migration (`alembic/versions/001_initial_schema.py`) creates the platform schema and 24 tenant tables. Since then, several new models and features have been added that require additional tables or modifications.
-
-## What Needs to Happen
-
-### Step 1: New Tables Needed
-
-These models were added after the initial migration and need corresponding tables:
-
-| Model | Table Name | File | Purpose |
-|-------|-----------|------|---------|
-| `PracticeGroup` | `practice_groups` | `models/practice_group.py` | Office/practice group for provider comparison |
-| `SavedFilter` | `saved_filters` | `models/saved_filter.py` | User-created custom filters |
-| `Annotation` | `annotations` | `models/annotation.py` | Notes attached to any entity |
-| `WatchlistItem` | `watchlist_items` | `models/watchlist.py` | Personal monitoring lists |
-| `ActionItem` | `action_items` | `models/action.py` | Action tracking from insights/alerts |
-| `ReportTemplate` | `report_templates` | `models/report.py` | Auto-generated report templates |
-| `GeneratedReport` | `generated_reports` | `models/report.py` | Generated report instances |
-| `DataQualityReport` | `data_quality_reports` | `models/data_quality.py` | Ingestion quality scores |
-| `QuarantinedRecord` | `quarantined_records` | `models/data_quality.py` | Bad data held for review |
-| `DataLineage` | `data_lineage` | `models/data_quality.py` | Record provenance tracking |
-| `PredictionOutcome` | `prediction_outcomes` | `models/learning.py` | Prediction accuracy tracking |
-| `LearningMetric` | `learning_metrics` | `models/learning.py` | Aggregate accuracy metrics |
-| `UserInteraction` | `user_interactions` | `models/learning.py` | User behavior tracking |
-| `ADTSource` | `adt_sources` | `models/adt.py` | Configured ADT data sources |
-| `ADTEvent` | `adt_events` | `models/adt.py` | Individual ADT events |
-| `CareAlert` | `care_alerts` | `models/adt.py` | Care management alerts |
-
-### Step 2: Modified Tables
-
-These existing tables have new columns since the initial migration:
-
-| Table | New Columns | File |
-|-------|------------|------|
-| `providers` | `practice_group_id` (FK to practice_groups) | `models/provider.py` |
-| `claims` | `data_tier`, `is_estimated`, `estimated_amount`, `signal_source`, `signal_event_id`, `reconciled`, `reconciled_claim_id` (self-FK) | `models/claim.py` |
-| `insights` | `connections` (JSONB), `source_modules` (JSONB) | `models/insight.py` |
-
-### Step 3: New Indexes
-
-These indexes should be added for query performance:
-
-- `claims.service_category`
-- `claims.claim_type`
-- `hcc_suspects.payment_year`
-- `hcc_suspects.status`
-- `member_gaps.measurement_year`
-- `member_gaps.status`
-
-### Step 4: Seed Data Updates
-
-The quality measures need to be updated from 13 to 37:
+## Quick Start (One Command)
 
 ```bash
-# The comprehensive measures file:
-backend/data/quality_measures.json  # 37 measures with Star cutpoints
-
-# Run the seed scripts:
-cd backend
-python -m scripts.seed           # Creates tenant, users, basic data
-python -m scripts.seed_extended  # Creates insights, alerts, learning data, etc.
-```
-
-## How to Apply
-
-### Option A: Fresh Database (Recommended for Development)
-
-Drop and recreate everything:
-
-```bash
-# 1. Reset the database
-docker compose down -v  # Removes volumes (data)
 docker compose up postgres redis -d
-
-# 2. Wait for Postgres to be ready
-sleep 5
-
-# 3. Create schemas and tables
 cd backend
-python -c "
-import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import text
-from app.models import Base
-
-async def setup():
-    engine = create_async_engine('postgresql+asyncpg://aqsoft:aqsoft@localhost:5433/aqsoft_health')
-    async with engine.begin() as conn:
-        await conn.execute(text('CREATE SCHEMA IF NOT EXISTS platform'))
-        await conn.execute(text('CREATE SCHEMA IF NOT EXISTS demo_mso'))
-        # Create enum types
-        for name, vals in [
-            ('tenantstatus', ['active','onboarding','suspended']),
-            ('userrole', ['superadmin','mso_admin','analyst','provider','auditor']),
-            ('risktier', ['low','rising','high','complex']),
-            ('claimtype', ['professional','institutional','pharmacy']),
-            ('suspectstatus', ['open','captured','dismissed','expired']),
-            ('suspecttype', ['med_dx_gap','specificity','recapture','near_miss','historical','new_suspect']),
-            ('gapstatus', ['open','closed','excluded']),
-            ('uploadstatus', ['pending','mapping','validating','processing','completed','failed']),
-            ('insightcategory', ['revenue','cost','quality','provider','trend','cross_module']),
-            ('insightstatus', ['active','dismissed','bookmarked','acted_on']),
-        ]:
-            v = ', '.join(f\"'{x}'\" for x in vals)
-            await conn.execute(text(f'DROP TYPE IF EXISTS {name} CASCADE'))
-            await conn.execute(text(f'CREATE TYPE {name} AS ENUM ({v})'))
-        # Create platform tables
-        await conn.run_sync(Base.metadata.create_all)
-        # Create tenant tables in demo_mso
-        await conn.execute(text('SET search_path TO demo_mso, public'))
-        tables = [t for t in Base.metadata.sorted_tables if t.schema is None]
-        for table in tables:
-            await conn.run_sync(lambda c: table.create(c, checkfirst=True))
-    await engine.dispose()
-    print('Done!')
-
-asyncio.run(setup())
-"
-
-# 4. Seed data
-python -m scripts.seed
-python -m scripts.seed_extended
+pip install -e ".[dev]"
+cp .env.example .env  # edit with your API keys
+python -m scripts.setup_db
 ```
 
-### Option B: Incremental Migration (For Existing Data)
+That's it. Login: **demo@aqsoft.ai / demo123**
 
-If you have data you want to keep:
+## What the Script Does
 
-```bash
-# Create a new Alembic migration that adds the missing tables
-cd backend
-alembic revision --autogenerate -m "add new feature tables"
-alembic upgrade head
+`backend/scripts/setup_db.py` performs a full clean-slate setup:
+
+1. **Drops and recreates schemas** -- `platform` (tenants + users) and `demo_mso` (all tenant data)
+2. **Drops stale PostgreSQL enum types** in the public schema (we use string columns now)
+3. **Creates all tables via SQLAlchemy models** using `Base.metadata.create_all`:
+   - Platform tables (`tenants`, `users`) go into the `platform` schema
+   - All ~27 tenant tables go into the `demo_mso` schema (via temporary schema reassignment)
+4. **Seeds base data**: demo tenant, 2 users, 5 practice groups, 10 providers, 13 HEDIS measures, 30 members, ~150 claims, 5 HCC suspects, ~15 care gaps
+5. **Seeds extended data**: 10 insights, 18 learning metrics, 50 prediction outcomes, 30 user interactions, 2 ADT sources, 20 ADT events, 10 care alerts, 10 annotations, 5 watchlist items, 8 action items, 4 report templates, 1 generated report, 5 saved filters, 60 RAF history rows
+
+## Schema Structure
+
+```
+aqsoft_health (database)
+  |-- platform (schema)
+  |     |-- tenants          # MSO clients
+  |     |-- users            # All users (with tenant_id FK)
+  |
+  |-- demo_mso (schema)      # One schema per tenant
+        |-- members
+        |-- providers
+        |-- practice_groups
+        |-- claims
+        |-- hcc_suspects
+        |-- raf_history
+        |-- gap_measures
+        |-- member_gaps
+        |-- adt_sources
+        |-- adt_events
+        |-- care_alerts
+        |-- insights
+        |-- prediction_outcomes
+        |-- learning_metrics
+        |-- user_interactions
+        |-- upload_jobs
+        |-- mapping_templates
+        |-- mapping_rules
+        |-- annotations
+        |-- watchlist_items
+        |-- action_items
+        |-- report_templates
+        |-- generated_reports
+        |-- saved_filters
+        |-- data_quality_reports
+        |-- quarantined_records
+        |-- data_lineage
 ```
 
-Note: Alembic autogenerate may not handle the schema-per-tenant pattern perfectly. You may need to manually edit the migration to include `create_tenant_tables()` calls for each new table.
+## Adding New Tables
+
+1. Create a SQLAlchemy model in `backend/app/models/` (no `schema=` arg -- tenant tables are schemaless by default)
+2. Import it in `backend/app/models/__init__.py`
+3. Run `python -m scripts.setup_db` to recreate everything (dev)
+4. For production, create an Alembic migration:
+   ```bash
+   cd backend
+   alembic revision --autogenerate -m "add new_table"
+   alembic upgrade head
+   ```
 
 ## Port Configuration
 
-| Service | Port | Env Var |
-|---------|------|---------|
-| PostgreSQL | 5433 | `POSTGRES_PORT` |
-| Redis | 6380 | `REDIS_PORT` |
-| Backend API | 8090 | `BACKEND_PORT` |
-| Frontend Dev | 5180 | (vite.config.ts) |
+| Service    | Port | Env Var        |
+|------------|------|----------------|
+| PostgreSQL | 5433 | `POSTGRES_PORT`|
+| Redis      | 6380 | `REDIS_PORT`   |
+| Backend    | 8090 | `BACKEND_PORT` |
+| Frontend   | 5180 | (vite.config)  |
 
 ## Environment Variables
 
