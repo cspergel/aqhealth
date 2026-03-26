@@ -33,6 +33,8 @@ import { StopLossPage } from "../../pages/StopLossPage";
 import { EducationPage } from "../../pages/EducationPage";
 import { AWVPage } from "../../pages/AWVPage";
 import { StarsSimulatorPage } from "../../pages/StarsSimulatorPage";
+import { TemporalPage } from "../../pages/TemporalPage";
+import { AlertRulesPage } from "../../pages/AlertRulesPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -86,6 +88,7 @@ export function AppShell() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/census" element={<CensusPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/alert-rules" element={<AlertRulesPage />} />
             <Route path="/watchlist" element={<WatchlistPage />} />
             <Route path="/adt-sources" element={<ADTConfigPage />} />
             <Route path="/members" element={<MembersPage />} />
@@ -112,6 +115,7 @@ export function AppShell() {
             <Route path="/attribution" element={<AttributionPage />} />
             <Route path="/stoploss" element={<StopLossPage />} />
             <Route path="/education" element={<EducationPage />} />
+            <Route path="/time-machine" element={<TemporalPage />} />
           </Routes>
         </main>
 

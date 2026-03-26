@@ -36,6 +36,7 @@ const navSections: NavSection[] = [
       { path: "/", label: "Dashboard" },
       { path: "/census", label: "Live Census" },
       { path: "/alerts", label: "Alerts", badge: openAlertCount },
+      { path: "/alert-rules", label: "Alert Rules" },
       { path: "/tcm", label: "TCM Cases" },
       { path: "/watchlist", label: "Watchlist", badge: watchlistChangeCount || undefined },
       { path: "/actions", label: "Actions" },
@@ -82,6 +83,7 @@ const navSections: NavSection[] = [
     items: [
       { path: "/intelligence", label: "Intelligence" },
       { path: "/scenarios", label: "Scenarios" },
+      { path: "/time-machine", label: "Time Machine" },
     ],
   },
   {

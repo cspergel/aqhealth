@@ -168,21 +168,15 @@ def setup_schemas_and_tables():
 # STEP 4: Seed base data (from seed.py logic)
 # ===========================================================================
 
-DEFAULT_MEASURES = [
-    {"code": "CDC-HbA1c", "name": "Diabetes Care -- HbA1c Testing", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 85.0},
-    {"code": "CDC-Eye", "name": "Diabetes Care -- Eye Exam", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 68.0},
-    {"code": "BCS", "name": "Breast Cancer Screening", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 75.0},
-    {"code": "COL", "name": "Colorectal Cancer Screening", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 72.0},
-    {"code": "CBP", "name": "Controlling Blood Pressure", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 70.0},
-    {"code": "COA-MedReview", "name": "Care for Older Adults -- Medication Review", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 72.0},
-    {"code": "COA-Pain", "name": "Care for Older Adults -- Pain Assessment", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 72.0},
-    {"code": "COA-Functional", "name": "Care for Older Adults -- Functional Status Assessment", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 72.0},
-    {"code": "MRP", "name": "Medication Reconciliation Post-Discharge", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 60.0},
-    {"code": "FMC", "name": "Follow-Up After ED Visit for Mental Health", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 55.0},
-    {"code": "SPD", "name": "Statin Use in Persons with Diabetes", "category": "Medication Adherence", "stars_weight": 3, "target_rate": 85.0},
-    {"code": "KED", "name": "Kidney Health Evaluation for Patients with Diabetes", "category": "Effectiveness of Care", "stars_weight": 1, "target_rate": 40.0},
-    {"code": "AAP", "name": "Adults' Access to Preventive/Ambulatory Services", "category": "Access to Care", "stars_weight": 1, "target_rate": 90.0},
-]
+def _load_quality_measures():
+    """Load all 37 quality measures from quality_measures.json."""
+    measures_path = os.path.join(os.path.dirname(__file__), "..", "data", "quality_measures.json")
+    with open(measures_path, "r") as f:
+        data = json.load(f)
+    return data["measures"]
+
+
+DEFAULT_MEASURES = _load_quality_measures()
 
 PRACTICE_GROUPS = [
     {"name": "ISG Tampa", "client_code": "ISG-TPA", "city": "Tampa", "state": "FL", "zip_code": "33602"},
@@ -280,15 +274,27 @@ def seed_base_data():
         provider_ids = [r[0] for r in session.execute(text("SELECT id FROM providers ORDER BY id")).fetchall()]
         print(f"  Created {len(provider_ids)} providers")
 
-        # 5. Gap measures
+        # 5. Gap measures — all 37 from quality_measures.json
         for m in DEFAULT_MEASURES:
+            cutpoints = m.get("star_cutpoints", {})
             session.execute(text(
-                "INSERT INTO gap_measures (code, name, category, stars_weight, target_rate, is_custom, is_active) "
-                "VALUES (:code, :name, :cat, :sw, :tr, false, true)"
-            ), {"code": m["code"], "name": m["name"], "cat": m["category"], "sw": m["stars_weight"], "tr": m["target_rate"]})
+                "INSERT INTO gap_measures (code, name, description, category, stars_weight, "
+                "target_rate, star_3_cutpoint, star_4_cutpoint, star_5_cutpoint, is_custom, is_active) "
+                "VALUES (:code, :name, :desc, :cat, :sw, :tr, :s3, :s4, :s5, false, true)"
+            ), {
+                "code": m["code"],
+                "name": m["name"],
+                "desc": m.get("description"),
+                "cat": m.get("category"),
+                "sw": m.get("stars_weight", 1),
+                "tr": cutpoints.get("4"),  # use star_4_cutpoint as target_rate
+                "s3": cutpoints.get("3"),
+                "s4": cutpoints.get("4"),
+                "s5": cutpoints.get("5"),
+            })
         session.commit()
         measure_ids = [r[0] for r in session.execute(text("SELECT id FROM gap_measures ORDER BY id")).fetchall()]
-        print(f"  Created {len(measure_ids)} HEDIS gap measures")
+        print(f"  Created {len(measure_ids)} quality measures (from quality_measures.json)")
 
         # 6. Members (30)
         for i in range(30):

@@ -4679,3 +4679,333 @@ export const mockStarsOpportunities = [
     impact_type: "standard",
   },
 ];
+
+// ---- Temporal / Time Machine ----
+
+export const mockTemporalSnapshotA = {
+  date: "2025-10-01",
+  total_members: 4680,
+  avg_raf: 1.18,
+  total_suspects: 2100,
+  total_spend: 36883200,
+  gap_closure_rate: 58.2,
+  pmpm: 1312,
+};
+
+export const mockTemporalSnapshotB = {
+  date: "2026-03-01",
+  total_members: 4832,
+  avg_raf: 1.247,
+  total_suspects: 1847,
+  total_spend: 36176064,
+  gap_closure_rate: 64.8,
+  pmpm: 1247,
+};
+
+export const mockTemporalComparison = {
+  period_a: mockTemporalSnapshotA,
+  period_b: mockTemporalSnapshotB,
+  deltas: {
+    total_members: { old: 4680, new: 4832, change: 152, pct_change: 3.25 },
+    avg_raf: { old: 1.18, new: 1.247, change: 0.067, pct_change: 5.68 },
+    pmpm: { old: 1312, new: 1247, change: -65, pct_change: -4.95 },
+    total_suspects: { old: 2100, new: 1847, change: -253, pct_change: -12.05 },
+    gap_closure_rate: { old: 58.2, new: 64.8, change: 6.6, pct_change: 11.34 },
+    total_spend: { old: 36883200, new: 36176064, change: -707136, pct_change: -1.92 },
+  },
+  notable_changes: [
+    "152 new members attributed",
+    "253 HCC suspects captured",
+    "Gap closure improved by 6.6pp",
+    "PMPM decreased by $65",
+    "8 providers improved capture rate above 70%",
+    "$707K reduction in total spend",
+    "12 members transitioned out of complex tier",
+    "42 new AWV completions",
+    "3 high-cost members enrolled in care management",
+    "Diabetes care gap closure improved 8.2pp",
+  ],
+};
+
+export const mockTemporalTimeline = [
+  { month: "2025-04", value: 1.142 },
+  { month: "2025-05", value: 1.148 },
+  { month: "2025-06", value: 1.155 },
+  { month: "2025-07", value: 1.163 },
+  { month: "2025-08", value: 1.171 },
+  { month: "2025-09", value: 1.176 },
+  { month: "2025-10", value: 1.180 },
+  { month: "2025-11", value: 1.195 },
+  { month: "2025-12", value: 1.208 },
+  { month: "2026-01", value: 1.221 },
+  { month: "2026-02", value: 1.234 },
+  { month: "2026-03", value: 1.247 },
+];
+
+export const mockTemporalTimelineMembers = [
+  { month: "2025-04", value: 4520 },
+  { month: "2025-05", value: 4548 },
+  { month: "2025-06", value: 4579 },
+  { month: "2025-07", value: 4610 },
+  { month: "2025-08", value: 4638 },
+  { month: "2025-09", value: 4661 },
+  { month: "2025-10", value: 4680 },
+  { month: "2025-11", value: 4712 },
+  { month: "2025-12", value: 4745 },
+  { month: "2026-01", value: 4778 },
+  { month: "2026-02", value: 4805 },
+  { month: "2026-03", value: 4832 },
+];
+
+export const mockTemporalTimelinePmpm = [
+  { month: "2025-04", value: 1358 },
+  { month: "2025-05", value: 1349 },
+  { month: "2025-06", value: 1341 },
+  { month: "2025-07", value: 1332 },
+  { month: "2025-08", value: 1325 },
+  { month: "2025-09", value: 1318 },
+  { month: "2025-10", value: 1312 },
+  { month: "2025-11", value: 1298 },
+  { month: "2025-12", value: 1285 },
+  { month: "2026-01", value: 1271 },
+  { month: "2026-02", value: 1259 },
+  { month: "2026-03", value: 1247 },
+];
+
+export const mockTemporalTimelineSuspects = [
+  { month: "2025-04", value: 2340 },
+  { month: "2025-05", value: 2310 },
+  { month: "2025-06", value: 2275 },
+  { month: "2025-07", value: 2240 },
+  { month: "2025-08", value: 2198 },
+  { month: "2025-09", value: 2152 },
+  { month: "2025-10", value: 2100 },
+  { month: "2025-11", value: 2038 },
+  { month: "2025-12", value: 1972 },
+  { month: "2026-01", value: 1923 },
+  { month: "2026-02", value: 1882 },
+  { month: "2026-03", value: 1847 },
+];
+
+export const mockTemporalTimelineGapClosure = [
+  { month: "2025-04", value: 52.1 },
+  { month: "2025-05", value: 53.4 },
+  { month: "2025-06", value: 54.2 },
+  { month: "2025-07", value: 55.5 },
+  { month: "2025-08", value: 56.8 },
+  { month: "2025-09", value: 57.4 },
+  { month: "2025-10", value: 58.2 },
+  { month: "2025-11", value: 59.9 },
+  { month: "2025-12", value: 61.2 },
+  { month: "2026-01", value: 62.5 },
+  { month: "2026-02", value: 63.7 },
+  { month: "2026-03", value: 64.8 },
+];
+
+export const mockTemporalTimelineCaptureRate = [
+  { month: "2025-04", value: 24.8 },
+  { month: "2025-05", value: 25.3 },
+  { month: "2025-06", value: 26.1 },
+  { month: "2025-07", value: 26.9 },
+  { month: "2025-08", value: 27.5 },
+  { month: "2025-09", value: 27.8 },
+  { month: "2025-10", value: 28.1 },
+  { month: "2025-11", value: 29.2 },
+  { month: "2025-12", value: 30.1 },
+  { month: "2026-01", value: 31.0 },
+  { month: "2026-02", value: 31.8 },
+  { month: "2026-03", value: 32.4 },
+];
+
+export const mockTemporalTimelineMap: Record<string, { month: string; value: number }[]> = {
+  avg_raf: mockTemporalTimeline,
+  total_members: mockTemporalTimelineMembers,
+  total_pmpm: mockTemporalTimelinePmpm,
+  suspect_count: mockTemporalTimelineSuspects,
+  gap_closure_rate: mockTemporalTimelineGapClosure,
+  capture_rate: mockTemporalTimelineCaptureRate,
+};
+
+export const mockTemporalChangeLog = [
+  { date: "2026-03-18", event_type: "attribution", description: "28 new members attributed from Q1 enrollment cycle", impact: "+28 members" },
+  { date: "2026-03-12", event_type: "capture", description: "Dr. Patel's panel: 14 HCC suspects captured at AWV visits", impact: "+$184K annual revenue" },
+  { date: "2026-03-05", event_type: "claim", description: "3 high-cost inpatient claims exceeding $50K each", impact: "$187K total cost" },
+  { date: "2026-02-22", event_type: "gap", description: "42 diabetes HbA1c care gaps closed following outreach campaign", impact: "+4.2pp closure rate" },
+  { date: "2026-02-15", event_type: "attribution", description: "16 members lost — moved out of service area", impact: "-16 members" },
+  { date: "2026-02-08", event_type: "capture", description: "Bulk chart review completed — 38 new HCC captures across 5 providers", impact: "+$498K annual revenue" },
+  { date: "2026-01-28", event_type: "claim", description: "SNF readmission cluster: 5 CHF patients readmitted within 30 days", impact: "$124K cost impact" },
+  { date: "2026-01-15", event_type: "gap", description: "Breast cancer screening campaign: 67 gaps closed", impact: "+2.1pp closure rate" },
+  { date: "2025-12-20", event_type: "attribution", description: "Year-end enrollment reconciliation: +45 net new members", impact: "+45 members" },
+  { date: "2025-12-10", event_type: "capture", description: "Q4 retrospective review: 52 additional HCC codes identified", impact: "+$682K annual revenue" },
+  { date: "2025-11-28", event_type: "claim", description: "High-cost pharmacy claims for 8 specialty medication members", impact: "$96K monthly spend" },
+  { date: "2025-11-15", event_type: "gap", description: "Statin adherence follow-up: 31 gaps closed", impact: "+1.8pp closure rate" },
+  { date: "2025-11-02", event_type: "attribution", description: "Mid-cycle attribution update: 22 new members from plan transfers", impact: "+22 members" },
+  { date: "2025-10-18", event_type: "capture", description: "Provider education session led to 19 prospective HCC captures", impact: "+$249K annual revenue" },
+  { date: "2025-10-05", event_type: "gap", description: "Colorectal screening outreach: 28 gaps closed", impact: "+1.3pp closure rate" },
+];
+
+// ---- Alert Rules Engine ----
+
+export const mockAlertRuleMetricOptions: Record<string, { value: string; label: string }[]> = {
+  member: [
+    { value: "spend_12mo", label: "12-Month Spend ($)" },
+    { value: "raf_score", label: "RAF Score" },
+    { value: "er_visits", label: "ER Visits" },
+    { value: "admissions", label: "Inpatient Admissions" },
+    { value: "days_since_visit", label: "Days Since Last Visit" },
+    { value: "suspect_count", label: "Open Suspect Count" },
+    { value: "gap_count", label: "Open Gap Count" },
+  ],
+  provider: [
+    { value: "capture_rate", label: "HCC Capture Rate (%)" },
+    { value: "recapture_rate", label: "Recapture Rate (%)" },
+    { value: "panel_pmpm", label: "Panel PMPM ($)" },
+    { value: "gap_closure", label: "Gap Closure Rate (%)" },
+  ],
+  group: [
+    { value: "avg_capture_rate", label: "Avg Capture Rate (%)" },
+    { value: "group_pmpm", label: "Group PMPM ($)" },
+  ],
+  measure: [
+    { value: "closure_rate", label: "Closure Rate (%)" },
+  ],
+  population: [
+    { value: "avg_raf", label: "Average RAF" },
+    { value: "total_pmpm", label: "Total PMPM ($)" },
+    { value: "mlr", label: "Medical Loss Ratio (%)" },
+    { value: "recapture_rate", label: "Recapture Rate (%)" },
+  ],
+};
+
+export const mockAlertRules = [
+  {
+    id: 1, name: "High-cost member alert",
+    description: "Alert when any member's 12-month spend exceeds $100,000",
+    entity_type: "member", metric: "spend_12mo", operator: "gt", threshold: 100000,
+    scope_filter: null, notify_channels: { in_app: true }, severity: "critical",
+    is_active: true, created_by: 2, last_evaluated: "2026-03-25T08:00:00Z",
+    last_triggered: "2026-03-24T14:23:00Z", trigger_count: 5, created_at: "2026-01-15T09:00:00Z",
+  },
+  {
+    id: 2, name: "ER frequent flyer",
+    description: "Alert when a member has 4 or more ER visits",
+    entity_type: "member", metric: "er_visits", operator: "gte", threshold: 4,
+    scope_filter: null, notify_channels: { in_app: true }, severity: "high",
+    is_active: true, created_by: 2, last_evaluated: "2026-03-25T08:00:00Z",
+    last_triggered: "2026-03-22T11:45:00Z", trigger_count: 3, created_at: "2026-01-15T09:05:00Z",
+  },
+  {
+    id: 3, name: "Provider capture rate declining",
+    description: "Alert when a provider's HCC capture rate drops below 50%",
+    entity_type: "provider", metric: "capture_rate", operator: "lt", threshold: 50,
+    scope_filter: null, notify_channels: { in_app: true }, severity: "medium",
+    is_active: true, created_by: 2, last_evaluated: "2026-03-25T08:00:00Z",
+    last_triggered: "2026-03-23T09:12:00Z", trigger_count: 4, created_at: "2026-01-15T09:10:00Z",
+  },
+  {
+    id: 4, name: "Stars measure at risk",
+    description: "Alert when a measure's closure rate falls below its 3-star cutpoint",
+    entity_type: "measure", metric: "closure_rate", operator: "lt", threshold: 50,
+    scope_filter: null, notify_channels: { in_app: true }, severity: "high",
+    is_active: true, created_by: 2, last_evaluated: "2026-03-25T08:00:00Z",
+    last_triggered: "2026-03-20T16:30:00Z", trigger_count: 2, created_at: "2026-01-15T09:15:00Z",
+  },
+  {
+    id: 5, name: "Readmission alert",
+    description: "Alert when a member has 2+ inpatient admissions (potential readmission)",
+    entity_type: "member", metric: "admissions", operator: "gte", threshold: 2,
+    scope_filter: null, notify_channels: { in_app: true }, severity: "high",
+    is_active: true, created_by: 2, last_evaluated: "2026-03-25T08:00:00Z",
+    last_triggered: "2026-03-21T10:05:00Z", trigger_count: 6, created_at: "2026-01-15T09:20:00Z",
+  },
+  {
+    id: 6, name: "Member not seen",
+    description: "Alert when a member has not had a visit in over 180 days",
+    entity_type: "member", metric: "days_since_visit", operator: "gt", threshold: 180,
+    scope_filter: null, notify_channels: { in_app: true }, severity: "medium",
+    is_active: true, created_by: 2, last_evaluated: "2026-03-25T08:00:00Z",
+    last_triggered: "2026-03-25T08:00:00Z", trigger_count: 12, created_at: "2026-01-15T09:25:00Z",
+  },
+];
+
+export const mockAlertRuleTriggers = [
+  {
+    id: 1, rule_id: 1, entity_type: "member", entity_id: 5, entity_name: "Charles Jones",
+    metric_value: 142350.00, threshold: 100000, message: "Member Charles Jones: spend_12mo=$142,350 > $100,000",
+    acknowledged: false, acknowledged_by: null, created_at: "2026-03-24T14:23:00Z",
+  },
+  {
+    id: 2, rule_id: 1, entity_type: "member", entity_id: 18, entity_name: "Ruth Anderson",
+    metric_value: 118740.00, threshold: 100000, message: "Member Ruth Anderson: spend_12mo=$118,740 > $100,000",
+    acknowledged: true, acknowledged_by: 2, created_at: "2026-03-22T09:15:00Z",
+  },
+  {
+    id: 3, rule_id: 2, entity_type: "member", entity_id: 12, entity_name: "Harold Martin",
+    metric_value: 6, threshold: 4, message: "Member Harold Martin: er_visits=6 >= 4",
+    acknowledged: false, acknowledged_by: null, created_at: "2026-03-22T11:45:00Z",
+  },
+  {
+    id: 4, rule_id: 3, entity_type: "provider", entity_id: 8, entity_name: "Dr. Robert Kim",
+    metric_value: 42.1, threshold: 50, message: "Provider Dr. Kim: capture_rate=42.1% < 50%",
+    acknowledged: false, acknowledged_by: null, created_at: "2026-03-23T09:12:00Z",
+  },
+  {
+    id: 5, rule_id: 3, entity_type: "provider", entity_id: 9, entity_name: "Dr. David Wilson",
+    metric_value: 45.8, threshold: 50, message: "Provider Dr. Wilson: capture_rate=45.8% < 50%",
+    acknowledged: true, acknowledged_by: 2, created_at: "2026-03-23T09:12:00Z",
+  },
+  {
+    id: 6, rule_id: 4, entity_type: "measure", entity_id: 4, entity_name: "Kidney Health Evaluation for Diabetes",
+    metric_value: 41.2, threshold: 50, message: "Measure KED: closure_rate=41.2% < 50%",
+    acknowledged: false, acknowledged_by: null, created_at: "2026-03-20T16:30:00Z",
+  },
+  {
+    id: 7, rule_id: 5, entity_type: "member", entity_id: 7, entity_name: "George Miller",
+    metric_value: 3, threshold: 2, message: "Member George Miller: admissions=3 >= 2",
+    acknowledged: false, acknowledged_by: null, created_at: "2026-03-21T10:05:00Z",
+  },
+  {
+    id: 8, rule_id: 6, entity_type: "member", entity_id: 22, entity_name: "Catherine Thomas",
+    metric_value: 247, threshold: 180, message: "Member Catherine Thomas: days_since_visit=247 > 180",
+    acknowledged: false, acknowledged_by: null, created_at: "2026-03-25T08:00:00Z",
+  },
+];
+
+export const mockAlertRulePresets = [
+  {
+    name: "High-cost member alert",
+    description: "Alert when any member's 12-month spend exceeds $100,000",
+    entity_type: "member", metric: "spend_12mo", operator: "gt", threshold: 100000,
+    severity: "critical", notify_channels: { in_app: true },
+  },
+  {
+    name: "ER frequent flyer",
+    description: "Alert when a member has 4 or more ER visits",
+    entity_type: "member", metric: "er_visits", operator: "gte", threshold: 4,
+    severity: "high", notify_channels: { in_app: true },
+  },
+  {
+    name: "Provider capture rate declining",
+    description: "Alert when a provider's HCC capture rate drops below 50%",
+    entity_type: "provider", metric: "capture_rate", operator: "lt", threshold: 50,
+    severity: "medium", notify_channels: { in_app: true },
+  },
+  {
+    name: "Stars measure at risk",
+    description: "Alert when a measure's closure rate falls below its 3-star cutpoint",
+    entity_type: "measure", metric: "closure_rate", operator: "lt", threshold: 50,
+    severity: "high", notify_channels: { in_app: true },
+  },
+  {
+    name: "Readmission alert",
+    description: "Alert when a member has 2+ inpatient admissions (potential readmission)",
+    entity_type: "member", metric: "admissions", operator: "gte", threshold: 2,
+    severity: "high", notify_channels: { in_app: true },
+  },
+  {
+    name: "Member not seen",
+    description: "Alert when a member has not had a visit in over 180 days",
+    entity_type: "member", metric: "days_since_visit", operator: "gt", threshold: 180,
+    severity: "medium", notify_channels: { in_app: true },
+  },
+];

@@ -80,6 +80,14 @@ import {
   mockAWVOpportunities,
   mockStarsProjection,
   mockStarsOpportunities,
+  mockTemporalSnapshotA,
+  mockTemporalSnapshotB,
+  mockTemporalComparison,
+  mockTemporalTimelineMap,
+  mockTemporalChangeLog,
+  mockAlertRules,
+  mockAlertRuleTriggers,
+  mockAlertRulePresets,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -362,7 +370,28 @@ export function enableDemoMode() {
         } else {
           mockResponse = { success: true };
         }
-      } else {
+      }
+      // Alert Rules: acknowledge trigger
+      else if (/\/api\/alert-rules\/triggers\/\d+\/acknowledge/.test(url)) {
+        const triggerId = parseInt(url.match(/\/api\/alert-rules\/triggers\/(\d+)\/acknowledge/)![1]);
+        const trigger = mockAlertRuleTriggers.find((t) => t.id === triggerId);
+        if (trigger) { trigger.acknowledged = true; trigger.acknowledged_by = 2; }
+        mockResponse = trigger || { success: true };
+      }
+      // Alert Rules: update rule
+      else if (/\/api\/alert-rules\/\d+/.test(url)) {
+        const ruleId = parseInt(url.match(/\/api\/alert-rules\/(\d+)/)![1]);
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const rule = mockAlertRules.find((r) => r.id === ruleId);
+        if (rule) {
+          if (body.is_active !== undefined) rule.is_active = body.is_active;
+          if (body.name) rule.name = body.name;
+          if (body.severity) rule.severity = body.severity;
+          if (body.threshold !== undefined) rule.threshold = body.threshold;
+        }
+        mockResponse = rule || { success: true };
+      }
+      else {
         mockResponse = { success: true };
       }
     }
@@ -384,6 +413,11 @@ export function enableDemoMode() {
         const idx = mockWatchlistItems.findIndex((i) => i.id === itemId);
         if (idx !== -1) mockWatchlistItems.splice(idx, 1);
         mockResponse = { deleted: true };
+      } else if (url.match(/\/api\/alert-rules\/\d+/)) {
+        const ruleId = parseInt(url.match(/\/api\/alert-rules\/(\d+)/)![1]);
+        const idx = mockAlertRules.findIndex((r) => r.id === ruleId);
+        if (idx !== -1) mockAlertRules.splice(idx, 1);
+        mockResponse = { deleted: true };
       } else if (url.includes("/api/filters/")) {
         mockResponse = { deleted: true };
       } else {
@@ -393,7 +427,22 @@ export function enableDemoMode() {
 
     // ---------- POST endpoints ----------
     else if (method === "post") {
-      if (url.includes("/api/annotations")) {
+      // Alert Rules: evaluate
+      if (url.includes("/api/alert-rules/evaluate")) {
+        mockResponse = mockAlertRuleTriggers;
+      }
+      // Alert Rules: create rule
+      else if (url.match(/\/api\/alert-rules\/?$/)) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newRule = {
+          id: Date.now(), ...body, is_active: true, created_by: 2,
+          last_evaluated: null, last_triggered: null, trigger_count: 0,
+          created_at: new Date().toISOString(),
+        };
+        mockAlertRules.push(newRule);
+        mockResponse = newRule;
+      }
+      else if (url.includes("/api/annotations")) {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         const newAnnotation = {
           id: Date.now(),
@@ -1451,6 +1500,44 @@ export function enableDemoMode() {
       // Stars: projection
       else if (url.includes("/api/stars/projection")) {
         mockResponse = mockStarsProjection;
+      }
+
+      // Temporal: compare
+      else if (url.includes("/api/temporal/compare")) {
+        mockResponse = mockTemporalComparison;
+      }
+      // Temporal: timeline
+      else if (url.includes("/api/temporal/timeline")) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        const metric = params.get("metric") || config.params?.metric || "avg_raf";
+        mockResponse = mockTemporalTimelineMap[metric] || mockTemporalTimelineMap["avg_raf"];
+      }
+      // Temporal: changes
+      else if (url.includes("/api/temporal/changes")) {
+        mockResponse = mockTemporalChangeLog;
+      }
+      // Temporal: snapshot
+      else if (url.includes("/api/temporal/snapshot")) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        const dateParam = params.get("date") || config.params?.date || "2026-03-01";
+        mockResponse = dateParam < "2026-01-01" ? mockTemporalSnapshotA : mockTemporalSnapshotB;
+      }
+
+      // Alert Rules: presets
+      else if (url.includes("/api/alert-rules/presets")) {
+        mockResponse = mockAlertRulePresets;
+      }
+      // Alert Rules: triggers
+      else if (url.includes("/api/alert-rules/triggers")) {
+        mockResponse = mockAlertRuleTriggers;
+      }
+      // Alert Rules: evaluate
+      else if (url.includes("/api/alert-rules/evaluate")) {
+        mockResponse = mockAlertRuleTriggers;
+      }
+      // Alert Rules: list
+      else if (url.includes("/api/alert-rules")) {
+        mockResponse = mockAlertRules;
       }
 
       // Generic insights
