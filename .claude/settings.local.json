@@ -53,7 +53,23 @@
       "Read(//c/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/**)",
       "Bash(timeout 30 python -c \":*)",
       "Bash(curl -s http://localhost:8090/api/health)",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(curl:*)",
+      "Bash(python -m py_compile backend/app/models/user.py)",
+      "Bash(python -m py_compile backend/app/models/tenant.py)",
+      "Bash(python -m py_compile backend/app/models/member.py)",
+      "Bash(python -m py_compile backend/app/models/claim.py)",
+      "Bash(python -m py_compile backend/app/models/hcc.py)",
+      "Bash(python -m py_compile backend/app/routers/auth.py)",
+      "Bash(python -m py_compile backend/app/routers/clinical.py)",
+      "Bash(python -m py_compile backend/app/routers/claims.py)",
+      "Bash(python -m py_compile backend/app/routers/care_gaps.py)",
+      "Bash(python -m py_compile backend/app/routers/insights.py)",
+      "Bash(python -m py_compile backend/app/services/action_service.py)",
+      "Bash(python -m py_compile backend/app/services/dashboard_service.py)",
+      "Bash(python -m py_compile backend/app/services/care_gap_service.py)",
+      "Bash(python -m py_compile backend/app/services/journey_service.py)",
+      "Bash(python -m py_compile backend/app/services/learning_service.py)"
     ]
   }
 }

@@ -159,7 +159,7 @@ async def _scenario_capture_improvement(db: AsyncSession, params: dict) -> dict:
             func.count(HccSuspect.id),
             func.coalesce(func.sum(HccSuspect.raf_value), 0),
             func.coalesce(func.sum(HccSuspect.annual_value), 0),
-        ).where(HccSuspect.status == SuspectStatus.open)
+        ).where(HccSuspect.status == SuspectStatus.open.value)
     )
     s_row = suspect_q.one()
     total_suspect_raf = _safe_float(s_row[1])
@@ -274,8 +274,8 @@ async def _scenario_gap_closure(db: AsyncSession, params: dict) -> dict:
     gap_stats_q = await db.execute(
         select(
             func.count(MemberGap.id).label("total"),
-            func.sum(case((MemberGap.status == GapStatus.open, 1), else_=0)).label("open_ct"),
-            func.sum(case((MemberGap.status == GapStatus.closed, 1), else_=0)).label("closed_ct"),
+            func.sum(case((MemberGap.status == GapStatus.open.value, 1), else_=0)).label("open_ct"),
+            func.sum(case((MemberGap.status == GapStatus.closed.value, 1), else_=0)).label("closed_ct"),
         )
         .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
         .where(GapMeasure.code == measure_code)
@@ -504,7 +504,7 @@ async def _scenario_provider_education(db: AsyncSession, params: dict) -> dict:
     # Estimate RAF per additional capture
     avg_suspect_raf_q = await db.execute(
         select(func.avg(HccSuspect.raf_value))
-        .where(HccSuspect.status == SuspectStatus.open)
+        .where(HccSuspect.status == SuspectStatus.open.value)
     )
     avg_suspect_raf = _safe_float(avg_suspect_raf_q.scalar()) or 0.15
 

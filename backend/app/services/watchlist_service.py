@@ -152,7 +152,7 @@ async def _take_snapshot(
         suspect_q = await db.execute(
             select(func.count(HccSuspect.id)).where(
                 HccSuspect.member_id == entity_id,
-                HccSuspect.status == SuspectStatus.open,
+                HccSuspect.status == SuspectStatus.open.value,
             )
         )
         suspect_count = suspect_q.scalar() or 0
@@ -161,7 +161,7 @@ async def _take_snapshot(
         gap_q = await db.execute(
             select(func.count(MemberGap.id)).where(
                 MemberGap.member_id == entity_id,
-                MemberGap.status == GapStatus.open,
+                MemberGap.status == GapStatus.open.value,
             )
         )
         gap_count = gap_q.scalar() or 0
@@ -171,7 +171,7 @@ async def _take_snapshot(
             "projected_raf": float(member.projected_raf) if member.projected_raf else 0,
             "open_suspects": suspect_count,
             "open_gaps": gap_count,
-            "risk_tier": member.risk_tier.value if member.risk_tier else None,
+            "risk_tier": member.risk_tier if member.risk_tier else None,
         }
 
     elif entity_type == "provider":

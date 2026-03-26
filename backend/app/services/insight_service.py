@@ -76,7 +76,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
         .group_by(Member.risk_tier)
     )
     risk_tiers = {
-        (row[0].value if hasattr(row[0], "value") else str(row[0])): row[1]
+        str(row[0]): row[1]
         for row in tier_q.all()
     }
 
@@ -85,7 +85,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
         select(
             func.count(HccSuspect.id),
             func.coalesce(func.sum(HccSuspect.annual_value), 0),
-        ).where(HccSuspect.status == SuspectStatus.open)
+        ).where(HccSuspect.status == SuspectStatus.open.value)
     )
     s_row = suspect_q.one()
     open_suspects = _safe_int(s_row[0])
@@ -99,7 +99,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
             func.count(HccSuspect.id).label("cnt"),
             func.coalesce(func.sum(HccSuspect.annual_value), 0).label("val"),
         )
-        .where(HccSuspect.status == SuspectStatus.open)
+        .where(HccSuspect.status == SuspectStatus.open.value)
         .group_by(HccSuspect.hcc_code, HccSuspect.hcc_label)
         .order_by(func.sum(HccSuspect.annual_value).desc())
         .limit(10)
@@ -116,7 +116,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
             func.count(HccSuspect.id).label("suspect_count"),
             func.coalesce(func.sum(HccSuspect.annual_value), 0).label("total_value"),
         )
-        .where(HccSuspect.status == SuspectStatus.open)
+        .where(HccSuspect.status == SuspectStatus.open.value)
         .group_by(HccSuspect.member_id)
         .order_by(func.sum(HccSuspect.annual_value).desc())
         .limit(15)
@@ -130,7 +130,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
     aging_cutoff = today - timedelta(days=60)
     aging_q = await db.execute(
         select(func.count(HccSuspect.id)).where(
-            HccSuspect.status == SuspectStatus.open,
+            HccSuspect.status == SuspectStatus.open.value,
             HccSuspect.identified_date <= aging_cutoff,
         )
     )
@@ -194,8 +194,8 @@ async def build_context_graph(db: AsyncSession) -> dict:
             GapMeasure.name,
             GapMeasure.stars_weight,
             func.count(MemberGap.id).label("total"),
-            func.sum(case((MemberGap.status == GapStatus.open, 1), else_=0)).label("open_ct"),
-            func.sum(case((MemberGap.status == GapStatus.closed, 1), else_=0)).label("closed_ct"),
+            func.sum(case((MemberGap.status == GapStatus.open.value, 1), else_=0)).label("open_ct"),
+            func.sum(case((MemberGap.status == GapStatus.closed.value, 1), else_=0)).label("closed_ct"),
         )
         .join(MemberGap, MemberGap.measure_id == GapMeasure.id)
         .where(MemberGap.measurement_year == current_year)
@@ -259,7 +259,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
     # Members with 3+ open suspects
     multi_suspect_q = await db.execute(
         select(HccSuspect.member_id, func.count(HccSuspect.id).label("cnt"))
-        .where(HccSuspect.status == SuspectStatus.open)
+        .where(HccSuspect.status == SuspectStatus.open.value)
         .group_by(HccSuspect.member_id)
         .having(func.count(HccSuspect.id) >= 3)
     )
@@ -268,7 +268,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
     # Members with 2+ open care gaps
     multi_gap_q = await db.execute(
         select(MemberGap.member_id, func.count(MemberGap.id).label("cnt"))
-        .where(MemberGap.status == GapStatus.open, MemberGap.measurement_year == current_year)
+        .where(MemberGap.status == GapStatus.open.value, MemberGap.measurement_year == current_year)
         .group_by(MemberGap.member_id)
         .having(func.count(MemberGap.id) >= 2)
     )
@@ -523,16 +523,16 @@ async def _persist_insights(db: AsyncSession, insights_data: list[dict]) -> list
     # Dismiss old active insights before creating new ones
     await db.execute(
         update(Insight)
-        .where(Insight.status == InsightStatus.active)
-        .values(status=InsightStatus.dismissed)
+        .where(Insight.status == InsightStatus.active.value)
+        .values(status=InsightStatus.dismissed.value)
     )
 
     created = []
-    category_map = {c.value: c for c in InsightCategory}
+    category_map = {c.value: c.value for c in InsightCategory}
 
     for item in insights_data:
         cat_str = item.get("category", "cross_module")
-        category = category_map.get(cat_str, InsightCategory.cross_module)
+        category = category_map.get(cat_str, InsightCategory.cross_module.value)
 
         # Build connections, including scan_type if present
         connections = item.get("connections") or {}
@@ -546,7 +546,7 @@ async def _persist_insights(db: AsyncSession, insights_data: list[dict]) -> list
             dollar_impact=item.get("dollar_impact"),
             recommended_action=item.get("recommended_action"),
             confidence=item.get("confidence"),
-            status=InsightStatus.active,
+            status=InsightStatus.active.value,
             affected_members=item.get("affected_members") or [],
             affected_providers=item.get("affected_providers") or [],
             surface_on=item.get("surface_on") or ["dashboard"],
@@ -608,7 +608,7 @@ async def generate_member_insights(db: AsyncSession, member_id: int) -> list[dic
     suspects_q = await db.execute(
         select(HccSuspect).where(
             HccSuspect.member_id == member_id,
-            HccSuspect.status == SuspectStatus.open,
+            HccSuspect.status == SuspectStatus.open.value,
         )
     )
     suspects = [
@@ -617,7 +617,7 @@ async def generate_member_insights(db: AsyncSession, member_id: int) -> list[dic
             "raf_value": _safe_float(s.raf_value),
             "annual_value": _safe_float(s.annual_value),
             "evidence": s.evidence_summary,
-            "suspect_type": s.suspect_type.value,
+            "suspect_type": s.suspect_type,
         }
         for s in suspects_q.scalars().all()
     ]
@@ -626,7 +626,7 @@ async def generate_member_insights(db: AsyncSession, member_id: int) -> list[dic
     gaps_q = await db.execute(
         select(MemberGap, GapMeasure)
         .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
-        .where(MemberGap.member_id == member_id, MemberGap.status == GapStatus.open)
+        .where(MemberGap.member_id == member_id, MemberGap.status == GapStatus.open.value)
     )
     gaps = [
         {
@@ -676,7 +676,7 @@ async def generate_member_insights(db: AsyncSession, member_id: int) -> list[dic
         "gender": member.gender,
         "current_raf": _safe_float(member.current_raf),
         "projected_raf": _safe_float(member.projected_raf),
-        "risk_tier": member.risk_tier.value if member.risk_tier else None,
+        "risk_tier": member.risk_tier if member.risk_tier else None,
         "pcp": provider_name,
         "suspects": suspects,
         "care_gaps": gaps,
@@ -748,7 +748,7 @@ async def generate_provider_insights(db: AsyncSession, provider_id: int) -> list
             func.sum(HccSuspect.annual_value).label("val"),
         )
         .join(Member, HccSuspect.member_id == Member.id)
-        .where(Member.pcp_provider_id == provider_id, HccSuspect.status == SuspectStatus.open)
+        .where(Member.pcp_provider_id == provider_id, HccSuspect.status == SuspectStatus.open.value)
         .group_by(HccSuspect.hcc_code, HccSuspect.hcc_label)
         .order_by(func.sum(HccSuspect.annual_value).desc())
         .limit(10)

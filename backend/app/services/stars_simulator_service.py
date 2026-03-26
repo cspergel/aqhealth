@@ -105,7 +105,7 @@ async def get_current_star_projection(db: AsyncSession) -> dict[str, Any]:
         )
         status_counts: dict[str, int] = {}
         for row in counts.all():
-            key = row[0].value if hasattr(row[0], "value") else str(row[0])
+            key = str(row[0])
             status_counts[key] = row[1]
 
         open_count = status_counts.get("open", 0)

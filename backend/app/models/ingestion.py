@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, Enum as SAEnum, Text
+from sqlalchemy import String, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -24,7 +24,7 @@ class UploadJob(Base, TimestampMixin):
     filename: Mapped[str] = mapped_column(String(500))
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     detected_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    status: Mapped[UploadStatus] = mapped_column(SAEnum(UploadStatus), default=UploadStatus.pending)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
 
     # Mapping
     column_mapping: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

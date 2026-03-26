@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import String, Date, Integer, ForeignKey, Numeric, Enum as SAEnum, Text
+from sqlalchemy import String, Date, Integer, ForeignKey, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
@@ -42,8 +42,8 @@ class HccSuspect(Base, TimestampMixin):
     annual_value: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     # Classification
-    suspect_type: Mapped[SuspectType] = mapped_column(SAEnum(SuspectType))
-    status: Mapped[SuspectStatus] = mapped_column(SAEnum(SuspectStatus), default=SuspectStatus.open, index=True)
+    suspect_type: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
     confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
 
     # Evidence

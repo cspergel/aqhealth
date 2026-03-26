@@ -459,8 +459,8 @@ async def _detect_screening_gaps(
 
         if member.id in compliant_ids:
             # Member is compliant — close any open gap
-            if existing_gap and existing_gap.status == GapStatus.open:
-                existing_gap.status = GapStatus.closed
+            if existing_gap and existing_gap.status == GapStatus.open.value:
+                existing_gap.status = GapStatus.closed.value
                 existing_gap.closed_date = date.today()
                 closed += 1
         else:
@@ -469,7 +469,7 @@ async def _detect_screening_gaps(
                 gap = MemberGap(
                     member_id=member.id,
                     measure_id=measure.id,
-                    status=GapStatus.open,
+                    status=GapStatus.open.value,
                     due_date=year_end,
                     measurement_year=measurement_year,
                     responsible_provider_id=member.pcp_provider_id,
@@ -539,8 +539,8 @@ async def _detect_medication_gaps(
         existing_gap = existing.scalar_one_or_none()
 
         if pdc >= pdc_threshold:
-            if existing_gap and existing_gap.status == GapStatus.open:
-                existing_gap.status = GapStatus.closed
+            if existing_gap and existing_gap.status == GapStatus.open.value:
+                existing_gap.status = GapStatus.closed.value
                 existing_gap.closed_date = today
                 closed += 1
         else:
@@ -548,7 +548,7 @@ async def _detect_medication_gaps(
                 gap = MemberGap(
                     member_id=member.id,
                     measure_id=measure.id,
-                    status=GapStatus.open,
+                    status=GapStatus.open.value,
                     due_date=year_end,
                     measurement_year=measurement_year,
                     responsible_provider_id=member.pcp_provider_id,
@@ -650,8 +650,8 @@ async def _detect_followup_gaps(
             existing_gap = existing.scalar_one_or_none()
 
             if has_followup:
-                if existing_gap and existing_gap.status == GapStatus.open:
-                    existing_gap.status = GapStatus.closed
+                if existing_gap and existing_gap.status == GapStatus.open.value:
+                    existing_gap.status = GapStatus.closed.value
                     existing_gap.closed_date = today
                     closed += 1
             else:
@@ -661,7 +661,7 @@ async def _detect_followup_gaps(
                     gap = MemberGap(
                         member_id=member_id,
                         measure_id=measure.id,
-                        status=GapStatus.open,
+                        status=GapStatus.open.value,
                         due_date=followup_deadline,
                         measurement_year=measurement_year,
                         responsible_provider_id=member.pcp_provider_id if member else None,
@@ -715,7 +715,7 @@ async def get_gap_population_summary(db: AsyncSession) -> list[dict[str, Any]]:
 
         status_counts: dict[str, int] = {}
         for row in counts.all():
-            status_counts[row[0].value if hasattr(row[0], "value") else str(row[0])] = row[1]
+            status_counts[str(row[0])] = row[1]
 
         open_count = status_counts.get("open", 0)
         closed_count = status_counts.get("closed", 0)
@@ -776,7 +776,7 @@ async def get_member_gaps(db: AsyncSession, member_id: int) -> list[dict[str, An
             "id": gap.id,
             "measure_code": measure.code,
             "measure_name": measure.name,
-            "status": gap.status.value,
+            "status": gap.status,
             "due_date": str(gap.due_date) if gap.due_date else None,
             "closed_date": str(gap.closed_date) if gap.closed_date else None,
             "measurement_year": gap.measurement_year,
@@ -805,7 +805,7 @@ async def get_provider_gaps(db: AsyncSession, provider_id: int) -> dict[str, Any
         code = row[0]
         if code not in by_measure:
             by_measure[code] = {"code": code, "name": row[1], "open": 0, "closed": 0}
-        status_val = row[2].value if hasattr(row[2], "value") else str(row[2])
+        status_val = str(row[2])
         by_measure[code][status_val] = row[3]
 
     return {
@@ -819,7 +819,7 @@ async def close_gap(db: AsyncSession, gap_id: int) -> MemberGap:
     gap = await db.get(MemberGap, gap_id)
     if not gap:
         raise ValueError(f"Gap {gap_id} not found")
-    gap.status = GapStatus.closed
+    gap.status = GapStatus.closed.value
     gap.closed_date = date.today()
     await db.commit()
     await db.refresh(gap)
@@ -831,7 +831,7 @@ async def exclude_gap(db: AsyncSession, gap_id: int) -> MemberGap:
     gap = await db.get(MemberGap, gap_id)
     if not gap:
         raise ValueError(f"Gap {gap_id} not found")
-    gap.status = GapStatus.excluded
+    gap.status = GapStatus.excluded.value
     await db.commit()
     await db.refresh(gap)
     return gap

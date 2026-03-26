@@ -387,7 +387,7 @@ async def track_intervention_outcomes(db: AsyncSession) -> list[dict[str, Any]]:
             HccSuspect.annual_value,
             HccSuspect.suspect_type,
             HccSuspect.member_id,
-        ).where(HccSuspect.status == SuspectStatus.captured)
+        ).where(HccSuspect.status == SuspectStatus.captured.value)
     )).all()
 
     if not captured:
@@ -396,7 +396,7 @@ async def track_intervention_outcomes(db: AsyncSession) -> list[dict[str, Any]]:
     # Group by suspect type to understand which interventions work
     outcomes_by_type: dict[str, dict[str, Any]] = {}
     for row in captured:
-        stype = row.suspect_type.value if row.suspect_type else "unknown"
+        stype = row.suspect_type if row.suspect_type else "unknown"
         if stype not in outcomes_by_type:
             outcomes_by_type[stype] = {
                 "intervention_type": stype,

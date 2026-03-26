@@ -56,10 +56,10 @@ async def evaluate_predictions(db: AsyncSession) -> dict[str, Any]:
     by_hcc_code: dict[int, dict] = {}
 
     for suspect in suspects:
-        was_correct = suspect.status == SuspectStatus.captured
+        was_correct = suspect.status == SuspectStatus.captured.value
         outcome = (
-            "confirmed" if suspect.status == SuspectStatus.captured
-            else "rejected" if suspect.status == SuspectStatus.dismissed
+            "confirmed" if suspect.status == SuspectStatus.captured.value
+            else "rejected" if suspect.status == SuspectStatus.dismissed.value
             else "expired"
         )
 
@@ -78,11 +78,11 @@ async def evaluate_predictions(db: AsyncSession) -> dict[str, Any]:
                 predicted_value=f"HCC {suspect.hcc_code} ({suspect.hcc_label})",
                 confidence=suspect.confidence,
                 outcome=outcome,
-                actual_value=f"Status: {suspect.status.value}",
+                actual_value=f"Status: {suspect.status}",
                 was_correct=was_correct,
                 context={
                     "hcc_code": suspect.hcc_code,
-                    "suspect_type": suspect.suspect_type.value,
+                    "suspect_type": suspect.suspect_type,
                     "raf_value": float(suspect.raf_value),
                     "member_id": suspect.member_id,
                 },
@@ -122,10 +122,10 @@ async def evaluate_predictions(db: AsyncSession) -> dict[str, Any]:
 
     # --- Care gap prediction evaluation ---
     closed_gaps = (await db.execute(
-        select(func.count(MemberGap.id)).where(MemberGap.status == GapStatus.closed)
+        select(func.count(MemberGap.id)).where(MemberGap.status == GapStatus.closed.value)
     )).scalar() or 0
     open_gaps = (await db.execute(
-        select(func.count(MemberGap.id)).where(MemberGap.status == GapStatus.open)
+        select(func.count(MemberGap.id)).where(MemberGap.status == GapStatus.open.value)
     )).scalar() or 0
 
     stats["gap_predictions"] = {

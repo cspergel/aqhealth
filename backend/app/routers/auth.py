@@ -46,7 +46,7 @@ async def login(body: LoginRequest, session: AsyncSession = Depends(get_session)
         if tenant:
             tenant_schema = tenant.schema_name
 
-    access_token = create_access_token(user.id, tenant_schema, user.role.value)
+    access_token = create_access_token(user.id, tenant_schema, user.role)
     refresh_token = create_refresh_token(user.id)
 
     return TokenResponse(
@@ -56,7 +56,7 @@ async def login(body: LoginRequest, session: AsyncSession = Depends(get_session)
             "id": user.id,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value,
+            "role": user.role,
         },
     )
 
@@ -83,7 +83,7 @@ async def refresh(body: RefreshRequest, session: AsyncSession = Depends(get_sess
         if tenant:
             tenant_schema = tenant.schema_name
 
-    access_token = create_access_token(user.id, tenant_schema, user.role.value)
+    access_token = create_access_token(user.id, tenant_schema, user.role)
     refresh_token = create_refresh_token(user.id)
 
     return TokenResponse(
@@ -93,6 +93,6 @@ async def refresh(body: RefreshRequest, session: AsyncSession = Depends(get_sess
             "id": user.id,
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role.value,
+            "role": user.role,
         },
     )

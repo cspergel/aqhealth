@@ -1,5 +1,5 @@
 from datetime import date
-from sqlalchemy import String, Date, Integer, ForeignKey, Numeric, Enum as SAEnum
+from sqlalchemy import String, Date, Integer, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -43,7 +43,7 @@ class Member(Base, TimestampMixin):
     # Computed fields (updated by HCC engine)
     current_raf: Mapped[float | None] = mapped_column(Numeric(8, 3), nullable=True)
     projected_raf: Mapped[float | None] = mapped_column(Numeric(8, 3), nullable=True)
-    risk_tier: Mapped[RiskTier | None] = mapped_column(SAEnum(RiskTier), nullable=True)
+    risk_tier: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Flexible extra data
     extra: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

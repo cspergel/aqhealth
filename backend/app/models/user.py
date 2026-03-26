@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, ForeignKey, Enum as SAEnum, Boolean
+from sqlalchemy import String, Integer, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 
@@ -21,7 +21,7 @@ class User(Base, TimestampMixin):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
     full_name: Mapped[str] = mapped_column(String(200))
-    role: Mapped[UserRole] = mapped_column(SAEnum(UserRole))
+    role: Mapped[str] = mapped_column(String(20))
     tenant_id: Mapped[int | None] = mapped_column(
         ForeignKey("platform.tenants.id"), nullable=True
     )  # NULL for superadmin

@@ -137,7 +137,7 @@ async def get_member_journey(
         "pcp": pcp_name,
         "current_raf": float(member.current_raf or 0),
         "projected_raf": float(member.projected_raf or 0),
-        "risk_tier": member.risk_tier.value if member.risk_tier else None,
+        "risk_tier": member.risk_tier if member.risk_tier else None,
     }
 
     # ---- 2. Claims ----
@@ -179,7 +179,7 @@ async def get_member_journey(
 
     open_suspects = 0
     for s in suspects:
-        if s.status == SuspectStatus.captured and s.captured_date:
+        if s.status == SuspectStatus.captured.value and s.captured_date:
             events.append({
                 "date": s.captured_date.isoformat(),
                 "type": "hcc_captured",
@@ -194,7 +194,7 @@ async def get_member_journey(
                     "message": f"+{float(s.raf_value):.3f} RAF captured"
                 }],
             })
-        elif s.status == SuspectStatus.open:
+        elif s.status == SuspectStatus.open.value:
             open_suspects += 1
 
     member_summary["open_suspects"] = open_suspects
@@ -209,7 +209,7 @@ async def get_member_journey(
 
     open_gaps = 0
     for g in gaps:
-        if g.status == GapStatus.closed and g.closed_date:
+        if g.status == GapStatus.closed.value and g.closed_date:
             events.append({
                 "date": g.closed_date.isoformat(),
                 "type": "gap_closed",
@@ -224,7 +224,7 @@ async def get_member_journey(
                     "message": f"{g.measure_code} gap closed"
                 }],
             })
-        elif g.status == GapStatus.open:
+        elif g.status == GapStatus.open.value:
             open_gaps += 1
 
     member_summary["open_gaps"] = open_gaps

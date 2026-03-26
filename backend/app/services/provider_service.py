@@ -325,7 +325,7 @@ async def get_provider_insights(db: AsyncSession, provider_id: int) -> list[dict
     # affected_providers is JSONB — check if it contains the provider_id
     stmt = select(Insight).where(
         and_(
-            Insight.status == InsightStatus.active,
+            Insight.status == InsightStatus.active.value,
             Insight.affected_providers.isnot(None),
         )
     )
@@ -351,7 +351,7 @@ async def get_provider_insights(db: AsyncSession, provider_id: int) -> list[dict
                 "dollar_impact": _float(ins.dollar_impact),
                 "recommended_action": ins.recommended_action,
                 "confidence": ins.confidence,
-                "category": ins.category.value if ins.category else "provider",
+                "category": ins.category if ins.category else "provider",
             })
 
     return matched

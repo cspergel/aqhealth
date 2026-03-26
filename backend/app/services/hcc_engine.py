@@ -328,7 +328,7 @@ async def _detect_recapture_gaps(
         select(HccSuspect).where(
             HccSuspect.member_id == member_id,
             HccSuspect.payment_year == prior_year,
-            HccSuspect.status == SuspectStatus.captured,
+            HccSuspect.status == SuspectStatus.captured.value,
         )
     )
     prior_suspects = result.scalars().all()
@@ -599,7 +599,7 @@ async def analyze_member(
                 HccSuspect.hcc_code == hcc_code,
                 HccSuspect.suspect_type == s["suspect_type"],
                 HccSuspect.payment_year == get_current_payment_year(),
-                HccSuspect.status == SuspectStatus.open,
+                HccSuspect.status == SuspectStatus.open.value,
             )
         )
         existing_suspect = existing.scalars().first()
@@ -627,7 +627,7 @@ async def analyze_member(
                 raf_value=raf_val,
                 annual_value=annual_val,
                 suspect_type=s["suspect_type"],
-                status=SuspectStatus.open,
+                status=SuspectStatus.open.value,
                 confidence=s.get("confidence", 50),
                 evidence_summary=s.get("evidence_summary", ""),
                 identified_date=today,

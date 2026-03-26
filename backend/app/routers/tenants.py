@@ -96,7 +96,7 @@ async def create_tenant(
     tenant = Tenant(
         name=body.name,
         schema_name=body.schema_name,
-        status=TenantStatus.onboarding,
+        status=TenantStatus.onboarding.value,
     )
     session.add(tenant)
     await session.flush()
@@ -115,7 +115,7 @@ async def create_tenant(
         id=tenant.id,
         name=tenant.name,
         schema_name=tenant.schema_name,
-        status=tenant.status.value,
+        status=tenant.status,
         created_at=str(tenant.created_at) if tenant.created_at else None,
     )
 
@@ -133,7 +133,7 @@ async def list_tenants(
             id=t.id,
             name=t.name,
             schema_name=t.schema_name,
-            status=t.status.value,
+            status=t.status,
             created_at=str(t.created_at) if t.created_at else None,
         )
         for t in tenants
@@ -154,7 +154,7 @@ async def get_tenant(
         id=tenant.id,
         name=tenant.name,
         schema_name=tenant.schema_name,
-        status=tenant.status.value,
+        status=tenant.status,
         created_at=str(tenant.created_at) if tenant.created_at else None,
     )
 
@@ -174,7 +174,7 @@ async def update_tenant(
     if body.name is not None:
         tenant.name = body.name
     if body.status is not None:
-        tenant.status = body.status
+        tenant.status = body.status.value if hasattr(body.status, 'value') else body.status
     if body.config is not None:
         tenant.config = body.config
 
@@ -185,7 +185,7 @@ async def update_tenant(
         id=tenant.id,
         name=tenant.name,
         schema_name=tenant.schema_name,
-        status=tenant.status.value,
+        status=tenant.status,
         created_at=str(tenant.created_at) if tenant.created_at else None,
     )
 
@@ -240,7 +240,7 @@ async def create_tenant_user(
         id=user.id,
         email=user.email,
         full_name=user.full_name,
-        role=user.role.value,
+        role=user.role,
         is_active=user.is_active,
     )
 
@@ -277,7 +277,7 @@ async def list_tenant_users(
             id=u.id,
             email=u.email,
             full_name=u.full_name,
-            role=u.role.value,
+            role=u.role,
             is_active=u.is_active,
         )
         for u in users

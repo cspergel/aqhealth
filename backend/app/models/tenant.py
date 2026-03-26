@@ -1,4 +1,4 @@
-from sqlalchemy import String, Enum as SAEnum
+from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -20,7 +20,5 @@ class Tenant(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     schema_name: Mapped[str] = mapped_column(String(63), unique=True)  # PG schema name limit
-    status: Mapped[TenantStatus] = mapped_column(
-        SAEnum(TenantStatus), default=TenantStatus.onboarding
-    )
+    status: Mapped[str] = mapped_column(String(20), default="onboarding")
     config: Mapped[dict | None] = mapped_column(JSONB, default=None)  # JSONB for tenant-specific settings

@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, Numeric, Enum as SAEnum, Text, Boolean
+from sqlalchemy import String, Integer, Numeric, Text, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -27,13 +27,13 @@ class Insight(Base, TimestampMixin):
     __tablename__ = "insights"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    category: Mapped[InsightCategory] = mapped_column(SAEnum(InsightCategory))
+    category: Mapped[str] = mapped_column(String(20))
     title: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text)
     dollar_impact: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     recommended_action: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
-    status: Mapped[InsightStatus] = mapped_column(SAEnum(InsightStatus), default=InsightStatus.active)
+    status: Mapped[str] = mapped_column(String(20), default="active")
 
     # What this insight is about
     affected_members: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

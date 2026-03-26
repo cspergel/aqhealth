@@ -190,7 +190,7 @@ async def list_suspects(
         filters.append(HccSuspect.status == status)
     else:
         # Default: show open suspects only
-        filters.append(HccSuspect.status == SuspectStatus.open)
+        filters.append(HccSuspect.status == SuspectStatus.open.value)
     if risk_tier is not None:
         filters.append(Member.risk_tier == risk_tier)
     if min_raf_value is not None:
@@ -243,8 +243,8 @@ async def list_suspects(
             icd10_label=suspect.icd10_label,
             raf_value=float(suspect.raf_value) if suspect.raf_value else 0.0,
             annual_value=float(suspect.annual_value) if suspect.annual_value else None,
-            suspect_type=suspect.suspect_type.value if suspect.suspect_type else "",
-            status=suspect.status.value if suspect.status else "",
+            suspect_type=suspect.suspect_type if suspect.suspect_type else "",
+            status=suspect.status if suspect.status else "",
             confidence=suspect.confidence,
             evidence_summary=suspect.evidence_summary,
             identified_date=suspect.identified_date,
@@ -256,7 +256,7 @@ async def list_suspects(
             pcp_name=pcp_name,
             current_raf=float(row.current_raf) if row.current_raf is not None else None,
             projected_raf=float(row.projected_raf) if row.projected_raf is not None else None,
-            risk_tier=row.risk_tier.value if row.risk_tier else None,
+            risk_tier=row.risk_tier if row.risk_tier else None,
         ))
 
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
@@ -306,7 +306,7 @@ async def get_member_suspects(
         date_of_birth=member.date_of_birth,
         current_raf=float(member.current_raf) if member.current_raf is not None else None,
         projected_raf=float(member.projected_raf) if member.projected_raf is not None else None,
-        risk_tier=member.risk_tier.value if member.risk_tier else None,
+        risk_tier=member.risk_tier if member.risk_tier else None,
         pcp_name=pcp_name,
         suspects=[
             SuspectOut(
@@ -319,8 +319,8 @@ async def get_member_suspects(
                 icd10_label=s.icd10_label,
                 raf_value=float(s.raf_value) if s.raf_value else 0.0,
                 annual_value=float(s.annual_value) if s.annual_value else None,
-                suspect_type=s.suspect_type.value if s.suspect_type else "",
-                status=s.status.value if s.status else "",
+                suspect_type=s.suspect_type if s.suspect_type else "",
+                status=s.status if s.status else "",
                 confidence=s.confidence,
                 evidence_summary=s.evidence_summary,
                 identified_date=s.identified_date,
@@ -352,7 +352,7 @@ async def update_suspect(
     today = date.today()
 
     if body.status == "captured":
-        suspect.status = SuspectStatus.captured
+        suspect.status = SuspectStatus.captured.value
         suspect.captured_date = today
     elif body.status == "dismissed":
         if not body.dismissed_reason:
@@ -360,7 +360,7 @@ async def update_suspect(
                 status_code=422,
                 detail="dismissed_reason is required when dismissing a suspect",
             )
-        suspect.status = SuspectStatus.dismissed
+        suspect.status = SuspectStatus.dismissed.value
         suspect.dismissed_date = today
         suspect.dismissed_reason = body.dismissed_reason
     else:
@@ -374,7 +374,7 @@ async def update_suspect(
 
     return SuspectUpdateOut(
         id=suspect.id,
-        status=suspect.status.value,
+        status=suspect.status,
         captured_date=suspect.captured_date,
         dismissed_date=suspect.dismissed_date,
         dismissed_reason=suspect.dismissed_reason,
@@ -401,7 +401,7 @@ async def get_summary(
     )
     status_counts: dict[str, int] = {}
     for row in status_q.all():
-        status_counts[row[0].value if hasattr(row[0], "value") else str(row[0])] = row[1]
+        status_counts[str(row[0])] = row[1]
 
     total_suspects = sum(status_counts.values())
     total_open = status_counts.get("open", 0)
@@ -413,7 +413,7 @@ async def get_summary(
         select(
             func.coalesce(func.sum(HccSuspect.raf_value), 0),
             func.coalesce(func.sum(HccSuspect.annual_value), 0),
-        ).where(HccSuspect.status == SuspectStatus.open)
+        ).where(HccSuspect.status == SuspectStatus.open.value)
     )
     opp_row = opp_q.one()
     total_raf_opportunity = float(opp_row[0])
@@ -427,12 +427,12 @@ async def get_summary(
             func.coalesce(func.sum(HccSuspect.raf_value), 0),
             func.coalesce(func.sum(HccSuspect.annual_value), 0),
         )
-        .where(HccSuspect.status == SuspectStatus.open)
+        .where(HccSuspect.status == SuspectStatus.open.value)
         .group_by(HccSuspect.suspect_type)
     )
     by_type = [
         SummaryTypeBreakdown(
-            suspect_type=row[0].value if hasattr(row[0], "value") else str(row[0]),
+            suspect_type=str(row[0]),
             count=row[1],
             total_raf=float(row[2]),
             total_annual_value=float(row[3]),
@@ -452,7 +452,7 @@ async def get_summary(
         )
         .join(Member, HccSuspect.member_id == Member.id)
         .outerjoin(Provider, Member.pcp_provider_id == Provider.id)
-        .where(HccSuspect.status == SuspectStatus.open)
+        .where(HccSuspect.status == SuspectStatus.open.value)
         .group_by(Member.pcp_provider_id, Provider.first_name, Provider.last_name)
         .order_by(func.sum(HccSuspect.annual_value).desc())
     )
@@ -537,7 +537,7 @@ async def export_suspects(
     if status is not None:
         filters.append(HccSuspect.status == status)
     else:
-        filters.append(HccSuspect.status == SuspectStatus.open)
+        filters.append(HccSuspect.status == SuspectStatus.open.value)
     if risk_tier is not None:
         filters.append(Member.risk_tier == risk_tier)
     if min_raf_value is not None:
@@ -572,15 +572,15 @@ async def export_suspects(
             "pcp_name": pcp_name,
             "current_raf": float(row.current_raf) if row.current_raf is not None else "",
             "projected_raf": float(row.projected_raf) if row.projected_raf is not None else "",
-            "risk_tier": row.risk_tier.value if row.risk_tier else "",
+            "risk_tier": row.risk_tier if row.risk_tier else "",
             "hcc_code": row.hcc_code,
             "hcc_label": row.hcc_label or "",
             "icd10_code": row.icd10_code or "",
             "icd10_label": row.icd10_label or "",
             "raf_value": float(row.raf_value) if row.raf_value else 0,
             "annual_value": float(row.annual_value) if row.annual_value else 0,
-            "suspect_type": row.suspect_type.value if hasattr(row.suspect_type, "value") else str(row.suspect_type),
-            "status": row.status.value if hasattr(row.status, "value") else str(row.status),
+            "suspect_type": str(row.suspect_type),
+            "status": str(row.status),
             "confidence": row.confidence or "",
             "evidence_summary": row.evidence_summary or "",
             "identified_date": str(row.identified_date) if row.identified_date else "",

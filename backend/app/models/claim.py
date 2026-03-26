@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import String, Date, Integer, ForeignKey, Numeric, Enum as SAEnum
+from sqlalchemy import String, Date, Integer, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -21,7 +21,7 @@ class Claim(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)
     claim_id: Mapped[str | None] = mapped_column(String(50), nullable=True)  # Payer claim number
-    claim_type: Mapped[ClaimType] = mapped_column(SAEnum(ClaimType), index=True)
+    claim_type: Mapped[str] = mapped_column(String(20), index=True)
 
     # Dates
     service_date: Mapped[date] = mapped_column(Date, index=True)

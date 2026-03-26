@@ -58,7 +58,7 @@ async def create_from_insight(db: AsyncSession, insight_id: int, assigned_to: in
         source_id=insight_id,
         title=insight.title,
         description=insight.description,
-        action_type=_infer_action_type(insight.category.value if hasattr(insight.category, "value") else str(insight.category)),
+        action_type=_infer_action_type(str(insight.category)),
         assigned_to=assigned_to,
         assigned_to_name=assigned_to_name,
         priority=_infer_priority(insight.dollar_impact),

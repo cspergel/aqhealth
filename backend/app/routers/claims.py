@@ -78,7 +78,7 @@ def _claim_to_out(c: Claim) -> ClaimOut:
         id=c.id,
         member_id=c.member_id,
         claim_id=c.claim_id,
-        claim_type=c.claim_type.value if c.claim_type else None,
+        claim_type=c.claim_type if c.claim_type else None,
         service_date=str(c.service_date),
         paid_date=str(c.paid_date) if c.paid_date else None,
         diagnosis_codes=c.diagnosis_codes,

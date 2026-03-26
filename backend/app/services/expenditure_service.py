@@ -923,8 +923,8 @@ async def get_expenditure_insights(db: AsyncSession, category: str | None = None
     query = (
         select(Insight)
         .where(
-            Insight.category == InsightCategory.cost,
-            Insight.status == InsightStatus.active,
+            Insight.category == InsightCategory.cost.value,
+            Insight.status == InsightStatus.active.value,
         )
         .order_by(Insight.dollar_impact.desc().nulls_last())
         .limit(10)
@@ -950,7 +950,7 @@ async def get_expenditure_insights(db: AsyncSession, category: str | None = None
             "dollar_impact": float(i.dollar_impact) if i.dollar_impact else None,
             "recommended_action": i.recommended_action,
             "confidence": i.confidence,
-            "category": i.category.value,
+            "category": i.category,
         }
         for i in insights
     ]

@@ -76,10 +76,10 @@ async def capture_suspect(
         raise HTTPException(status_code=404, detail="Suspect not found")
     if suspect.member_id != req.member_id:
         raise HTTPException(status_code=400, detail="Suspect does not belong to this member")
-    if suspect.status != SuspectStatus.open:
-        raise HTTPException(status_code=400, detail=f"Suspect is already {suspect.status.value}")
+    if suspect.status != SuspectStatus.open.value:
+        raise HTTPException(status_code=400, detail=f"Suspect is already {suspect.status}")
 
-    suspect.status = SuspectStatus.captured
+    suspect.status = SuspectStatus.captured.value
     suspect.captured_date = date.today()
     await db.flush()
     await db.commit()
@@ -105,10 +105,10 @@ async def close_gap(
         raise HTTPException(status_code=404, detail="Care gap not found")
     if gap.member_id != req.member_id:
         raise HTTPException(status_code=400, detail="Gap does not belong to this member")
-    if gap.status != GapStatus.open:
-        raise HTTPException(status_code=400, detail=f"Gap is already {gap.status.value}")
+    if gap.status != GapStatus.open.value:
+        raise HTTPException(status_code=400, detail=f"Gap is already {gap.status}")
 
-    gap.status = GapStatus.closed
+    gap.status = GapStatus.closed.value
     gap.closed_date = date.today()
     await db.flush()
     await db.commit()

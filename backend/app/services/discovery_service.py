@@ -171,7 +171,7 @@ async def anomaly_scan(db: AsyncSession) -> list[dict]:
             GapMeasure.name,
             GapMeasure.stars_weight,
             func.count(MemberGap.id).label("total"),
-            func.sum(case((MemberGap.status == GapStatus.closed, 1), else_=0)).label("closed"),
+            func.sum(case((MemberGap.status == GapStatus.closed.value, 1), else_=0)).label("closed"),
         )
         .join(MemberGap, MemberGap.measure_id == GapMeasure.id)
         .where(MemberGap.measurement_year == today.year)
@@ -291,7 +291,7 @@ async def opportunity_scan(db: AsyncSession) -> list[dict]:
             func.sum(HccSuspect.annual_value).label("total_value"),
         )
         .where(
-            HccSuspect.status == SuspectStatus.open,
+            HccSuspect.status == SuspectStatus.open.value,
             HccSuspect.suspect_type == "specificity",
         )
         .group_by(HccSuspect.hcc_code, HccSuspect.hcc_label)
@@ -546,7 +546,7 @@ async def temporal_scan(db: AsyncSession) -> list[dict]:
     new_suspects_q = await db.execute(
         select(func.count(HccSuspect.id)).where(
             HccSuspect.identified_date >= this_month_start,
-            HccSuspect.status == SuspectStatus.open,
+            HccSuspect.status == SuspectStatus.open.value,
         )
     )
     new_suspects = _si(new_suspects_q.scalar())
@@ -555,7 +555,7 @@ async def temporal_scan(db: AsyncSession) -> list[dict]:
         select(func.count(HccSuspect.id)).where(
             HccSuspect.identified_date >= last_month_start,
             HccSuspect.identified_date < this_month_start,
-            HccSuspect.status == SuspectStatus.open,
+            HccSuspect.status == SuspectStatus.open.value,
         )
     )
     prior_suspects = _si(prior_suspects_q.scalar())
@@ -598,7 +598,7 @@ async def cross_module_scan(db: AsyncSession) -> list[dict]:
             func.count(HccSuspect.id).label("cnt"),
             func.sum(HccSuspect.annual_value).label("val"),
         )
-        .where(HccSuspect.status == SuspectStatus.open)
+        .where(HccSuspect.status == SuspectStatus.open.value)
         .group_by(HccSuspect.member_id)
         .having(func.count(HccSuspect.id) >= 3)
     )
@@ -607,7 +607,7 @@ async def cross_module_scan(db: AsyncSession) -> list[dict]:
     # Members with 2+ open care gaps
     multi_gap_q = await db.execute(
         select(MemberGap.member_id, func.count(MemberGap.id).label("cnt"))
-        .where(MemberGap.status == GapStatus.open, MemberGap.measurement_year == current_year)
+        .where(MemberGap.status == GapStatus.open.value, MemberGap.measurement_year == current_year)
         .group_by(MemberGap.member_id)
         .having(func.count(MemberGap.id) >= 2)
     )

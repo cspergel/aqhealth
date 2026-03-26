@@ -113,7 +113,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
         select(HccSuspect).where(
             HccSuspect.member_id == member_id,
             HccSuspect.payment_year == get_current_payment_year(),
-            HccSuspect.status == SuspectStatus.open,
+            HccSuspect.status == SuspectStatus.open.value,
         )
     )
     suspects_raw = suspects_result.scalars().all()
@@ -127,7 +127,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
             "annual_value": float(s.annual_value) if s.annual_value else _annual_value(s.raf_value),
             "evidence_summary": s.evidence_summary or "",
             "confidence": s.confidence or 0,
-            "suspect_type": s.suspect_type.value if s.suspect_type else "unknown",
+            "suspect_type": s.suspect_type if s.suspect_type else "unknown",
         }
         for s in suspects_raw
     ]
@@ -147,7 +147,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
         select(HccSuspect).where(
             HccSuspect.member_id == member_id,
             HccSuspect.payment_year == get_current_payment_year(),
-            HccSuspect.status == SuspectStatus.captured,
+            HccSuspect.status == SuspectStatus.captured.value,
         )
     )
     confirmed_raw = confirmed_result.scalars().all()
@@ -167,7 +167,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
         .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
         .where(
             MemberGap.member_id == member_id,
-            MemberGap.status == GapStatus.open,
+            MemberGap.status == GapStatus.open.value,
         )
     )
     care_gaps = [
@@ -232,7 +232,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     encounters = [
         {
             "date": c.service_date.isoformat(),
-            "type": c.claim_type.value if c.claim_type else "unknown",
+            "type": c.claim_type if c.claim_type else "unknown",
             "facility": c.facility_name or "Unknown",
             "provider": str(c.rendering_provider_id) if c.rendering_provider_id else "Unknown",
             "diagnoses": c.diagnosis_codes or [],
@@ -242,7 +242,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     ]
 
     # ---- Risk scores ----
-    risk_tier = member.risk_tier.value if member.risk_tier else "low"
+    risk_tier = member.risk_tier if member.risk_tier else "low"
     hospitalization_risk = 15.0 if risk_tier == "high" else (28.0 if risk_tier == "complex" else 8.0)
 
     # ---- AI visit prep (generated narrative) ----
@@ -335,7 +335,7 @@ async def get_provider_worklist(
         suspects_result = await db.execute(
             select(func.count(HccSuspect.id)).where(
                 HccSuspect.member_id == m.id,
-                HccSuspect.status == SuspectStatus.open,
+                HccSuspect.status == SuspectStatus.open.value,
             )
         )
         suspect_count = suspects_result.scalar() or 0
@@ -344,7 +344,7 @@ async def get_provider_worklist(
         gaps_result = await db.execute(
             select(func.count(MemberGap.id)).where(
                 MemberGap.member_id == m.id,
-                MemberGap.status == GapStatus.open,
+                MemberGap.status == GapStatus.open.value,
             )
         )
         gap_count = gaps_result.scalar() or 0
@@ -386,7 +386,7 @@ async def get_provider_worklist(
             "gap_count": gap_count,
             "priority_score": round(priority_score, 3),
             "priority_reason": ", ".join(reasons),
-            "risk_tier": m.risk_tier.value if m.risk_tier else "low",
+            "risk_tier": m.risk_tier if m.risk_tier else "low",
         })
 
     worklist.sort(key=lambda x: x["priority_score"], reverse=True)

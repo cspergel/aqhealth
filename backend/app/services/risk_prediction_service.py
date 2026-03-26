@@ -134,7 +134,7 @@ async def predict_hospitalization_risk(db: AsyncSession) -> list[dict]:
         )
         .where(
             HccSuspect.member_id.in_(member_ids),
-            HccSuspect.status == SuspectStatus.open,
+            HccSuspect.status == SuspectStatus.open.value,
         )
         .group_by(HccSuspect.member_id)
     )
@@ -175,7 +175,7 @@ async def predict_hospitalization_risk(db: AsyncSession) -> list[dict]:
         )
         .where(
             MemberGap.member_id.in_(member_ids),
-            MemberGap.status == GapStatus.open,
+            MemberGap.status == GapStatus.open.value,
         )
         .group_by(MemberGap.member_id)
     )
@@ -386,7 +386,7 @@ async def predict_raf_impact(db: AsyncSession) -> dict:
             func.count(HccSuspect.id),
             func.coalesce(func.sum(HccSuspect.raf_value), 0),
             func.coalesce(func.sum(HccSuspect.annual_value), 0),
-        ).where(HccSuspect.status == SuspectStatus.open)
+        ).where(HccSuspect.status == SuspectStatus.open.value)
     )
     s_row = suspect_q.one()
     open_suspects = _safe_int(s_row[0])
@@ -396,7 +396,7 @@ async def predict_raf_impact(db: AsyncSession) -> dict:
     # Captured suspects (for current capture rate)
     captured_q = await db.execute(
         select(func.count(HccSuspect.id))
-        .where(HccSuspect.status == SuspectStatus.captured)
+        .where(HccSuspect.status == SuspectStatus.captured.value)
     )
     captured_count = _safe_int(captured_q.scalar())
     total_suspects = open_suspects + captured_count

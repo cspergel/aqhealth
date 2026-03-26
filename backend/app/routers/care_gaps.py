@@ -179,7 +179,7 @@ async def list_member_gaps(
     if status is not None:
         query = query.where(MemberGap.status == status)
     else:
-        query = query.where(MemberGap.status == GapStatus.open)
+        query = query.where(MemberGap.status == GapStatus.open.value)
 
     query = query.order_by(GapMeasure.code, Member.last_name)
     offset = (page - 1) * page_size
@@ -201,7 +201,7 @@ async def list_member_gaps(
             member_name=f"{row.first_name} {row.last_name}".strip(),
             measure_code=row.code,
             measure_name=row.measure_name,
-            status=gap.status.value,
+            status=gap.status,
             due_date=str(gap.due_date) if gap.due_date else None,
             closed_date=str(gap.closed_date) if gap.closed_date else None,
             measurement_year=gap.measurement_year,
@@ -258,7 +258,7 @@ async def update_gap(
 
     return GapUpdateOut(
         id=gap.id,
-        status=gap.status.value,
+        status=gap.status,
         closed_date=str(gap.closed_date) if gap.closed_date else None,
     )
 
@@ -388,7 +388,7 @@ async def export_gaps(
     if status is not None:
         query = query.where(MemberGap.status == status)
     else:
-        query = query.where(MemberGap.status == GapStatus.open)
+        query = query.where(MemberGap.status == GapStatus.open.value)
 
     query = query.order_by(GapMeasure.code, Member.last_name)
     result = await db.execute(query)
@@ -414,7 +414,7 @@ async def export_gaps(
             "measure_code": row.measure_code,
             "measure_name": row.measure_name,
             "stars_weight": row.stars_weight,
-            "status": row.status.value if hasattr(row.status, "value") else str(row.status),
+            "status": str(row.status),
             "due_date": str(row.due_date) if row.due_date else "",
             "closed_date": str(row.closed_date) if row.closed_date else "",
             "pcp_name": pcp_name,

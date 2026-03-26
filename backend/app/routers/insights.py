@@ -69,16 +69,16 @@ async def list_insights(
 
     # Default to active status
     if status:
-        status_map = {s.value: s for s in InsightStatus}
-        if status in status_map:
-            query = query.where(Insight.status == status_map[status])
+        valid_statuses = {s.value for s in InsightStatus}
+        if status in valid_statuses:
+            query = query.where(Insight.status == status)
     else:
-        query = query.where(Insight.status == InsightStatus.active)
+        query = query.where(Insight.status == InsightStatus.active.value)
 
     if category:
-        cat_map = {c.value: c for c in InsightCategory}
-        if category in cat_map:
-            query = query.where(Insight.category == cat_map[category])
+        valid_categories = {c.value for c in InsightCategory}
+        if category in valid_categories:
+            query = query.where(Insight.category == category)
 
     if surface_on:
         # JSONB array contains check
@@ -127,11 +127,11 @@ async def update_insight_status(
     if not insight:
         raise HTTPException(status_code=404, detail="Insight not found")
 
-    status_map = {s.value: s for s in InsightStatus}
-    if body.status not in status_map:
-        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {list(status_map.keys())}")
+    valid_statuses = {s.value for s in InsightStatus}
+    if body.status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {list(valid_statuses)}")
 
-    insight.status = status_map[body.status]
+    insight.status = body.status
     await db.commit()
     await db.refresh(insight)
 
@@ -155,13 +155,13 @@ async def regenerate_insights(
 def _insight_to_dict(i: Insight) -> dict:
     return {
         "id": i.id,
-        "category": i.category.value if hasattr(i.category, "value") else str(i.category),
+        "category": str(i.category),
         "title": i.title,
         "description": i.description,
         "dollar_impact": float(i.dollar_impact) if i.dollar_impact is not None else None,
         "recommended_action": i.recommended_action,
         "confidence": i.confidence,
-        "status": i.status.value if hasattr(i.status, "value") else str(i.status),
+        "status": str(i.status),
         "affected_members": i.affected_members,
         "affected_providers": i.affected_providers,
         "surface_on": i.surface_on,

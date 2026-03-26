@@ -1,5 +1,5 @@
 from datetime import date
-from sqlalchemy import String, Date, Integer, ForeignKey, Numeric, Enum as SAEnum, Boolean, Text
+from sqlalchemy import String, Date, Integer, ForeignKey, Numeric, Boolean, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -39,7 +39,7 @@ class MemberGap(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)
     measure_id: Mapped[int] = mapped_column(ForeignKey("gap_measures.id"), index=True)
-    status: Mapped[GapStatus] = mapped_column(SAEnum(GapStatus), default=GapStatus.open, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     closed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     measurement_year: Mapped[int] = mapped_column(Integer, index=True)

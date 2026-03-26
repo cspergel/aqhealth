@@ -53,7 +53,7 @@ async def get_dashboard_metrics(db: AsyncSession) -> dict:
         select(func.count(HccSuspect.id)).where(
             HccSuspect.payment_year == current_year,
             HccSuspect.suspect_type == "recapture",
-            HccSuspect.status == SuspectStatus.captured,
+            HccSuspect.status == SuspectStatus.captured.value,
         )
     )
     prior_year_captured = prior_year_captured_q.scalar() or 0
@@ -68,7 +68,7 @@ async def get_dashboard_metrics(db: AsyncSession) -> dict:
             func.count(HccSuspect.id),
             func.coalesce(func.sum(HccSuspect.raf_value), 0),
             func.coalesce(func.sum(HccSuspect.annual_value), 0),
-        ).where(HccSuspect.status == SuspectStatus.open)
+        ).where(HccSuspect.status == SuspectStatus.open.value)
     )
     inv_row = suspect_inv_q.one()
     suspect_inventory = {
@@ -165,7 +165,7 @@ async def get_revenue_opportunities(db: AsyncSession) -> list[dict]:
             func.coalesce(func.sum(HccSuspect.raf_value), 0).label("total_raf"),
             func.coalesce(func.sum(HccSuspect.annual_value), 0).label("total_value"),
         )
-        .where(HccSuspect.status == SuspectStatus.open)
+        .where(HccSuspect.status == SuspectStatus.open.value)
         .group_by(HccSuspect.hcc_code, HccSuspect.hcc_label)
         .order_by(func.sum(HccSuspect.annual_value).desc())
         .limit(10)
@@ -299,10 +299,10 @@ async def get_care_gap_summary(db: AsyncSession) -> list[dict]:
             GapMeasure.category,
             func.count(MemberGap.id).label("total_gaps"),
             func.sum(
-                case((MemberGap.status == GapStatus.closed, 1), else_=0)
+                case((MemberGap.status == GapStatus.closed.value, 1), else_=0)
             ).label("closed_count"),
             func.sum(
-                case((MemberGap.status == GapStatus.open, 1), else_=0)
+                case((MemberGap.status == GapStatus.open.value, 1), else_=0)
             ).label("open_count"),
         )
         .join(MemberGap, MemberGap.measure_id == GapMeasure.id)
@@ -336,7 +336,7 @@ async def get_dashboard_insights(db: AsyncSession) -> list[dict]:
     result = await db.execute(
         select(Insight)
         .where(
-            Insight.status == InsightStatus.active,
+            Insight.status == InsightStatus.active.value,
         )
         .order_by(Insight.dollar_impact.desc().nulls_last())
         .limit(5)
@@ -346,7 +346,7 @@ async def get_dashboard_insights(db: AsyncSession) -> list[dict]:
     return [
         {
             "id": i.id,
-            "category": i.category.value if hasattr(i.category, "value") else str(i.category),
+            "category": str(i.category),
             "title": i.title,
             "description": i.description,
             "dollar_impact": float(i.dollar_impact) if i.dollar_impact is not None else None,
