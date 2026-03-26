@@ -1,7 +1,7 @@
 # AQSoft Health Platform — Team Development Guide
 
-**Last updated:** 2026-03-25
-**Status:** MVP demo functional, real backend operational, AI insights generating
+**Last updated:** 2026-03-26
+**Status:** MVP demo functional, real backend operational, AI insights generating — **57 commits, 43 routers, 47 services, 36 pages, 25 models**
 
 ---
 
@@ -50,6 +50,14 @@ SNF Admit Assist (FastAPI)          → localhost:8000
 
 **Multi-tenant:** Each MSO client gets a PostgreSQL schema (`demo_mso`, `sunstate`, etc.). All queries are schema-scoped via middleware.
 
+**LLM Guard:** Every AI/LLM call is tenant-scoped. Prompts, context, and responses are isolated per tenant — no cross-tenant data leakage in any AI-generated content. This is enforced at the service layer, not just the API layer.
+
+**Role-Based UI:** 8 user roles (superadmin, mso_admin, care_manager, pcp_provider, analyst, finance, quality, readonly) with section-level and page-level filtering. The sidebar, dashboards, and AI insights all adapt to the authenticated user's role.
+
+**Hierarchical Groups:** MSO → practice → location hierarchy with analytics roll-up at every level. Groups are managed via `practice_group` models and reflected throughout provider scorecards and financial reporting.
+
+**Flexible Tagging:** User-defined tags on members, providers, and entities. Tags propagate through filters, analytics, and reports — enabling custom segmentation beyond rigid hierarchies.
+
 **No PostgreSQL enums:** All status/type fields use `VARCHAR(20)`. This avoids cross-schema enum issues and makes migrations simpler.
 
 ---
@@ -59,13 +67,13 @@ SNF Admit Assist (FastAPI)          → localhost:8000
 ```
 backend/
 ├── app/
-│   ├── main.py              # FastAPI app — 163 routes registered
+│   ├── main.py              # FastAPI app — 200+ routes registered
 │   ├── config.py            # Settings from .env
 │   ├── database.py          # Async engine, tenant schema routing
 │   ├── dependencies.py      # Auth, tenant session injection
-│   ├── models/              # 20 SQLAlchemy models
-│   ├── routers/             # 30 API routers (see below)
-│   ├── services/            # 33 business logic services
+│   ├── models/              # 25 SQLAlchemy models
+│   ├── routers/             # 43 API routers (see below)
+│   ├── services/            # 47 business logic services
 │   └── workers/             # 3 background workers (arq/Redis)
 ├── scripts/
 │   ├── setup_db.py          # One-command database setup
@@ -81,7 +89,7 @@ backend/
 frontend/
 ├── src/
 │   ├── App.tsx              # Root with auth, routing, error boundary
-│   ├── pages/               # 30 page components
+│   ├── pages/               # 36 page components
 │   ├── components/          # Reusable UI components
 │   │   ├── layout/          # Sidebar, TopBar, AppShell
 │   │   ├── ui/              # Tag, MetricCard, InsightCard, etc.
@@ -99,7 +107,7 @@ frontend/
 
 ---
 
-## API Router Map (30 routers, 163+ routes)
+## API Router Map (43 routers, 200+ routes)
 
 | Section | Router | Key Endpoints |
 |---------|--------|---------------|
@@ -119,12 +127,19 @@ frontend/
 | **Scenarios** | `scenarios` | POST `/run`, GET `/prebuilt` |
 | **Financial** | `financial` | GET `/pnl`, `/pnl/by-plan`, `/pnl/by-group`, `/forecast` |
 | **Reconciliation** | `reconciliation` | POST `/run`, GET `/report`, `/ibnr` |
-| **Stars** | `stars` | GET `/projection`, `/opportunities`, POST `/simulate` |
-| **AWV** | `awv` | GET `/dashboard`, `/due`, `/opportunities`, `/export` |
-| **TCM** | `tcm` | GET `/dashboard`, `/active`, PATCH `/{member_id}` |
-| **RADV** | `radv` | GET `/readiness`, `/member/{id}`, `/vulnerable` |
+| **Alert Rules** | `alert_rules` | GET/POST/PATCH/DELETE `/rules`, POST `/evaluate`, GET `/triggers`, `/presets` |
 | **Attribution** | `attribution` | GET `/dashboard`, `/changes`, `/churn-risk` |
+| **AWV** | `awv` | GET `/dashboard`, `/due`, `/opportunities`, `/export` |
+| **BOI** | `boi` | GET `/dashboard`, `/interventions`, `/recommendations`, POST `/calculate-roi` |
+| **Clinical Exchange** | `clinical_exchange` | GET `/dashboard`, `/requests`, POST `/generate-evidence`, `/auto-respond` |
+| **Education** | `education` | GET `/recommendations`, `/library`, POST `/complete` |
+| **Practice Expenses** | `practice_expenses` | GET `/dashboard`, `/staffing`, `/trends`, `/efficiency`, `/hiring-analysis` |
+| **RADV** | `radv` | GET `/readiness`, `/member/{id}`, `/vulnerable` |
+| **Risk Accounting** | `risk_accounting` | GET `/dashboard`, `/capitation`, `/subcap`, `/pools`, `/ibnr`, `/surplus-deficit` |
+| **Stars** | `stars` | GET `/projection`, `/opportunities`, POST `/simulate` |
 | **Stop-Loss** | `stoploss` | GET `/dashboard`, `/high-cost`, `/risk-corridor` |
+| **TCM** | `tcm` | GET `/dashboard`, `/active`, PATCH `/{member_id}` |
+| **Temporal** | `temporal` | GET `/snapshot`, `/compare`, `/timeline`, `/changes` |
 | **ADT** | `adt` | POST `/webhook`, `/events`, `/batch`, GET `/census`, `/alerts` |
 | **Actions** | `actions` | GET `/actions`, `/stats`, POST `/actions`, PATCH `/{id}` |
 | **Reports** | `reports` | GET `/templates`, `/reports`, `/{id}`, POST `/generate` |
@@ -132,7 +147,6 @@ frontend/
 | **Watchlist** | `watchlist` | GET/POST `/watchlist`, DELETE `/{id}`, PATCH `/acknowledge` |
 | **Learning** | `learning` | GET `/accuracy`, `/report`, POST `/track` |
 | **Patterns** | `patterns` | GET `/code-utilization`, `/success`, `/playbooks`, `/benchmarks` |
-| **Education** | `education` | GET `/recommendations`, `/library`, POST `/complete` |
 | **Cohorts** | `cohorts` | POST `/build`, `/save`, GET `/cohorts`, `/{id}`, `/{id}/trends` |
 | **Filters** | `filters` | GET `/fields`, `/filters`, POST `/filters`, DELETE `/{id}` |
 | **Data Quality** | `data_quality` | GET `/reports`, `/quarantine`, `/unresolved`, `/lineage` |
@@ -185,6 +199,9 @@ frontend/
 - [x] Attribution management with churn risk
 - [x] Stop-loss / risk corridor monitoring
 - [x] Financial P&L (confirmed vs projected, IBNR)
+- [x] Risk accounting (capitation, subcap, pools, IBNR, surplus/deficit)
+- [x] Practice expense analytics (staffing, efficiency, hiring analysis)
+- [x] BOI / ROI tracker (interventions, recommendations, ROI calculation)
 - [x] Predictions (hospitalization risk, cost, RAF scenarios)
 - [x] Scenario modeling (6 what-if types)
 - [x] Member roster with smart filters + presets
@@ -192,9 +209,12 @@ frontend/
 - [x] Patient journey timeline (24-month)
 - [x] Clinical patient view (provider overlay)
 - [x] Live census + care alerts (ADT)
+- [x] Alert rules engine (configurable rules, presets, triggers, evaluation)
 - [x] Intelligence (playbooks, patterns, improvements, learning)
+- [x] Temporal analytics / Time Machine (snapshots, comparison, timeline, changes)
 - [x] Conversational AI (Ask Bar)
 - [x] Data ingestion with AI column mapping
+- [x] Clinical data exchange (evidence requests, auto-respond, evidence generation)
 - [x] Data quality + entity resolution + lineage
 - [x] Annotations, watchlists, actions, reports
 - [x] Provider education engine
@@ -204,6 +224,10 @@ frontend/
 - [x] Self-learning feedback system
 - [x] Dual data tiers (signal vs record) with reconciliation
 - [x] Real AI insight generation (Claude)
+- [x] LLM Guard (tenant data isolation in all AI calls)
+- [x] Role-based UI (8 roles with section/page filtering)
+- [x] Hierarchical group structure (MSO → practice → location)
+- [x] Flexible tagging system
 
 ### TODO (next priorities):
 
@@ -219,7 +243,6 @@ frontend/
 - [ ] User onboarding flow for new MSO clients
 - [ ] CAHPS / member experience tracking
 - [ ] Medicare Advantage bid support analytics
-- [ ] Staff productivity / SLA monitoring
 
 ### Known Issues:
 

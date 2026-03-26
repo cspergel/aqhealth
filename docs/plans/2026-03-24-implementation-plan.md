@@ -2214,7 +2214,58 @@ This is the design-reset encounter view adapted for the overlay use case.
 
 ---
 
-## Phase 12: Future — FHIR Integration with eCW
+## Phase 12: Quality & Compliance Expansion (COMPLETE)
+
+**Built:** Stars Simulator, AWV Tracking, RADV Readiness, TCM Cases
+
+| Component | Router | Service | Page | Status |
+|-----------|--------|---------|------|--------|
+| Stars Simulator | `stars.py` | `stars_service.py` | `StarsSimulatorPage.tsx` | Done |
+| AWV Tracking | `awv.py` | `awv_service.py` | `AWVPage.tsx` | Done |
+| RADV Readiness | `radv.py` | `radv_service.py` | `RADVPage.tsx` | Done |
+| TCM Cases | `tcm.py` | `tcm_service.py` | `TCMPage.tsx` | Done |
+
+---
+
+## Phase 13: Financial Depth (COMPLETE)
+
+**Built:** Risk Accounting, Practice Expenses, Stop-Loss, BOI/ROI Tracker
+
+| Component | Router | Service | Page | Status |
+|-----------|--------|---------|------|--------|
+| Risk Accounting | `risk_accounting.py` | `risk_accounting_service.py` | `RiskAccountingPage.tsx` | Done |
+| Practice Expenses | `practice_expenses.py` | `practice_expenses_service.py` | `PracticeExpensesPage.tsx` | Done |
+| Stop-Loss | `stoploss.py` | `stoploss_service.py` | `StopLossPage.tsx` | Done |
+| BOI / ROI | `boi.py` | `boi_service.py` | `BOIPage.tsx` | Done |
+
+---
+
+## Phase 14: Population & Network Intelligence (COMPLETE)
+
+**Built:** Attribution, Alert Rules, Education, Clinical Exchange, Temporal Analytics
+
+| Component | Router | Service | Page | Status |
+|-----------|--------|---------|------|--------|
+| Attribution | `attribution.py` | `attribution_service.py` | `AttributionPage.tsx` | Done |
+| Alert Rules | `alert_rules.py` | `alert_rules_service.py` | `AlertRulesPage.tsx` | Done |
+| Education | `education.py` | `education_service.py` | `EducationPage.tsx` | Done |
+| Clinical Exchange | `clinical_exchange.py` | `clinical_exchange_service.py` | `ClinicalExchangePage.tsx` | Done |
+| Temporal / Time Machine | `temporal.py` | `temporal_service.py` | `TemporalPage.tsx` | Done |
+
+---
+
+## Phase 15: Platform Hardening (COMPLETE)
+
+**Built:** LLM Guard, Role-Based UI, Hierarchical Groups, Tagging System
+
+- **LLM Guard** — Tenant data isolation enforced across all AI calls at the service layer
+- **Role-Based UI** — 8 roles with section/page filtering (superadmin, mso_admin, care_manager, pcp_provider, analyst, finance, quality, readonly)
+- **Hierarchical Groups** — MSO → practice → location with roll-up analytics
+- **Flexible Tagging** — User-defined tags on members, providers, entities for custom segmentation
+
+---
+
+## Phase 16: Future — FHIR Integration with eCW
 
 Once the Platform is live and providers are using the patient view, add FHIR to enrich the data:
 
@@ -2231,57 +2282,36 @@ This is an enhancement, not a requirement. The Platform works without it by usin
 ## Execution Order & Dependencies
 
 ```
-Phase 1 (Foundation)          — No dependencies. Start here.
-  ├── Task 1.1: Repo setup
-  ├── Task 1.2: Database + models
-  ├── Task 1.3: Auth
-  └── Task 1.4: Frontend foundation
-
-Phase 2 (Data Models)         — Depends on Phase 1
-  └── Task 2.1: All tenant models + migrations
-
-Phase 3 (Ingestion)           — Depends on Phase 2
-  └── Task 3.1: Upload + AI mapping + processing
-
-Phase 4 (HCC Engine)          — Depends on Phase 2, 3. Needs SNF Admit Assist running.
-  ├── Task 4.1: SNF client
-  └── Task 4.2: HCC engine + chase list UI
-
-Phase 5 (Dashboard)           — Depends on Phase 2 (can start with mock data)
-  └── Task 5.1: Dashboard API + UI
-
-Phase 6 (Expenditure)         — Depends on Phase 3 (needs claims data)
-  └── Task 6.1: Aggregation + drill-downs + AI recs
-
-Phase 7 (Providers)           — Depends on Phase 4, 6 (needs HCC + expenditure data)
-  └── Task 7.1: Scorecards + peer comparison
-
-Phase 8 (Care Gaps)           — Depends on Phase 3 (needs claims data)
-  └── Task 8.1: Gap detection + UI
-
-Phase 9 (Insights)            — Depends on Phase 4, 6, 8 (all data sources)
-  └── Task 9.1: LLM insight pipeline
-
-Phase 10 (Tenant Mgmt)        — Depends on Phase 1. Can be built in parallel.
-  └── Task 10.1: Superadmin CRUD
-
-Phase 11 (Provider Clinical View) — Depends on Phase 4, 8 (needs HCC engine + care gaps)
-  ├── Task 11.1: Patient search + context API
-  ├── Task 11.2: Clinical encounter view (design-reset UI)
-  ├── Task 11.3: Provider worklist / today's patients
-  └── Task 11.4: AQTracker data sync
-
-Phase 12 (FHIR / eCW)        — Depends on Phase 11. Enhancement, not required for launch.
-  └── Real-time EMR data enrichment
+Phase 1 (Foundation)              — COMPLETE
+Phase 2 (Data Models)             — COMPLETE
+Phase 3 (Ingestion)               — COMPLETE
+Phase 4 (HCC Engine)              — COMPLETE
+Phase 5 (Dashboard)               — COMPLETE
+Phase 6 (Expenditure)             — COMPLETE
+Phase 7 (Providers)               — COMPLETE
+Phase 8 (Care Gaps)               — COMPLETE
+Phase 9 (Insights)                — COMPLETE
+Phase 10 (Tenant Mgmt)            — COMPLETE
+Phase 11 (Provider Clinical View) — COMPLETE
+Phase 12 (Quality & Compliance)   — COMPLETE (Stars, AWV, RADV, TCM)
+Phase 13 (Financial Depth)        — COMPLETE (Risk Accounting, Practice Expenses, Stop-Loss, BOI)
+Phase 14 (Population & Network)   — COMPLETE (Attribution, Alert Rules, Education, Exchange, Temporal)
+Phase 15 (Platform Hardening)     — COMPLETE (LLM Guard, Role-Based UI, Groups, Tags)
+Phase 16 (FHIR / eCW)            — FUTURE (enhancement, not required for launch)
 ```
 
-**Parallelizable work:**
-- Phase 5 (Dashboard) can start in parallel with Phase 3-4 using mock data
-- Phase 8 (Care Gaps) can run in parallel with Phase 4 (HCC Engine)
-- Phase 10 (Tenant Mgmt) can run in parallel with everything after Phase 1
-- Phase 11.1-11.3 (Provider View) can start in parallel with Phase 6-7 once Phase 4 + 8 are done
-- Phase 11.4 (AQTracker Sync) can start as soon as AQTracker's API is available
-- Frontend and backend for each phase can be worked on in parallel by different team members
+**Remaining work (not in phases above):**
+- AQTracker connector (live hospital billing data feed)
+- Load real MSO data through ingestion pipeline
+- FHIR / eCW integration for PCP office overlay
+- Full 37 quality measures seeded (currently 13)
+- Production deployment (Docker, Kubernetes, HIPAA hardening)
+- SOC 2 / HIPAA compliance audit
+- Automated report scheduling
+- Email/SMS notification system
+- User onboarding flow
+- CAHPS / member experience tracking
+- Medicare Advantage bid support analytics
 
 ---
 

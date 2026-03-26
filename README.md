@@ -2,6 +2,8 @@
 
 **EMR-agnostic managed care intelligence platform.**
 
+> **57 commits** | **36 pages** | **47 services** | **43 routers** | **25 models**
+
 [Live Demo](https://cspergel.github.io/aqhealth/?demo=true)
 
 ---
@@ -25,12 +27,15 @@ AQSoft serves three customer segments. **Billing companies** use it for operatio
 - **Dashboard** — Population-level metrics at a glance: attributed lives, average RAF score, recapture rate, suspect HCC inventory, PMPM spend, MLR. AI-generated insight panel with the 3-5 highest-impact findings.
 - **Live Census** — Real-time view of patient activity across facilities.
 - **Alerts** — Configurable care alerts with open/acknowledged/in-progress tracking.
+- **Alert Rules** — Fully configurable alert rule engine with presets, threshold triggers, and evaluation scheduling.
 - **Watchlist** — Monitored members with change detection and notification.
 - **Actions** — Centralized action queue for follow-ups across all modules.
+- **TCM Cases** — Transitional Care Management tracking for post-discharge follow-up with status workflows.
 
 ### Population
 - **Members** — Full member roster with smart filters (risk tier, plan, PCP, open suspects, open gaps). Drill into any member for a complete longitudinal view.
 - **Cohorts** — Dynamic, rule-based cohorts for targeted analytics and outreach.
+- **Attribution** — Member attribution tracking with churn-risk scoring, change history, and assignment analytics.
 
 ### Revenue
 - **Suspect HCCs** — AI-driven chase lists ranked by estimated RAF dollar value. Suspects sourced from med-dx gap detection, specificity upgrades, recapture gaps, near-miss interactions, and historical pattern analysis. Filterable by provider, HCC category, risk tier, plan, and suspect type.
@@ -41,25 +46,36 @@ AQSoft serves three customer segments. **Billing companies** use it for operatio
 
 ### Quality
 - **Care Gaps** — HEDIS and Stars measure tracking with configurable targets. Population-level closure rates, member-level gap lists, and provider-level performance feeds. AI prioritization tied to Stars impact — triple-weighted measures and ROI-ranked closure recommendations.
+- **AWV Tracking** — Annual Wellness Visit scheduling, due-list management, revenue opportunity analysis, and export for outreach campaigns.
+- **Stars Simulator** — Model "if I close these specific gaps" scenarios to project Stars rating changes and quality bonus impact.
+- **RADV Readiness** — Risk Adjustment Data Validation audit preparation with MEAT scoring, member-level evidence review, and vulnerability analysis.
 
 ### Network
 - **Providers** — Individual provider scorecards: panel size, RAF capture rate, cost efficiency (PMPM vs peers), quality gap closure, trend lines. AI coaching with dollar-impact estimates. Anonymized peer benchmarking surfaces what high performers do differently.
 - **Groups** — Group and office-level comparison across all scorecard dimensions.
+- **Education** — Provider education engine with personalized recommendations, topic library, and completion tracking tied to performance gaps.
 
 ### Intelligence
 - **Intelligence** — AI playbooks, code utilization analysis, what's working / what's not across the network. Autonomous discovery engine running continuous scans.
 - **Scenarios** — What-if modeling and intervention simulation with projected financial outcomes.
+- **BOI (Burden of Illness)** — Intervention tracking, ROI calculation, and clinical recommendation engine.
+- **Time Machine** — Temporal analytics with point-in-time snapshots, period comparison, timeline views, and change detection across any metric.
 
 ### Finance
 - **Financial** — P&L views (confirmed vs projected), IBNR estimates, revenue forecasting, reconciliation workflows.
+- **Risk Accounting** — Capitation, subcapitation, pool accounting, IBNR tracking, and surplus/deficit analysis for delegated risk arrangements.
+- **Practice Costs** — Practice expense analytics with staffing models, efficiency benchmarks, trend analysis, and hiring-impact projections.
+- **ROI Tracker** — Intervention ROI calculation tied to the BOI engine with recommended actions and dollar-impact estimates.
+- **Stop-Loss** — High-cost member monitoring, risk corridor tracking, and reinsurance threshold alerts.
 - **Reports** — Exportable report generation across all modules. Clean enough to hand directly to provider offices or plan sponsors.
 
 ### Data
 - **Data Ingestion** — Intelligent file upload (CSV, Excel, flat files) with AI-powered column mapping. The system auto-detects data types, proposes mappings, and learns from corrections — second imports from the same source are one-click. Background processing via Redis workers with status tracking and rejected-row review.
+- **Data Exchange** — Clinical data exchange hub for evidence requests, auto-generated evidence packages, and automated response workflows between plans and providers.
+- **Data Quality** — Automated quality scoring on every ingested row, quarantine for bad data pending human review, AI-powered entity resolution for patient matching across sources, and full data lineage tracing any number back to its source file, row, and ingestion date.
 - **ICD-10 Direct Capture** — PCP office claims already contain actual ICD-10 codes entered by providers and coders. The platform reads these directly from claims data — no extraction or NLP needed. This is the fastest path for populating HCC profiles across PCP populations.
 - **AQTracker Pre-Claims Feed** — AQTracker processes hospital rounding sheets through OCR, coding, and billing. The platform ingests this data as a predictive source — it shows what is being billed *before* the insurance company receives the claim. For managed Medicare RAF forecasting, this means predicting revenue months before CMS payment cycles.
 - **ADT Sources** — ADT feed integration points (Bamboo Health, Availity) for real-time admit/discharge/transfer notifications.
-- **Data Quality** — Automated quality scoring on every ingested row, quarantine for bad data pending human review, AI-powered entity resolution for patient matching across sources, and full data lineage tracing any number back to its source file, row, and ingestion date.
 
 ---
 
@@ -114,8 +130,12 @@ Every row of data passes through a quality gate before entering production table
 The platform's intelligence layer is not a single feature — it is woven through every module.
 
 - **Autonomous Discovery Engine** — Runs 6 continuous scan types across population data: med-dx gap detection, specificity upgrades, recapture gaps, near-miss interactions, historical pattern analysis, and cross-module correlation.
-- **Self-Learning Feedback System** — Users dismiss, bookmark, or act on insights. The system tracks which recommendations drive action and deprioritizes patterns that don't resonate. Every correction to data mappings becomes a rule for future uploads.
+- **Self-Learning Feedback System** — Users dismiss, bookmark, or act on insights. The system tracks which recommendations drive action and deprioritizes patterns that don't resonate. Every correction to data mappings becomes a rule for future uploads. Per-provider learning patterns adapt recommendations to individual coding and practice behaviors.
+- **LLM Guard** — Tenant data isolation enforced across all AI calls. Every LLM request is scoped to the active tenant schema, preventing cross-tenant data leakage in prompts, context, and responses. No tenant ever sees another tenant's data in AI-generated content.
+- **Role-Based UI** — 8 distinct user roles with section-level and page-level filtering. Each role sees only the modules relevant to their function — a PCP sees clinical views, a CFO sees financial analytics, an MSO admin sees everything. Navigation, dashboards, and AI insights all adapt to role context.
 - **Cross-Module Context Graph** — Revenue suspects, cost outliers, quality gaps, and provider performance are linked. A member's suspect HCC appears in their care gap context; a provider's capture rate appears alongside their cost efficiency.
+- **Hierarchical Group Structure** — MSO → practice → location hierarchy with roll-up analytics at every level. Supports complex organizational structures where a single MSO manages dozens of practices across multiple locations.
+- **Flexible Tagging System** — User-defined tags on members, providers, and entities for custom segmentation. Tags flow through analytics, filters, and reports — enabling ad-hoc groupings that don't fit rigid hierarchies.
 - **Conversational AI (Ask Bar)** — Available on every page. Natural language queries against the full dataset — "Which providers have the most aging suspects?" or "Show me pharmacy spend trending above benchmark."
 - **Dual Data Tiers** — Signal-tier data (AI-generated suspects, recommendations, scores) and record-tier data (confirmed claims, captured codes, closed gaps) with reconciliation workflows that keep them in sync.
 - **Predictive Analytics & Scenario Modeling** — RAF forecasting, cost trend projections, and what-if modeling for intervention strategies with estimated financial impact.
@@ -218,7 +238,7 @@ aqsoft-health-platform/
 │       ├── config.py            # Settings and environment config
 │       ├── database.py          # Async SQLAlchemy engine, session
 │       ├── models/              # SQLAlchemy ORM models
-│       ├── routers/             # API route handlers (30 routers)
+│       ├── routers/             # API route handlers (43 routers)
 │       │   ├── auth.py          #   Authentication & sessions
 │       │   ├── clinical.py      #   Provider point-of-care
 │       │   ├── dashboard.py     #   Population dashboard
@@ -230,7 +250,7 @@ aqsoft-health-platform/
 │       │   ├── data_quality.py  #   Quality gates & quarantine
 │       │   ├── claims.py        #   Claims processing & ICD-10 capture
 │       │   ├── tenants.py       #   Multi-tenant management
-│       │   └── ...              #   (and 19 more)
+│       │   └── ...              #   (and 32 more)
 │       ├── services/            # Business logic layer
 │       ├── workers/             # ARQ background workers
 │       └── utils/               # Shared utilities
@@ -256,16 +276,21 @@ aqsoft-health-platform/
 The Health Platform is one part of a broader product ecosystem. Each product works independently, but together they form a complete managed care operations and intelligence stack. **Not every client needs every product** — they plug together based on what the organization does.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    AQSoft Health Platform                        │
-│              (Intelligence & Analytics Hub)                      │
-│                                                                 │
-│   Population analytics, HCC suspects, expenditure drill-downs,  │
-│   care gaps, provider scorecards, AI insights, predictions,     │
-│   scenario modeling, financial P&L, cohort builder               │
-│                                                                 │
-│   Used by: MSO admins, care managers, PCP offices (overlay)     │
-└───────┬──────────┬──────────┬──────────┬──────────┬─────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                      AQSoft Health Platform                          │
+│                (Intelligence & Analytics Hub)                         │
+│                                                                      │
+│   43 API routers | 47 services | 36 pages | 25 models                │
+│                                                                      │
+│   Population analytics, HCC suspects, expenditure drill-downs,       │
+│   care gaps, provider scorecards, AI insights, predictions,          │
+│   scenario modeling, financial P&L, cohort builder, Stars simulator, │
+│   AWV tracking, RADV readiness, risk accounting, stop-loss,          │
+│   attribution, TCM, clinical exchange, temporal analytics, BOI       │
+│                                                                      │
+│   LLM Guard (tenant isolation) | Role-based UI (8 roles)            │
+│   Used by: MSO admins, care managers, PCP offices (overlay)          │
+└────────┬──────────┬──────────┬──────────┬──────────┬─────────────────┘
         │          │          │          │          │
         ▼          ▼          ▼          ▼          ▼
 ┌──────────┐ ┌──────────┐ ┌────────┐ ┌────────┐ ┌──────────┐
@@ -317,7 +342,7 @@ The platform uses a **schema-per-tenant** model in PostgreSQL. Each MSO client g
 
 ### API Surface
 
-The backend exposes 30 routers covering: `actions`, `adt`, `annotations`, `auth`, `care_gaps`, `claims`, `clinical`, `cohorts`, `dashboard`, `data_quality`, `discovery`, `expenditure`, `financial`, `filters`, `groups`, `hcc`, `ingestion`, `insights`, `journey`, `learning`, `members`, `patterns`, `predictions`, `providers`, `query`, `reconciliation`, `reports`, `scenarios`, `tenants`, and `watchlist`.
+The backend exposes 43 routers covering: `actions`, `adt`, `alert_rules`, `annotations`, `attribution`, `auth`, `awv`, `boi`, `care_gaps`, `claims`, `clinical`, `clinical_exchange`, `cohorts`, `dashboard`, `data_quality`, `discovery`, `education`, `expenditure`, `filters`, `financial`, `groups`, `hcc`, `ingestion`, `insights`, `journey`, `learning`, `members`, `patterns`, `practice_expenses`, `predictions`, `providers`, `query`, `radv`, `reconciliation`, `reports`, `risk_accounting`, `scenarios`, `stars`, `stoploss`, `tcm`, `temporal`, `tenants`, and `watchlist`.
 
 ---
 
