@@ -65,7 +65,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             "total_spend": 34_200,
             "top_diagnoses": ["E11.65", "I10", "N18.3"],
             "open_gaps": 2,
-            "suspect_hccs": ["HCC 18", "HCC 85"],
+            "suspect_hccs": ["HCC 37", "HCC 226"],
         },
         {
             "id": "M1047",
@@ -81,7 +81,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             "total_spend": 52_800,
             "top_diagnoses": ["E11.22", "I50.9", "J44.1"],
             "open_gaps": 3,
-            "suspect_hccs": ["HCC 18", "HCC 111"],
+            "suspect_hccs": ["HCC 37", "HCC 280"],
         },
         {
             "id": "M1123",
@@ -97,7 +97,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             "total_spend": 28_900,
             "top_diagnoses": ["E11.9", "E78.5", "M81.0"],
             "open_gaps": 1,
-            "suspect_hccs": ["HCC 18"],
+            "suspect_hccs": ["HCC 37"],
         },
         {
             "id": "M1089",
@@ -113,7 +113,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             "total_spend": 41_300,
             "top_diagnoses": ["E11.65", "I25.10", "N18.4"],
             "open_gaps": 2,
-            "suspect_hccs": ["HCC 18", "HCC 138"],
+            "suspect_hccs": ["HCC 37", "HCC 329"],
         },
         {
             "id": "M1201",
@@ -129,7 +129,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             "total_spend": 22_100,
             "top_diagnoses": ["E11.40", "I10", "E78.0"],
             "open_gaps": 1,
-            "suspect_hccs": ["HCC 18"],
+            "suspect_hccs": ["HCC 37"],
         },
         {
             "id": "M1156",
@@ -145,7 +145,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             "total_spend": 67_400,
             "top_diagnoses": ["E11.65", "I50.22", "N18.5", "J44.1"],
             "open_gaps": 4,
-            "suspect_hccs": ["HCC 18", "HCC 85", "HCC 138"],
+            "suspect_hccs": ["HCC 37", "HCC 226", "HCC 329"],
         },
         {
             "id": "M1278",
@@ -161,7 +161,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             "total_spend": 31_600,
             "top_diagnoses": ["E11.9", "G47.33", "E66.01"],
             "open_gaps": 2,
-            "suspect_hccs": ["HCC 18", "HCC 22"],
+            "suspect_hccs": ["HCC 37", "HCC 48"],
         },
         {
             "id": "M1334",
@@ -177,7 +177,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             "total_spend": 38_200,
             "top_diagnoses": ["E11.22", "I48.91", "N18.3"],
             "open_gaps": 2,
-            "suspect_hccs": ["HCC 18", "HCC 96"],
+            "suspect_hccs": ["HCC 37", "HCC 238"],
         },
     ]
 

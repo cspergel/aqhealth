@@ -271,12 +271,12 @@ async def get_awv_opportunities(db: AsyncSession) -> dict[str, Any]:
 
     # Breakdown by HCC categories that would typically be recaptured during AWV
     hcc_breakdown = [
-        {"hcc_category": "Diabetes with Complications (HCC 18)", "pct_of_recapture": 22, "estimated_value": round(total_opportunity * 0.22)},
-        {"hcc_category": "CHF / Heart Failure (HCC 85)", "pct_of_recapture": 15, "estimated_value": round(total_opportunity * 0.15)},
-        {"hcc_category": "COPD (HCC 111)", "pct_of_recapture": 12, "estimated_value": round(total_opportunity * 0.12)},
-        {"hcc_category": "CKD Stage 3-5 (HCC 138)", "pct_of_recapture": 10, "estimated_value": round(total_opportunity * 0.10)},
-        {"hcc_category": "Depression / Behavioral (HCC 59)", "pct_of_recapture": 9, "estimated_value": round(total_opportunity * 0.09)},
-        {"hcc_category": "Vascular Disease (HCC 107)", "pct_of_recapture": 8, "estimated_value": round(total_opportunity * 0.08)},
+        {"hcc_category": "Diabetes with Complications (HCC 37)", "pct_of_recapture": 22, "estimated_value": round(total_opportunity * 0.22)},
+        {"hcc_category": "CHF / Heart Failure (HCC 226)", "pct_of_recapture": 15, "estimated_value": round(total_opportunity * 0.15)},
+        {"hcc_category": "COPD (HCC 280)", "pct_of_recapture": 12, "estimated_value": round(total_opportunity * 0.12)},
+        {"hcc_category": "CKD Stage 3-5 (HCC 326-329)", "pct_of_recapture": 10, "estimated_value": round(total_opportunity * 0.10)},
+        {"hcc_category": "Depression / Behavioral (HCC 155)", "pct_of_recapture": 9, "estimated_value": round(total_opportunity * 0.09)},
+        {"hcc_category": "Morbid Obesity (HCC 48)", "pct_of_recapture": 8, "estimated_value": round(total_opportunity * 0.08)},
         {"hcc_category": "Other conditions", "pct_of_recapture": 24, "estimated_value": round(total_opportunity * 0.24)},
     ]
 

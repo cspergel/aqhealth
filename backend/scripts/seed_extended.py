@@ -364,7 +364,7 @@ def _seed_prediction_outcomes(cur) -> None:
         confidence = random.randint(55, 98)
 
         if ptype == "hcc_suspect":
-            predicted_value = f"HCC {random.choice([19, 85, 108, 111, 18, 22, 96, 59])}"
+            predicted_value = f"HCC {random.choice([37, 226, 280, 38, 48, 238, 155, 326])}"
             actual_value = predicted_value if was_correct else "Not confirmed"
         elif ptype == "cost_recommendation":
             val = random.randint(2000, 25000)

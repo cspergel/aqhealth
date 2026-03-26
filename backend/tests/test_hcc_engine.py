@@ -43,8 +43,8 @@ def test_local_med_dx_mapping_warfarin_to_afib():
     warfarin_gap = next((g for g in gaps if "warfarin" in g["medication"]), None)
     assert warfarin_gap is not None
     assert warfarin_gap["missing_diagnosis"] == "Atrial fibrillation"
-    assert warfarin_gap["hcc"] == 96
-    assert warfarin_gap["raf"] == pytest.approx(0.268)
+    assert warfarin_gap["hcc"] == 238
+    assert warfarin_gap["raf"] == pytest.approx(0.299)
 
 
 def test_local_med_dx_mapping_unknown_med_returns_none():
@@ -70,13 +70,13 @@ def test_local_med_dx_no_gap_when_diagnosis_present():
 # ---------------------------------------------------------------------------
 
 def test_local_raf_lookup_known_hcc():
-    """Known HCC codes should return their mapped RAF values."""
-    # HCC 85 = Congestive Heart Failure = 0.331
-    assert LOCAL_HCC_RAF[85] == Decimal("0.331")
-    # HCC 18 = Diabetes with Chronic Complications = 0.302
-    assert LOCAL_HCC_RAF[18] == Decimal("0.302")
-    # HCC 111 = COPD = 0.328
-    assert LOCAL_HCC_RAF[111] == Decimal("0.328")
+    """Known HCC codes should return their mapped RAF values (CMS-HCC V28)."""
+    # HCC 226 = Congestive Heart Failure = 0.360
+    assert LOCAL_HCC_RAF[226] == Decimal("0.360")
+    # HCC 37 = Diabetes with Complications = 0.166
+    assert LOCAL_HCC_RAF[37] == Decimal("0.166")
+    # HCC 280 = COPD = 0.319
+    assert LOCAL_HCC_RAF[280] == Decimal("0.319")
 
 
 def test_local_raf_lookup_unknown_hcc():
@@ -88,11 +88,11 @@ def test_local_raf_lookup_unknown_hcc():
 def test_local_raf_calculation_with_hcc_list():
     """RAF calculation with known HCC items should sum correctly."""
     hcc_list = [
-        {"hcc": 85, "description": "CHF"},
+        {"hcc": 226, "description": "CHF"},
         {"hcc": 37, "description": "Diabetes without Complication"},
     ]
     result = _local_raf_calculation(set(), hcc_list=hcc_list)
-    expected = float(Decimal("0.331") + Decimal("0.105"))
+    expected = float(Decimal("0.360") + Decimal("0.166"))
     assert result["total_raf"] == pytest.approx(expected)
     assert result["disease_raf"] == pytest.approx(expected)
     assert result["demographic_raf"] == 0.0

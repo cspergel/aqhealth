@@ -24,13 +24,12 @@ export const mockDashboard = {
     { range: "3.0+", count: 100 },
   ],
   revenue_opportunities: [
-    { hcc_code: 18, hcc_label: "Diabetes with Complications", member_count: 342, total_raf: 103.2, total_value: 1135200 },
-    { hcc_code: 85, hcc_label: "CHF / Heart Failure", member_count: 189, total_raf: 61.0, total_value: 671000 },
-    { hcc_code: 138, hcc_label: "CKD Stage 3-5", member_count: 267, total_raf: 18.4, total_value: 202400 },
-    { hcc_code: 111, hcc_label: "COPD / Chronic Lung", member_count: 198, total_raf: 55.4, total_value: 609400 },
-    { hcc_code: 107, hcc_label: "Vascular Disease", member_count: 156, total_raf: 42.1, total_value: 463100 },
-    { hcc_code: 59, hcc_label: "Depression / Behavioral", member_count: 284, total_raf: 87.8, total_value: 965800 },
-    { hcc_code: 22, hcc_label: "Morbid Obesity", member_count: 134, total_raf: 33.5, total_value: 368500 },
+    { hcc_code: 37, hcc_label: "Diabetes with Complications", member_count: 342, total_raf: 103.2, total_value: 1135200 },
+    { hcc_code: 226, hcc_label: "CHF / Heart Failure", member_count: 189, total_raf: 61.0, total_value: 671000 },
+    { hcc_code: 329, hcc_label: "CKD Stage 3-5", member_count: 267, total_raf: 18.4, total_value: 202400 },
+    { hcc_code: 280, hcc_label: "COPD / Chronic Lung", member_count: 198, total_raf: 55.4, total_value: 609400 },
+    { hcc_code: 155, hcc_label: "Depression / Behavioral", member_count: 284, total_raf: 87.8, total_value: 965800 },
+    { hcc_code: 48, hcc_label: "Morbid Obesity", member_count: 134, total_raf: 33.5, total_value: 368500 },
     { hcc_code: 21, hcc_label: "Malnutrition", member_count: 91, total_raf: 41.4, total_value: 455400 },
   ],
   cost_hotspots: [
@@ -174,9 +173,9 @@ export const mockSuspectsData = {
 export const mockMemberDetails: Record<string, { suspects: { id: string; condition_name: string; icd10_code: string; hcc_code: string; raf_value: number; annual_value: number; evidence_summary: string; confidence_score: number; suspect_type: string; status: string }[]; medications: { name: string; dx_linked: boolean }[] }> = {
   M1001: {
     suspects: [
-      { id: "S1001", condition_name: "CHF / Heart Failure", icd10_code: "I50.9", hcc_code: "HCC 85", raf_value: 0.323, annual_value: 3553, evidence_summary: "Last coded in PY2024. Carvedilol and furosemide active. Echo shows EF 40%. High confidence recapture.", confidence_score: 0.92, suspect_type: "recapture", status: "open" },
+      { id: "S1001", condition_name: "CHF / Heart Failure", icd10_code: "I50.9", hcc_code: "HCC 226", raf_value: 0.360, annual_value: 3960, evidence_summary: "Last coded in PY2024. Carvedilol and furosemide active. Echo shows EF 40%. High confidence recapture.", confidence_score: 0.92, suspect_type: "recapture", status: "open" },
       { id: "S1002", condition_name: "Malnutrition", icd10_code: "E44.1", hcc_code: "HCC 21", raf_value: 0.455, annual_value: 5005, evidence_summary: "BMI 17.2, albumin 2.8 g/dL. On Ensure supplements. No malnutrition Dx coded this year.", confidence_score: 0.87, suspect_type: "med_dx_gap", status: "open" },
-      { id: "S1003", condition_name: "Morbid Obesity", icd10_code: "E66.01", hcc_code: "HCC 22", raf_value: 0.250, annual_value: 2750, evidence_summary: "BMI documented at 42.1 but coded as E66.9 (unspecified). Should be E66.01 for morbid obesity.", confidence_score: 0.81, suspect_type: "specificity", status: "open" },
+      { id: "S1003", condition_name: "Morbid Obesity", icd10_code: "E66.01", hcc_code: "HCC 48", raf_value: 0.186, annual_value: 2046, evidence_summary: "BMI documented at 42.1 but coded as E66.9 (unspecified). Should be E66.01 for morbid obesity.", confidence_score: 0.81, suspect_type: "specificity", status: "open" },
     ],
     medications: [
       { name: "Carvedilol 25mg", dx_linked: true },
@@ -990,10 +989,10 @@ export const mockExpenditureDrillDowns: Record<string, {
           { key: "potential_raf_value", label: "RAF Value", numeric: true, format: "dollar" },
         ],
         rows: [
-          { medication: "Warfarin / Apixaban", expected_diagnosis: "Atrial Fibrillation (I48.x)", hcc_code: "HCC 96", members_without_dx: 142, potential_raf_value: 86000 },
-          { medication: "Furosemide + Carvedilol", expected_diagnosis: "Heart Failure (I50.x)", hcc_code: "HCC 85", members_without_dx: 38, potential_raf_value: 42000 },
-          { medication: "Insulin", expected_diagnosis: "Diabetes w/ Complications", hcc_code: "HCC 18", members_without_dx: 24, potential_raf_value: 28000 },
-          { medication: "Albuterol + ICS", expected_diagnosis: "COPD (J44.x)", hcc_code: "HCC 111", members_without_dx: 18, potential_raf_value: 16000 },
+          { medication: "Warfarin / Apixaban", expected_diagnosis: "Atrial Fibrillation (I48.x)", hcc_code: "HCC 238", members_without_dx: 142, potential_raf_value: 86000 },
+          { medication: "Furosemide + Carvedilol", expected_diagnosis: "Heart Failure (I50.x)", hcc_code: "HCC 226", members_without_dx: 38, potential_raf_value: 42000 },
+          { medication: "Insulin", expected_diagnosis: "Diabetes w/ Complications", hcc_code: "HCC 37", members_without_dx: 24, potential_raf_value: 28000 },
+          { medication: "Albuterol + ICS", expected_diagnosis: "COPD (J44.x)", hcc_code: "HCC 280", members_without_dx: 18, potential_raf_value: 16000 },
           { medication: "Donepezil / Memantine", expected_diagnosis: "Dementia (F03.x)", hcc_code: "HCC 51", members_without_dx: 12, potential_raf_value: 38000 },
         ],
       },
@@ -1814,7 +1813,7 @@ export const mockJourneyData: Record<number, {
       total_spend_12m: 87420,
       open_suspects: 3,
       open_gaps: 2,
-      conditions: ["CHF (HCC 85)", "Type 2 Diabetes w/ CKD (HCC 18)", "CKD Stage 3 (HCC 138)", "Major Depression (HCC 59)", "COPD (HCC 111)", "Morbid Obesity (HCC 22)"],
+      conditions: ["CHF (HCC 226)", "Type 2 Diabetes w/ CKD (HCC 37)", "CKD Stage 3 (HCC 329)", "Major Depression (HCC 155)", "COPD (HCC 280)", "Morbid Obesity (HCC 48)"],
     },
     timeline: [
       // --- 2026 Events ---
@@ -2174,13 +2173,13 @@ export const mockJourneyData: Record<number, {
       {
         date: "2025-03-10",
         type: "hcc_captured",
-        title: "HCC Captured — CHF (HCC 85)",
+        title: "HCC Captured — CHF (HCC 226)",
         provider: "Dr. James Rivera",
         facility: "Bayshore Primary Care",
         diagnoses: ["I50.9"],
         cost: 0,
         description: "CHF recaptured during PCP visit with appropriate documentation.",
-        flags: [{ type: "success", message: "Success: CHF recaptured, +0.323 RAF" }],
+        flags: [{ type: "success", message: "Success: CHF recaptured, +0.360 RAF" }],
       },
       {
         date: "2025-02-28",
@@ -2381,7 +2380,7 @@ export const mockTrajectoryData: Record<number, {
     { date: "2024-12", raf: 1.200, cost: 1280, disease_raf: 0.750, demographic_raf: 0.450, hcc_count: 4 },
     { date: "2025-01", raf: 1.200, cost: 1340, disease_raf: 0.750, demographic_raf: 0.450, hcc_count: 4 },
     { date: "2025-02", raf: 1.200, cost: 1580, disease_raf: 0.750, demographic_raf: 0.450, hcc_count: 4 },
-    { date: "2025-03", raf: 1.523, cost: 1420, disease_raf: 1.073, demographic_raf: 0.450, hcc_count: 5, event: "HCC 85 Captured" },
+    { date: "2025-03", raf: 1.523, cost: 1420, disease_raf: 1.073, demographic_raf: 0.450, hcc_count: 5, event: "HCC 226 Captured" },
     { date: "2025-04", raf: 1.523, cost: 1860, disease_raf: 1.073, demographic_raf: 0.450, hcc_count: 5 },
     { date: "2025-05", raf: 1.523, cost: 1540, disease_raf: 1.073, demographic_raf: 0.450, hcc_count: 5 },
     { date: "2025-06", raf: 1.523, cost: 1680, disease_raf: 1.073, demographic_raf: 0.450, hcc_count: 5 },
@@ -2593,21 +2592,21 @@ export const mockCohortBuildResult = {
     { code: "I50.9", count: 1 },
   ],
   top_suspects: [
-    { code: "HCC 18", count: 8 },
-    { code: "HCC 85", count: 2 },
-    { code: "HCC 138", count: 2 },
-    { code: "HCC 111", count: 1 },
-    { code: "HCC 22", count: 1 },
+    { code: "HCC 37", count: 8 },
+    { code: "HCC 226", count: 2 },
+    { code: "HCC 329", count: 2 },
+    { code: "HCC 280", count: 1 },
+    { code: "HCC 48", count: 1 },
   ],
   members: [
-    { id: "M1001", name: "Margaret Chen", age: 72, gender: "F", raf: 1.847, risk_tier: "high", provider: "Dr. Sarah Patel", group: "ISG Tampa", er_visits: 3, admissions: 1, total_spend: 34_200, top_diagnoses: ["E11.65", "I10", "N18.3"], open_gaps: 2, suspect_hccs: ["HCC 18", "HCC 85"] },
-    { id: "M1047", name: "Robert Williams", age: 68, gender: "M", raf: 2.134, risk_tier: "high", provider: "Dr. James Rivera", group: "ISG Tampa", er_visits: 4, admissions: 2, total_spend: 52_800, top_diagnoses: ["E11.22", "I50.9", "J44.1"], open_gaps: 3, suspect_hccs: ["HCC 18", "HCC 111"] },
-    { id: "M1123", name: "Dorothy Jackson", age: 78, gender: "F", raf: 1.623, risk_tier: "high", provider: "Dr. Lisa Chen", group: "FMG St. Pete", er_visits: 2, admissions: 1, total_spend: 28_900, top_diagnoses: ["E11.9", "E78.5", "M81.0"], open_gaps: 1, suspect_hccs: ["HCC 18"] },
-    { id: "M1089", name: "James Thompson", age: 71, gender: "M", raf: 1.956, risk_tier: "high", provider: "Dr. Michael Torres", group: "ISG Tampa", er_visits: 3, admissions: 1, total_spend: 41_300, top_diagnoses: ["E11.65", "I25.10", "N18.4"], open_gaps: 2, suspect_hccs: ["HCC 18", "HCC 138"] },
-    { id: "M1201", name: "Patricia Davis", age: 66, gender: "F", raf: 1.478, risk_tier: "medium", provider: "Dr. Angela Brooks", group: "FMG St. Pete", er_visits: 2, admissions: 0, total_spend: 22_100, top_diagnoses: ["E11.40", "I10", "E78.0"], open_gaps: 1, suspect_hccs: ["HCC 18"] },
-    { id: "M1156", name: "William Harris", age: 74, gender: "M", raf: 2.312, risk_tier: "high", provider: "Dr. Sarah Patel", group: "ISG Tampa", er_visits: 5, admissions: 3, total_spend: 67_400, top_diagnoses: ["E11.65", "I50.22", "N18.5", "J44.1"], open_gaps: 4, suspect_hccs: ["HCC 18", "HCC 85", "HCC 138"] },
-    { id: "M1278", name: "Barbara Martinez", age: 69, gender: "F", raf: 1.589, risk_tier: "high", provider: "Dr. James Rivera", group: "ISG Brandon", er_visits: 2, admissions: 1, total_spend: 31_600, top_diagnoses: ["E11.9", "G47.33", "E66.01"], open_gaps: 2, suspect_hccs: ["HCC 18", "HCC 22"] },
-    { id: "M1334", name: "Charles Anderson", age: 76, gender: "M", raf: 1.734, risk_tier: "high", provider: "Dr. Lisa Chen", group: "FMG St. Pete", er_visits: 3, admissions: 1, total_spend: 38_200, top_diagnoses: ["E11.22", "I48.91", "N18.3"], open_gaps: 2, suspect_hccs: ["HCC 18", "HCC 96"] },
+    { id: "M1001", name: "Margaret Chen", age: 72, gender: "F", raf: 1.847, risk_tier: "high", provider: "Dr. Sarah Patel", group: "ISG Tampa", er_visits: 3, admissions: 1, total_spend: 34_200, top_diagnoses: ["E11.65", "I10", "N18.3"], open_gaps: 2, suspect_hccs: ["HCC 37", "HCC 226"] },
+    { id: "M1047", name: "Robert Williams", age: 68, gender: "M", raf: 2.134, risk_tier: "high", provider: "Dr. James Rivera", group: "ISG Tampa", er_visits: 4, admissions: 2, total_spend: 52_800, top_diagnoses: ["E11.22", "I50.9", "J44.1"], open_gaps: 3, suspect_hccs: ["HCC 37", "HCC 280"] },
+    { id: "M1123", name: "Dorothy Jackson", age: 78, gender: "F", raf: 1.623, risk_tier: "high", provider: "Dr. Lisa Chen", group: "FMG St. Pete", er_visits: 2, admissions: 1, total_spend: 28_900, top_diagnoses: ["E11.9", "E78.5", "M81.0"], open_gaps: 1, suspect_hccs: ["HCC 37"] },
+    { id: "M1089", name: "James Thompson", age: 71, gender: "M", raf: 1.956, risk_tier: "high", provider: "Dr. Michael Torres", group: "ISG Tampa", er_visits: 3, admissions: 1, total_spend: 41_300, top_diagnoses: ["E11.65", "I25.10", "N18.4"], open_gaps: 2, suspect_hccs: ["HCC 37", "HCC 329"] },
+    { id: "M1201", name: "Patricia Davis", age: 66, gender: "F", raf: 1.478, risk_tier: "medium", provider: "Dr. Angela Brooks", group: "FMG St. Pete", er_visits: 2, admissions: 0, total_spend: 22_100, top_diagnoses: ["E11.40", "I10", "E78.0"], open_gaps: 1, suspect_hccs: ["HCC 37"] },
+    { id: "M1156", name: "William Harris", age: 74, gender: "M", raf: 2.312, risk_tier: "high", provider: "Dr. Sarah Patel", group: "ISG Tampa", er_visits: 5, admissions: 3, total_spend: 67_400, top_diagnoses: ["E11.65", "I50.22", "N18.5", "J44.1"], open_gaps: 4, suspect_hccs: ["HCC 37", "HCC 226", "HCC 329"] },
+    { id: "M1278", name: "Barbara Martinez", age: 69, gender: "F", raf: 1.589, risk_tier: "high", provider: "Dr. James Rivera", group: "ISG Brandon", er_visits: 2, admissions: 1, total_spend: 31_600, top_diagnoses: ["E11.9", "G47.33", "E66.01"], open_gaps: 2, suspect_hccs: ["HCC 37", "HCC 48"] },
+    { id: "M1334", name: "Charles Anderson", age: 76, gender: "M", raf: 1.734, risk_tier: "high", provider: "Dr. Lisa Chen", group: "FMG St. Pete", er_visits: 3, admissions: 1, total_spend: 38_200, top_diagnoses: ["E11.22", "I48.91", "N18.3"], open_gaps: 2, suspect_hccs: ["HCC 37", "HCC 238"] },
   ],
 };
 
@@ -3882,11 +3881,11 @@ export const mockClinicalPatientMargaret: ClinicalPatientContext = {
     },
   ],
   confirmed_hccs: [
-    { condition_name: "Acute on chronic systolic heart failure", icd10_code: "I50.22", hcc_code: 85, raf_value: 0.323 },
-    { condition_name: "Type 2 diabetes with hyperglycemia", icd10_code: "E11.65", hcc_code: 37, raf_value: 0.302 },
-    { condition_name: "CKD Stage 3b", icd10_code: "N18.32", hcc_code: 138, raf_value: 0.069 },
-    { condition_name: "Major depressive disorder, recurrent, moderate", icd10_code: "F33.1", hcc_code: 155, raf_value: 0.309 },
-    { condition_name: "COPD with acute exacerbation", icd10_code: "J44.1", hcc_code: 111, raf_value: 0.280 },
+    { condition_name: "Acute on chronic systolic heart failure", icd10_code: "I50.22", hcc_code: 226, raf_value: 0.360 },
+    { condition_name: "Type 2 diabetes with hyperglycemia", icd10_code: "E11.65", hcc_code: 37, raf_value: 0.166 },
+    { condition_name: "CKD Stage 3b", icd10_code: "N18.32", hcc_code: 328, raf_value: 0.127 },
+    { condition_name: "Major depressive disorder, recurrent, moderate", icd10_code: "F33.1", hcc_code: 155, raf_value: 0.299 },
+    { condition_name: "COPD with acute exacerbation", icd10_code: "J44.1", hcc_code: 280, raf_value: 0.319 },
   ],
   care_gaps: [
     { id: 201, measure_name: "HbA1c not drawn in CY2026", measure_code: "CDC-HbA1c", stars_weight: 3, recommended_action: "Order HbA1c today" },
@@ -3895,8 +3894,8 @@ export const mockClinicalPatientMargaret: ClinicalPatientContext = {
     { id: 204, measure_name: "Depression follow-up needed", measure_code: "FMC", stars_weight: 3, recommended_action: "Schedule 7-day follow-up" },
   ],
   interactions: [
-    { name: "DM + CHF", bonus_raf: 0.121, codes: "HCC 37 + HCC 85" },
-    { name: "CHF + COPD", bonus_raf: 0.145, codes: "HCC 85 + HCC 111" },
+    { name: "DM + CHF", bonus_raf: 0.121, codes: "HCC 37 + HCC 226" },
+    { name: "CHF + COPD", bonus_raf: 0.145, codes: "HCC 226 + HCC 280" },
   ],
   near_misses: [
     {
@@ -3969,15 +3968,15 @@ export const mockClinicalPatientRobert: ClinicalPatientContext = {
   ],
   confirmed_hccs: [
     { condition_name: "Type 2 diabetes mellitus", icd10_code: "E11.9", hcc_code: 37, raf_value: 0.105 },
-    { condition_name: "Congestive heart failure", icd10_code: "I50.9", hcc_code: 85, raf_value: 0.331 },
-    { condition_name: "Atrial fibrillation", icd10_code: "I48.91", hcc_code: 96, raf_value: 0.268 },
+    { condition_name: "Congestive heart failure", icd10_code: "I50.9", hcc_code: 226, raf_value: 0.360 },
+    { condition_name: "Atrial fibrillation", icd10_code: "I48.91", hcc_code: 238, raf_value: 0.299 },
   ],
   care_gaps: [
     { id: 301, measure_name: "HbA1c not drawn in CY2026", measure_code: "CDC-HbA1c", stars_weight: 3, recommended_action: "Order HbA1c" },
     { id: 302, measure_name: "INR monitoring overdue", measure_code: "ACT", stars_weight: 1, recommended_action: "Order INR panel" },
   ],
   interactions: [
-    { name: "Diabetes + CHF", bonus_raf: 0.121, codes: "HCC 37 + HCC 85" },
+    { name: "Diabetes + CHF", bonus_raf: 0.121, codes: "HCC 37 + HCC 226" },
   ],
   near_misses: [],
   medications: [
@@ -4034,17 +4033,17 @@ export const mockClinicalPatientDorothy: ClinicalPatientContext = {
     },
   ],
   confirmed_hccs: [
-    { condition_name: "CHF, chronic systolic", icd10_code: "I50.22", hcc_code: 85, raf_value: 0.323 },
-    { condition_name: "Type 2 diabetes with CKD", icd10_code: "E11.22", hcc_code: 18, raf_value: 0.302 },
-    { condition_name: "CKD Stage 4", icd10_code: "N18.4", hcc_code: 329, raf_value: 0.237 },
-    { condition_name: "COPD", icd10_code: "J44.1", hcc_code: 111, raf_value: 0.280 },
+    { condition_name: "CHF, chronic systolic", icd10_code: "I50.22", hcc_code: 226, raf_value: 0.360 },
+    { condition_name: "Type 2 diabetes with CKD", icd10_code: "E11.22", hcc_code: 37, raf_value: 0.166 },
+    { condition_name: "CKD Stage 4", icd10_code: "N18.4", hcc_code: 327, raf_value: 0.514 },
+    { condition_name: "COPD", icd10_code: "J44.1", hcc_code: 280, raf_value: 0.319 },
     { condition_name: "Major depression", icd10_code: "F33.1", hcc_code: 155, raf_value: 0.309 },
   ],
   care_gaps: [
     { id: 401, measure_name: "Fall risk assessment overdue", measure_code: "FRA", stars_weight: 1, recommended_action: "Complete fall risk screening" },
   ],
   interactions: [
-    { name: "CHF + Diabetes + CKD", bonus_raf: 0.190, codes: "HCC 85 + HCC 18 + HCC 329" },
+    { name: "CHF + Diabetes + CKD", bonus_raf: 0.190, codes: "HCC 226 + HCC 37 + HCC 327" },
   ],
   near_misses: [
     { name: "Dementia + Depression", potential_raf: 0.065, missing: "HCC 51, HCC 52", missing_hccs: [51, 52] },
@@ -4320,17 +4319,17 @@ export const mockDataLineage = [
     id: 4, entity_type: "member", entity_id: 1,
     source_system: "hcc_engine", source_file: null, source_row: null,
     ingestion_job_id: 10,
-    field_changes: { current_raf: { old: 1.547, new: 1.847, reason: "HCC engine run - captured HCC 18 (Diabetes with Complications)", timestamp: "2026-03-15T14:00:00Z" } },
+    field_changes: { current_raf: { old: 1.547, new: 1.847, reason: "HCC engine run - captured HCC 37 (Diabetes with Complications)", timestamp: "2026-03-15T14:00:00Z" } },
     created_at: "2026-03-15T14:00:00Z",
-    description: "HCC engine run after Q1 2026 claims ingestion, captured HCC 18",
+    description: "HCC engine run after Q1 2026 claims ingestion, captured HCC 37",
   },
   {
     id: 5, entity_type: "member", entity_id: 1,
     source_system: "hcc_engine", source_file: null, source_row: null,
     ingestion_job_id: 12,
-    field_changes: { projected_raf: { old: 2.100, new: 2.312, reason: "Suspect HCC 85 (CHF) identified for capture", timestamp: "2026-03-22T14:30:00Z" } },
+    field_changes: { projected_raf: { old: 2.100, new: 2.312, reason: "Suspect HCC 226 (CHF) identified for capture", timestamp: "2026-03-22T14:30:00Z" } },
     created_at: "2026-03-22T14:30:00Z",
-    description: "Suspect HCC 85 (CHF/Heart Failure) identified for capture, projected RAF updated",
+    description: "Suspect HCC 226 (CHF/Heart Failure) identified for capture, projected RAF updated",
   },
 ];
 
@@ -4370,24 +4369,23 @@ export const mockTCMActiveCases = [
 export const mockRADVReadiness = {
   overall_score: 82,
   by_category: [
-    { category: "Diabetes", hcc_codes: [17, 18, 19], captures: 342, avg_meat_score: 88, status: "strong" },
-    { category: "Heart / Vascular", hcc_codes: [85, 86, 107], captures: 245, avg_meat_score: 79, status: "moderate" },
-    { category: "Renal", hcc_codes: [134, 135, 136, 137, 138], captures: 267, avg_meat_score: 84, status: "strong" },
-    { category: "Pulmonary", hcc_codes: [111, 112], captures: 198, avg_meat_score: 72, status: "moderate" },
-    { category: "Behavioral", hcc_codes: [57, 58, 59], captures: 284, avg_meat_score: 65, status: "weak" },
-    { category: "Nutritional", hcc_codes: [21, 22], captures: 225, avg_meat_score: 61, status: "weak" },
+    { category: "Diabetes", hcc_codes: [37, 38], captures: 342, avg_meat_score: 88, status: "strong" },
+    { category: "Heart / Vascular", hcc_codes: [226, 238], captures: 245, avg_meat_score: 79, status: "moderate" },
+    { category: "Renal", hcc_codes: [326, 327, 328, 329], captures: 267, avg_meat_score: 84, status: "strong" },
+    { category: "Pulmonary", hcc_codes: [280], captures: 198, avg_meat_score: 72, status: "moderate" },
+    { category: "Behavioral", hcc_codes: [155], captures: 284, avg_meat_score: 65, status: "weak" },
+    { category: "Nutritional", hcc_codes: [21, 48], captures: 225, avg_meat_score: 61, status: "weak" },
   ],
   weakest_codes: [
-    { hcc_code: 59, hcc_label: "Depression / Behavioral", member_count: 284, avg_meat_score: 52, weakest_member: "Robert Williams", risk_level: "high" },
-    { hcc_code: 22, hcc_label: "Morbid Obesity", member_count: 134, avg_meat_score: 58, weakest_member: "Margaret Chen", risk_level: "high" },
+    { hcc_code: 155, hcc_label: "Depression / Behavioral", member_count: 284, avg_meat_score: 52, weakest_member: "Robert Williams", risk_level: "high" },
+    { hcc_code: 48, hcc_label: "Morbid Obesity", member_count: 134, avg_meat_score: 58, weakest_member: "Margaret Chen", risk_level: "high" },
     { hcc_code: 21, hcc_label: "Malnutrition", member_count: 91, avg_meat_score: 61, weakest_member: "Helen Washington", risk_level: "high" },
-    { hcc_code: 111, hcc_label: "COPD / Chronic Lung", member_count: 198, avg_meat_score: 64, weakest_member: "Dorothy Martinez", risk_level: "medium" },
-    { hcc_code: 107, hcc_label: "Vascular Disease", member_count: 156, avg_meat_score: 68, weakest_member: "Frank Nguyen", risk_level: "medium" },
+    { hcc_code: 280, hcc_label: "COPD / Chronic Lung", member_count: 198, avg_meat_score: 64, weakest_member: "Dorothy Martinez", risk_level: "medium" },
   ],
   strongest_codes: [
-    { hcc_code: 18, hcc_label: "Diabetes with Complications", captures: 342, avg_meat_score: 94 },
-    { hcc_code: 85, hcc_label: "CHF / Heart Failure", captures: 189, avg_meat_score: 91 },
-    { hcc_code: 138, hcc_label: "CKD Stage 3-5", captures: 267, avg_meat_score: 89 },
+    { hcc_code: 37, hcc_label: "Diabetes with Complications", captures: 342, avg_meat_score: 94 },
+    { hcc_code: 226, hcc_label: "CHF / Heart Failure", captures: 189, avg_meat_score: 91 },
+    { hcc_code: 329, hcc_label: "CKD Stage 3-5", captures: 267, avg_meat_score: 89 },
   ],
 };
 
@@ -4395,16 +4393,15 @@ export const mockRADVMemberProfile: Record<string, any> = {
   M1001: {
     member_id: "M1001", member_name: "Margaret Chen", overall_score: 78,
     hccs: [
-      { hcc_code: 18, hcc_label: "Diabetes with Complications", meat_score: 92, evidence_strength: "strong", vulnerability: "low", meat_detail: { monitored: true, evaluated: true, assessed: true, treated: true, score: 92 } },
-      { hcc_code: 85, hcc_label: "CHF / Heart Failure", meat_score: 85, evidence_strength: "strong", vulnerability: "low", meat_detail: { monitored: true, evaluated: true, assessed: true, treated: true, score: 85 } },
-      { hcc_code: 22, hcc_label: "Morbid Obesity", meat_score: 45, evidence_strength: "weak", vulnerability: "high", meat_detail: { monitored: true, evaluated: false, assessed: true, treated: false, score: 45 } },
+      { hcc_code: 37, hcc_label: "Diabetes with Complications", meat_score: 92, evidence_strength: "strong", vulnerability: "low", meat_detail: { monitored: true, evaluated: true, assessed: true, treated: true, score: 92 } },
+      { hcc_code: 226, hcc_label: "CHF / Heart Failure", meat_score: 85, evidence_strength: "strong", vulnerability: "low", meat_detail: { monitored: true, evaluated: true, assessed: true, treated: true, score: 85 } },
+      { hcc_code: 48, hcc_label: "Morbid Obesity", meat_score: 45, evidence_strength: "weak", vulnerability: "high", meat_detail: { monitored: true, evaluated: false, assessed: true, treated: false, score: 45 } },
     ],
   },
   M1002: {
     member_id: "M1002", member_name: "Robert Williams", overall_score: 68,
     hccs: [
-      { hcc_code: 59, hcc_label: "Depression / Behavioral", meat_score: 42, evidence_strength: "weak", vulnerability: "high", meat_detail: { monitored: false, evaluated: true, assessed: true, treated: false, score: 42 } },
-      { hcc_code: 107, hcc_label: "Vascular Disease", meat_score: 78, evidence_strength: "moderate", vulnerability: "medium", meat_detail: { monitored: true, evaluated: true, assessed: true, treated: false, score: 78 } },
+      { hcc_code: 155, hcc_label: "Depression / Behavioral", meat_score: 42, evidence_strength: "weak", vulnerability: "high", meat_detail: { monitored: false, evaluated: true, assessed: true, treated: false, score: 42 } },
     ],
   },
 };
@@ -4499,10 +4496,10 @@ export const mockRiskCorridor = {
 // ---- Provider Education ----
 
 export const mockEducationLibrary = [
-  { id: 1, title: "Diabetes HCC Coding Mastery", description: "Comprehensive guide to accurate diabetes coding: E11.xx specificity, complication capture, and HCC 17/18/19 documentation requirements. Includes case studies on upgrading unspecified codes.", category: "Coding", estimated_minutes: 45, relevance_score: null, completed: false, completed_date: null },
-  { id: 2, title: "Depression Screening & Documentation", description: "PHQ-9 workflows, documentation templates, and coding pathways for depression (HCC 59). Covers initial screening, follow-up protocols, and MEAT evidence requirements.", category: "Quality", estimated_minutes: 30, relevance_score: null, completed: false, completed_date: null },
-  { id: 3, title: "CHF Documentation Excellence", description: "Heart failure staging, EF documentation, medication management documentation, and HCC 85/86 capture optimization. Includes NYHA classification guidance.", category: "Coding", estimated_minutes: 40, relevance_score: null, completed: false, completed_date: null },
-  { id: 4, title: "CKD Staging & Risk Adjustment", description: "GFR-based staging documentation, ACR testing protocols, and HCC 134-138 capture. Covers progression tracking and care plan documentation.", category: "Coding", estimated_minutes: 35, relevance_score: null, completed: false, completed_date: null },
+  { id: 1, title: "Diabetes HCC Coding Mastery", description: "Comprehensive guide to accurate diabetes coding: E11.xx specificity, complication capture, and HCC 37/38 documentation requirements. Includes case studies on upgrading unspecified codes.", category: "Coding", estimated_minutes: 45, relevance_score: null, completed: false, completed_date: null },
+  { id: 2, title: "Depression Screening & Documentation", description: "PHQ-9 workflows, documentation templates, and coding pathways for depression (HCC 155). Covers initial screening, follow-up protocols, and MEAT evidence requirements.", category: "Quality", estimated_minutes: 30, relevance_score: null, completed: false, completed_date: null },
+  { id: 3, title: "CHF Documentation Excellence", description: "Heart failure staging, EF documentation, medication management documentation, and HCC 226 capture optimization. Includes NYHA classification guidance.", category: "Coding", estimated_minutes: 40, relevance_score: null, completed: false, completed_date: null },
+  { id: 4, title: "CKD Staging & Risk Adjustment", description: "GFR-based staging documentation, ACR testing protocols, and HCC 326-329 capture. Covers progression tracking and care plan documentation.", category: "Coding", estimated_minutes: 35, relevance_score: null, completed: false, completed_date: null },
   { id: 5, title: "HCC Recapture Best Practices", description: "Annual recapture workflows: condition carry-forward, visit planning, documentation templates, and compliance tracking. Focus on high-value conditions.", category: "Revenue", estimated_minutes: 25, relevance_score: null, completed: false, completed_date: null },
   { id: 6, title: "Annual Wellness Visit Optimization", description: "AWV best practices: HRA completion, care plan updates, preventive service ordering, HCC review during visit, and coding for 99387/99397.", category: "Quality", estimated_minutes: 30, relevance_score: null, completed: false, completed_date: null },
 ];
@@ -4583,12 +4580,12 @@ export const mockAWVOpportunities = {
   total_opportunity: 842000,
   avg_value_per_awv: 880,
   hcc_breakdown: [
-    { hcc_category: "Diabetes with Complications (HCC 18)", pct_of_recapture: 22, estimated_value: 185240 },
-    { hcc_category: "CHF / Heart Failure (HCC 85)", pct_of_recapture: 15, estimated_value: 126300 },
-    { hcc_category: "COPD (HCC 111)", pct_of_recapture: 12, estimated_value: 101040 },
-    { hcc_category: "CKD Stage 3-5 (HCC 138)", pct_of_recapture: 10, estimated_value: 84200 },
-    { hcc_category: "Depression / Behavioral (HCC 59)", pct_of_recapture: 9, estimated_value: 75780 },
-    { hcc_category: "Vascular Disease (HCC 107)", pct_of_recapture: 8, estimated_value: 67360 },
+    { hcc_category: "Diabetes with Complications (HCC 37)", pct_of_recapture: 22, estimated_value: 185240 },
+    { hcc_category: "CHF / Heart Failure (HCC 226)", pct_of_recapture: 15, estimated_value: 126300 },
+    { hcc_category: "COPD (HCC 280)", pct_of_recapture: 12, estimated_value: 101040 },
+    { hcc_category: "CKD Stage 3-5 (HCC 326-329)", pct_of_recapture: 10, estimated_value: 84200 },
+    { hcc_category: "Depression / Behavioral (HCC 155)", pct_of_recapture: 9, estimated_value: 75780 },
+    { hcc_category: "Morbid Obesity (HCC 48)", pct_of_recapture: 8, estimated_value: 67360 },
     { hcc_category: "Other conditions", pct_of_recapture: 24, estimated_value: 202080 },
   ],
   insight: "If all 1,942 overdue members complete their AWV, estimated RAF recapture value = $842,000. Scheduling AWVs for the top 50 highest-RAF overdue members alone would recapture approximately $187,000 in RAF value.",

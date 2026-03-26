@@ -370,7 +370,7 @@ class TestDashboardMetrics:
     def test_raf_calculation_produces_positive_values(self):
         """RAF calculation with known HCCs should produce positive values."""
         hcc_list = [
-            {"hcc": 85, "description": "CHF"},
+            {"hcc": 226, "description": "CHF"},
             {"hcc": 37, "description": "Diabetes"},
         ]
         result = _local_raf_calculation(set(), hcc_list=hcc_list)
@@ -483,13 +483,13 @@ class TestChaseListExport:
     def test_suspects_sortable_by_raf(self):
         """Suspects should be sortable by RAF value for chase list prioritization."""
         suspects = [
-            {"hcc": 85, "raf": float(LOCAL_HCC_RAF[85]), "label": "CHF"},
+            {"hcc": 226, "raf": float(LOCAL_HCC_RAF[226]), "label": "CHF"},
             {"hcc": 37, "raf": float(LOCAL_HCC_RAF[37]), "label": "Diabetes"},
             {"hcc": 78, "raf": float(LOCAL_HCC_RAF[78]), "label": "Parkinson"},
             {"hcc": 186, "raf": float(LOCAL_HCC_RAF[186]), "label": "Transplant"},
         ]
         sorted_suspects = sorted(suspects, key=lambda s: s["raf"], reverse=True)
-        # Transplant (0.825) > Parkinson (0.606) > CHF (0.331) > Diabetes (0.105)
+        # Transplant (0.825) > Parkinson (0.606) > CHF (0.360) > Diabetes (0.166)
         assert sorted_suspects[0]["label"] == "Transplant"
         assert sorted_suspects[1]["label"] == "Parkinson"
         assert sorted_suspects[2]["label"] == "CHF"

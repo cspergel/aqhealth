@@ -198,7 +198,7 @@ export function CohortBuilder({ onBuild, loading }: CohortBuilderProps) {
                     fieldDef?.type === "number" ? "Enter value" :
                     fieldDef?.key?.includes("diagnos") ? "e.g. E11, I50" :
                     fieldDef?.key?.includes("care_gap") ? "e.g. CDC-HbA1c" :
-                    fieldDef?.key?.includes("suspect") ? "e.g. HCC 18" :
+                    fieldDef?.key?.includes("suspect") ? "e.g. HCC 37" :
                     "Enter value"
                   }
                   className="text-[12px] rounded-md border px-2 py-1.5 flex-1"

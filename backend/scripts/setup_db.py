@@ -356,11 +356,10 @@ def seed_base_data():
 
         # 8. HCC suspects
         suspects_data = [
-            {"hcc": 19, "label": "Diabetes with Complications", "icd": "E11.65", "icd_label": "Type 2 DM with hyperglycemia", "raf": 0.302, "type": "recapture"},
-            {"hcc": 85, "label": "Congestive Heart Failure", "icd": "I50.9", "icd_label": "Heart failure, unspecified", "raf": 0.323, "type": "med_dx_gap"},
-            {"hcc": 111, "label": "Chronic Obstructive Pulmonary Disease", "icd": "J44.1", "icd_label": "COPD with acute exacerbation", "raf": 0.335, "type": "historical"},
-            {"hcc": 18, "label": "Diabetes without Complications", "icd": "E11.9", "icd_label": "Type 2 DM without complications", "raf": 0.105, "type": "specificity"},
-            {"hcc": 108, "label": "Vascular Disease", "icd": "I25.10", "icd_label": "Atherosclerotic heart disease", "raf": 0.288, "type": "recapture"},
+            {"hcc": 37, "label": "Diabetes with Complications", "icd": "E11.65", "icd_label": "Type 2 DM with hyperglycemia", "raf": 0.166, "type": "recapture"},
+            {"hcc": 226, "label": "Congestive Heart Failure", "icd": "I50.9", "icd_label": "Heart failure, unspecified", "raf": 0.360, "type": "med_dx_gap"},
+            {"hcc": 280, "label": "Chronic Obstructive Pulmonary Disease", "icd": "J44.1", "icd_label": "COPD with acute exacerbation", "raf": 0.319, "type": "historical"},
+            {"hcc": 38, "label": "Diabetes without Complications", "icd": "E11.9", "icd_label": "Type 2 DM without complications", "raf": 0.166, "type": "specificity"},
         ]
         for s in suspects_data:
             mid = random.choice(member_ids)
@@ -586,7 +585,7 @@ def seed_extended_data(member_ids, provider_ids, group_ids):
             was_correct = outcome == "confirmed"
             confidence = random.randint(55, 98)
             if ptype == "hcc_suspect":
-                predicted_value = f"HCC {random.choice([19, 85, 108, 111, 18, 22, 96, 59])}"
+                predicted_value = f"HCC {random.choice([37, 226, 280, 38, 48, 238, 155, 326])}"
                 actual_value = predicted_value if was_correct else "Not confirmed"
             elif ptype == "cost_recommendation":
                 val = random.randint(2000, 25000)

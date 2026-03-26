@@ -1008,11 +1008,10 @@ def _seed_hcc_suspects(session: Session, member_ids: list[int]) -> None:
         return
 
     suspects = [
-        {"hcc": 19, "label": "Diabetes with Complications", "icd": "E11.65", "icd_label": "Type 2 DM with hyperglycemia", "raf": 0.302, "type": "recapture"},
-        {"hcc": 85, "label": "Congestive Heart Failure", "icd": "I50.9", "icd_label": "Heart failure, unspecified", "raf": 0.323, "type": "med_dx_gap"},
-        {"hcc": 111, "label": "Chronic Obstructive Pulmonary Disease", "icd": "J44.1", "icd_label": "COPD with acute exacerbation", "raf": 0.335, "type": "historical"},
-        {"hcc": 18, "label": "Diabetes without Complications", "icd": "E11.9", "icd_label": "Type 2 DM without complications", "raf": 0.105, "type": "specificity"},
-        {"hcc": 108, "label": "Vascular Disease", "icd": "I25.10", "icd_label": "Atherosclerotic heart disease", "raf": 0.288, "type": "recapture"},
+        {"hcc": 37, "label": "Diabetes with Complications", "icd": "E11.65", "icd_label": "Type 2 DM with hyperglycemia", "raf": 0.166, "type": "recapture"},
+        {"hcc": 226, "label": "Congestive Heart Failure", "icd": "I50.9", "icd_label": "Heart failure, unspecified", "raf": 0.360, "type": "med_dx_gap"},
+        {"hcc": 280, "label": "Chronic Obstructive Pulmonary Disease", "icd": "J44.1", "icd_label": "COPD with acute exacerbation", "raf": 0.319, "type": "historical"},
+        {"hcc": 38, "label": "Diabetes without Complications", "icd": "E11.9", "icd_label": "Type 2 DM without complications", "raf": 0.166, "type": "specificity"},
     ]
 
     for s in suspects:
