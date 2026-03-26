@@ -30,6 +30,65 @@ from app.services.snf_client import SNFClient
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Load REAL HCC reference data from SNF Admit Assist's CMS V28 mappings
+# ---------------------------------------------------------------------------
+
+import json
+import os
+
+_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+
+def _load_hcc_mappings() -> dict:
+    """Load the full ICD-10 → HCC mapping from hcc_mappings.json (7,793 codes)."""
+    path = os.path.join(_DATA_DIR, "hcc_mappings.json")
+    if not os.path.exists(path):
+        logger.warning("hcc_mappings.json not found at %s — using empty lookup", path)
+        return {}
+    with open(path) as f:
+        data = json.load(f)
+    return data.get("codes_by_icd10", {})
+
+def _load_hcc_raf_lookup() -> dict[int, Decimal]:
+    """Build HCC code → RAF weight lookup from the real mappings."""
+    codes = _load_hcc_mappings()
+    raf_by_hcc: dict[int, Decimal] = {}
+    for _icd, entry in codes.items():
+        hcc = entry.get("hcc")
+        raf = entry.get("raf")
+        if hcc is not None and raf is not None:
+            raf_by_hcc[int(hcc)] = Decimal(str(raf))
+    return raf_by_hcc
+
+# Loaded once at module import — 115 unique HCCs with real CMS V28 RAF weights
+HCC_MAPPINGS = _load_hcc_mappings()
+HCC_RAF_LOOKUP = _load_hcc_raf_lookup()
+logger.info("Loaded %d ICD-10→HCC mappings, %d unique HCC RAF weights", len(HCC_MAPPINGS), len(HCC_RAF_LOOKUP))
+
+
+def lookup_hcc_for_icd10(icd10_code: str) -> dict | None:
+    """Look up HCC code and RAF weight for an ICD-10 code using real CMS V28 data.
+
+    Tries dotted format first (E11.65), then without dot (E1165).
+    Returns: {hcc: int, raf: float, description: str, disease_group: str} or None.
+    """
+    # Try as-is (dotted)
+    entry = HCC_MAPPINGS.get(icd10_code)
+    if entry:
+        return entry
+    # Try with dot inserted (if code is > 3 chars and has no dot)
+    if "." not in icd10_code and len(icd10_code) > 3:
+        dotted = icd10_code[:3] + "." + icd10_code[3:]
+        entry = HCC_MAPPINGS.get(dotted)
+        if entry:
+            return entry
+    # Try without dot
+    stripped = icd10_code.replace(".", "")
+    for key, val in HCC_MAPPINGS.items():
+        if key.replace(".", "") == stripped:
+            return val
+    return None
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
@@ -104,38 +163,18 @@ DISEASE_INTERACTIONS: list[tuple[str, list[set[int]], Decimal]] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Local fallback: Approximate HCC RAF values (V28 community, non-dual)
+# HCC RAF values — loaded from REAL CMS V28 reference data (hcc_mappings.json)
+# Falls back to a minimal hardcoded set if the file isn't available.
 # ---------------------------------------------------------------------------
 
-LOCAL_HCC_RAF: dict[int, Decimal] = {
-    17: Decimal("0.302"),
-    18: Decimal("0.302"),
-    19: Decimal("0.105"),
-    22: Decimal("0.260"),
-    35: Decimal("0.311"),
-    37: Decimal("0.105"),
-    40: Decimal("0.311"),
-    48: Decimal("0.188"),
-    51: Decimal("0.273"),
-    52: Decimal("0.273"),
-    57: Decimal("0.565"),
-    59: Decimal("0.309"),
-    75: Decimal("0.100"),
-    78: Decimal("0.606"),
-    85: Decimal("0.331"),
-    96: Decimal("0.268"),
-    100: Decimal("0.259"),
-    111: Decimal("0.328"),
-    112: Decimal("0.235"),
-    115: Decimal("0.203"),
-    130: Decimal("0.442"),
-    135: Decimal("0.395"),
-    155: Decimal("0.309"),
-    186: Decimal("0.825"),
-    326: Decimal("0.069"),
-    327: Decimal("0.237"),
-    328: Decimal("0.069"),
-    329: Decimal("0.237"),
+LOCAL_HCC_RAF: dict[int, Decimal] = HCC_RAF_LOOKUP if HCC_RAF_LOOKUP else {
+    # Minimal fallback only used if hcc_mappings.json is missing
+    38: Decimal("0.166"),   # Diabetes
+    226: Decimal("0.360"),  # Heart Failure
+    328: Decimal("0.127"),  # CKD Stage 3
+    155: Decimal("0.299"),  # Depression
+    280: Decimal("0.319"),  # COPD
+    238: Decimal("0.299"),  # AFib
 }
 
 

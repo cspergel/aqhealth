@@ -1,0 +1,723 @@
+{
+  "metadata": {
+    "version": "V28 2025 Midyear",
+    "source": "CMS HCC Software V2825.115.T1",
+    "description": "HCC Category Groupings with Hierarchies for CMS-HCC V28 Payment Model",
+    "total_hccs": 115
+  },
+  "groups": {
+    "Infections": {
+      "description": "HIV/AIDS, Sepsis, and Opportunistic Infections",
+      "hierarchy": null,
+      "hccs": [
+        {
+          "hcc": "1",
+          "label": "HIV/AIDS",
+          "raf": 0.301
+        },
+        {
+          "hcc": "2",
+          "label": "Septicemia, Sepsis, Systemic Inflammatory Response Syndrome/Shock",
+          "raf": 0.5
+        },
+        {
+          "hcc": "6",
+          "label": "Opportunistic Infections",
+          "raf": 0.381
+        }
+      ]
+    },
+    "Neoplasms": {
+      "description": "Cancers and Tumors",
+      "hierarchy": "17 > 18 > 19 > 20 > 21 > 22 > 23",
+      "hccs": [
+        {
+          "hcc": "17",
+          "label": "Cancer Metastatic to Lung, Liver, Brain, and Other Organs; Acute Myeloid Leukemia Except Promyelocytic",
+          "raf": 4.209
+        },
+        {
+          "hcc": "18",
+          "label": "Cancer Metastatic to Bone, Other and Unspecified Metastatic Cancer; Acute Leukemia Except Myeloid",
+          "raf": 2.341
+        },
+        {
+          "hcc": "19",
+          "label": "Myelodysplastic Syndromes, Multiple Myeloma, and Other Cancers",
+          "raf": 1.798
+        },
+        {
+          "hcc": "20",
+          "label": "Lung and Other Severe Cancers",
+          "raf": 1.136
+        },
+        {
+          "hcc": "21",
+          "label": "Lymphoma and Other Cancers",
+          "raf": 0.671
+        },
+        {
+          "hcc": "22",
+          "label": "Bladder, Colorectal, and Other Cancers",
+          "raf": 0.363
+        },
+        {
+          "hcc": "23",
+          "label": "Prostate, Breast, and Other Cancers and Tumors",
+          "raf": 0.186
+        }
+      ]
+    },
+    "Diabetes": {
+      "description": "Diabetes Mellitus and Related Conditions",
+      "hierarchy": "35 > 36 > 37 > 38",
+      "hccs": [
+        {
+          "hcc": "35",
+          "label": "Pancreas Transplant Status",
+          "raf": 0.949
+        },
+        {
+          "hcc": "36",
+          "label": "Diabetes with Severe Acute Complications",
+          "raf": 0.166
+        },
+        {
+          "hcc": "37",
+          "label": "Diabetes with Chronic Complications",
+          "raf": 0.166
+        },
+        {
+          "hcc": "38",
+          "label": "Diabetes with Glycemic, Unspecified, or No Complications",
+          "raf": 0.166
+        }
+      ]
+    },
+    "Obesity_Metabolic": {
+      "description": "Obesity and Metabolic Disorders",
+      "hierarchy": null,
+      "hccs": [
+        {
+          "hcc": "48",
+          "label": "Morbid Obesity",
+          "raf": 0.186
+        },
+        {
+          "hcc": "49",
+          "label": "Specified Lysosomal Storage Disorders",
+          "raf": 9.256
+        },
+        {
+          "hcc": "50",
+          "label": "Amyloidosis, Porphyria, and Other Specified Metabolic Disorders",
+          "raf": 0.648
+        },
+        {
+          "hcc": "51",
+          "label": "Addison's and Cushing's Diseases, Acromegaly, and Other Specified Endocrine Disorders",
+          "raf": 0.51
+        }
+      ]
+    },
+    "Liver": {
+      "description": "Liver Disease",
+      "hierarchy": "62 > 63 > 64 > 65/68",
+      "hccs": [
+        {
+          "hcc": "62",
+          "label": "Liver Transplant Status/Complications",
+          "raf": 0.376
+        },
+        {
+          "hcc": "63",
+          "label": "Chronic Liver Failure/End-Stage Liver Disorders",
+          "raf": 0.962
+        },
+        {
+          "hcc": "64",
+          "label": "Cirrhosis of Liver",
+          "raf": 0.447
+        },
+        {
+          "hcc": "65",
+          "label": "Chronic Hepatitis",
+          "raf": 0.185
+        },
+        {
+          "hcc": "68",
+          "label": "Cholangitis and Obstruction of Bile Duct Without Gallstones",
+          "raf": 0.388
+        }
+      ]
+    },
+    "Gastrointestinal": {
+      "description": "Intestinal and Digestive Disorders",
+      "hierarchy": "77 > 78/80 > 81",
+      "hccs": [
+        {
+          "hcc": "77",
+          "label": "Intestine Transplant Status/Complications",
+          "raf": 1.172
+        },
+        {
+          "hcc": "78",
+          "label": "Intestinal Obstruction/Perforation",
+          "raf": 0.326
+        },
+        {
+          "hcc": "79",
+          "label": "Chronic Pancreatitis",
+          "raf": 0.357
+        },
+        {
+          "hcc": "80",
+          "label": "Crohn's Disease (Regional Enteritis)",
+          "raf": 0.55
+        },
+        {
+          "hcc": "81",
+          "label": "Ulcerative Colitis",
+          "raf": 0.244
+        }
+      ]
+    },
+    "Musculoskeletal": {
+      "description": "Bone, Joint, Muscle Infections and Rheumatic Disorders",
+      "hierarchy": "93 > 94",
+      "hccs": [
+        {
+          "hcc": "92",
+          "label": "Bone/Joint/Muscle/Severe Soft Tissue Infections/Necrosis",
+          "raf": 0.479
+        },
+        {
+          "hcc": "93",
+          "label": "Rheumatoid Arthritis and Other Specified Inflammatory Rheumatic Disorders",
+          "raf": 0.617
+        },
+        {
+          "hcc": "94",
+          "label": "Systemic Lupus Erythematosus and Other Specified Systemic Connective Tissue Disorders",
+          "raf": 0.268
+        }
+      ]
+    },
+    "Blood": {
+      "description": "Hematological Disorders",
+      "hierarchy": "107 > 108, 111 > 112, 114 > 115",
+      "hccs": [
+        {
+          "hcc": "107",
+          "label": "Sickle Cell Anemia (Hb-SS) and Thalassemia Beta Zero",
+          "raf": 0.457
+        },
+        {
+          "hcc": "108",
+          "label": "Sickle Cell Disorders, Except Sickle Cell Anemia (Hb-SS) and Thalassemia Beta Zero; Beta Thalassemia Major",
+          "raf": 0.146
+        },
+        {
+          "hcc": "109",
+          "label": "Acquired Hemolytic, Aplastic, and Sideroblastic Anemias",
+          "raf": 1.144
+        },
+        {
+          "hcc": "111",
+          "label": "Hemophilia, Male",
+          "raf": 4.639
+        },
+        {
+          "hcc": "112",
+          "label": "Immune Thrombocytopenia and Specified Coagulation Defects and Hemorrhagic Conditions",
+          "raf": 0.45
+        },
+        {
+          "hcc": "114",
+          "label": "Common Variable and Combined Immunodeficiencies",
+          "raf": 2.262
+        },
+        {
+          "hcc": "115",
+          "label": "Specified Immunodeficiencies and White Blood Cell Disorders",
+          "raf": 0.565
+        }
+      ]
+    },
+    "Cognitive": {
+      "description": "Dementia and Cognitive Disorders",
+      "hierarchy": "125 > 126 > 127",
+      "hccs": [
+        {
+          "hcc": "125",
+          "label": "Dementia, Severe",
+          "raf": 0.341
+        },
+        {
+          "hcc": "126",
+          "label": "Dementia, Moderate",
+          "raf": 0.341
+        },
+        {
+          "hcc": "127",
+          "label": "Dementia, Mild or Unspecified",
+          "raf": 0.341
+        }
+      ]
+    },
+    "Substance_Use": {
+      "description": "Substance Use Disorders (Drug and Alcohol)",
+      "hierarchy": "135 > 136 > 137 > 138 > 139",
+      "hccs": [
+        {
+          "hcc": "135",
+          "label": "Drug Use with Psychotic Complications",
+          "raf": 0.424
+        },
+        {
+          "hcc": "136",
+          "label": "Alcohol Use with Psychotic Complications",
+          "raf": 0.424
+        },
+        {
+          "hcc": "137",
+          "label": "Drug Use Disorder, Moderate/Severe, or Drug Use with Non-Psychotic Complications",
+          "raf": 0.424
+        },
+        {
+          "hcc": "138",
+          "label": "Drug Use Disorder, Mild, Uncomplicated, Except Cannabis",
+          "raf": 0.423
+        },
+        {
+          "hcc": "139",
+          "label": "Alcohol Use Disorder, Moderate/Severe, or Alcohol Use with Specified Non-Psychotic Complications",
+          "raf": 0.242
+        }
+      ]
+    },
+    "Psychiatric": {
+      "description": "Psychiatric Disorders",
+      "hierarchy": "151 > 152 > 153 > 154 > 155",
+      "hccs": [
+        {
+          "hcc": "151",
+          "label": "Schizophrenia",
+          "raf": 0.511
+        },
+        {
+          "hcc": "152",
+          "label": "Psychosis, Except Schizophrenia",
+          "raf": 0.484
+        },
+        {
+          "hcc": "153",
+          "label": "Personality Disorders; Anorexia/Bulimia Nervosa",
+          "raf": 0.396
+        },
+        {
+          "hcc": "154",
+          "label": "Bipolar Disorders without Psychosis",
+          "raf": 0.351
+        },
+        {
+          "hcc": "155",
+          "label": "Major Depression, Moderate or Severe, without Psychosis",
+          "raf": 0.299
+        }
+      ]
+    },
+    "Spinal_Paralysis": {
+      "description": "Spinal Cord Injuries and Paralysis",
+      "hierarchy": "180 > 181 > 182, 253 > 254",
+      "hccs": [
+        {
+          "hcc": "180",
+          "label": "Quadriplegia",
+          "raf": 1.125
+        },
+        {
+          "hcc": "181",
+          "label": "Paraplegia",
+          "raf": 0.942
+        },
+        {
+          "hcc": "182",
+          "label": "Spinal Cord Disorders/Injuries",
+          "raf": 0.478
+        },
+        {
+          "hcc": "253",
+          "label": "Hemiplegia/Hemiparesis",
+          "raf": 0.387
+        },
+        {
+          "hcc": "254",
+          "label": "Monoplegia, Other Paralytic Syndromes",
+          "raf": 0.321
+        }
+      ]
+    },
+    "Neurological": {
+      "description": "Neurological Disorders",
+      "hierarchy": "191 > 192, 195 > 196",
+      "hccs": [
+        {
+          "hcc": "190",
+          "label": "Amyotrophic Lateral Sclerosis and Other Motor Neuron Disease, Spinal Muscular Atrophy",
+          "raf": 1.175
+        },
+        {
+          "hcc": "191",
+          "label": "Quadriplegic Cerebral Palsy",
+          "raf": 0.855
+        },
+        {
+          "hcc": "192",
+          "label": "Cerebral Palsy, Except Quadriplegic",
+          "raf": 0.314
+        },
+        {
+          "hcc": "193",
+          "label": "Chronic Inflammatory Demyelinating Polyneuritis and Multifocal Motor Neuropathy",
+          "raf": 1.692
+        },
+        {
+          "hcc": "195",
+          "label": "Myasthenia Gravis with (Acute) Exacerbation",
+          "raf": 2.909
+        },
+        {
+          "hcc": "196",
+          "label": "Myasthenia Gravis without (Acute) Exacerbation and Other Myoneural Disorders",
+          "raf": 0.516
+        },
+        {
+          "hcc": "197",
+          "label": "Muscular Dystrophy",
+          "raf": 0.426
+        },
+        {
+          "hcc": "198",
+          "label": "Multiple Sclerosis",
+          "raf": 0.647
+        },
+        {
+          "hcc": "199",
+          "label": "Parkinson and Other Degenerative Disease of Basal Ganglia",
+          "raf": 0.615
+        },
+        {
+          "hcc": "200",
+          "label": "Friedreich and Other Hereditary Ataxias; Huntington Disease",
+          "raf": 0.279
+        },
+        {
+          "hcc": "201",
+          "label": "Seizure Disorders and Convulsions",
+          "raf": 0.245
+        },
+        {
+          "hcc": "202",
+          "label": "Coma, Brain Compression/Anoxic Damage",
+          "raf": 0.543
+        }
+      ]
+    },
+    "Cardio_Respiratory_Arrest": {
+      "description": "Respiratory Dependence and Cardio-Respiratory Failure",
+      "hierarchy": "211 > 212 > 213",
+      "hccs": [
+        {
+          "hcc": "211",
+          "label": "Respirator Dependence/Tracheostomy Status/Complications",
+          "raf": 0.879
+        },
+        {
+          "hcc": "212",
+          "label": "Respiratory Arrest",
+          "raf": 0.37
+        },
+        {
+          "hcc": "213",
+          "label": "Cardio-Respiratory Failure and Shock",
+          "raf": 0.37
+        }
+      ]
+    },
+    "Heart": {
+      "description": "Heart Failure and Heart Disease",
+      "hierarchy": "221 > 222 > 223 > 224 > 225 > 226 > 227, 228 > 229",
+      "hccs": [
+        {
+          "hcc": "221",
+          "label": "Heart Transplant Status/Complications",
+          "raf": 1.053
+        },
+        {
+          "hcc": "222",
+          "label": "End-Stage Heart Failure",
+          "raf": 2.505
+        },
+        {
+          "hcc": "223",
+          "label": "Heart Failure with Heart Assist Device/Artificial Heart",
+          "raf": 2.505
+        },
+        {
+          "hcc": "224",
+          "label": "Acute on Chronic Heart Failure",
+          "raf": 0.36
+        },
+        {
+          "hcc": "225",
+          "label": "Acute Heart Failure (Excludes Acute on Chronic)",
+          "raf": 0.36
+        },
+        {
+          "hcc": "226",
+          "label": "Heart Failure, Except End-Stage and Acute",
+          "raf": 0.36
+        },
+        {
+          "hcc": "227",
+          "label": "Cardiomyopathy/Myocarditis",
+          "raf": 0.189
+        },
+        {
+          "hcc": "228",
+          "label": "Acute Myocardial Infarction",
+          "raf": 0.252
+        },
+        {
+          "hcc": "229",
+          "label": "Unstable Angina and Other Acute Ischemic Heart Disease",
+          "raf": 0.24
+        },
+        {
+          "hcc": "238",
+          "label": "Specified Heart Arrhythmias",
+          "raf": 0.299
+        }
+      ]
+    },
+    "Cerebrovascular": {
+      "description": "Stroke and Cerebrovascular Disease",
+      "hierarchy": "248 > 249",
+      "hccs": [
+        {
+          "hcc": "248",
+          "label": "Intracranial Hemorrhage",
+          "raf": 0.239
+        },
+        {
+          "hcc": "249",
+          "label": "Ischemic or Unspecified Stroke",
+          "raf": 0.239
+        }
+      ]
+    },
+    "Vascular": {
+      "description": "Vascular Disease",
+      "hierarchy": "263 > 264",
+      "hccs": [
+        {
+          "hcc": "263",
+          "label": "Atherosclerosis of Arteries of the Extremities with Ulceration or Gangrene",
+          "raf": 1.118
+        },
+        {
+          "hcc": "264",
+          "label": "Vascular Disease with Complications",
+          "raf": 0.455
+        },
+        {
+          "hcc": "267",
+          "label": "Deep Vein Thrombosis and Pulmonary Embolism",
+          "raf": 0.294
+        }
+      ]
+    },
+    "Lung": {
+      "description": "Chronic Lung Disease",
+      "hierarchy": "276 > 277 > 278 > 279 > 280, 282 > 283",
+      "hccs": [
+        {
+          "hcc": "276",
+          "label": "Lung Transplant Status/Complications",
+          "raf": 2.531
+        },
+        {
+          "hcc": "277",
+          "label": "Cystic Fibrosis",
+          "raf": 0.998
+        },
+        {
+          "hcc": "278",
+          "label": "Idiopathic Pulmonary Fibrosis and Lung Involvement in Systemic Sclerosis",
+          "raf": 0.818
+        },
+        {
+          "hcc": "279",
+          "label": "Severe Persistent Asthma",
+          "raf": 0.818
+        },
+        {
+          "hcc": "280",
+          "label": "Chronic Obstructive Pulmonary Disease, Interstitial Lung Disorders, and Other Chronic Lung Disorders",
+          "raf": 0.319
+        },
+        {
+          "hcc": "282",
+          "label": "Aspiration and Specified Bacterial Pneumonias",
+          "raf": 0.44
+        },
+        {
+          "hcc": "283",
+          "label": "Empyema, Lung Abscess",
+          "raf": 0.204
+        }
+      ]
+    },
+    "Eye": {
+      "description": "Eye Disorders",
+      "hierarchy": null,
+      "hccs": [
+        {
+          "hcc": "298",
+          "label": "Severe Diabetic Eye Disease, Retinal Vein Occlusion, and Vitreous Hemorrhage",
+          "raf": 0.336
+        },
+        {
+          "hcc": "300",
+          "label": "Exudative Macular Degeneration",
+          "raf": 0.596
+        }
+      ]
+    },
+    "Kidney": {
+      "description": "Chronic Kidney Disease",
+      "hierarchy": "326 > 327 > 328 > 329",
+      "hccs": [
+        {
+          "hcc": "326",
+          "label": "Chronic Kidney Disease, Stage 5",
+          "raf": 0.815
+        },
+        {
+          "hcc": "327",
+          "label": "Chronic Kidney Disease, Severe (Stage 4)",
+          "raf": 0.514
+        },
+        {
+          "hcc": "328",
+          "label": "Chronic Kidney Disease, Moderate (Stage 3B)",
+          "raf": 0.127
+        },
+        {
+          "hcc": "329",
+          "label": "Chronic Kidney Disease, Moderate (Stage 3, Except 3B)",
+          "raf": 0.127
+        }
+      ]
+    },
+    "Skin": {
+      "description": "Skin Ulcers and Wounds",
+      "hierarchy": "379 > 380 > 381 > 382 > 383",
+      "hccs": [
+        {
+          "hcc": "379",
+          "label": "Pressure Ulcer of Skin with Necrosis Through to Muscle, Tendon, or Bone",
+          "raf": 1.965
+        },
+        {
+          "hcc": "380",
+          "label": "Chronic Ulcer of Skin, Except Pressure, Through to Bone or Muscle",
+          "raf": 1.078
+        },
+        {
+          "hcc": "381",
+          "label": "Pressure Ulcer of Skin with Full Thickness Skin Loss",
+          "raf": 1.075
+        },
+        {
+          "hcc": "382",
+          "label": "Pressure Ulcer of Skin with Partial Thickness Skin Loss",
+          "raf": 0.838
+        },
+        {
+          "hcc": "383",
+          "label": "Chronic Ulcer of Skin, Except Pressure, Not Specified as Through to Bone or Muscle",
+          "raf": 0.646
+        },
+        {
+          "hcc": "385",
+          "label": "Severe Skin Burn",
+          "raf": 1.291
+        },
+        {
+          "hcc": "387",
+          "label": "Pemphigus, Pemphigoid, and Other Specified Autoimmune Skin Disorders",
+          "raf": 0.406
+        }
+      ]
+    },
+    "Injury": {
+      "description": "Traumatic Injuries and Fractures",
+      "hierarchy": "397 > 398 > 399, 405 > 409",
+      "hccs": [
+        {
+          "hcc": "397",
+          "label": "Major Head Injury with Loss of Consciousness > 1 Hour",
+          "raf": 0.199
+        },
+        {
+          "hcc": "398",
+          "label": "Major Head Injury with Loss of Consciousness < 1 Hour or Unspecified",
+          "raf": 0.199
+        },
+        {
+          "hcc": "399",
+          "label": "Major Head Injury without Loss of Consciousness",
+          "raf": 0.199
+        },
+        {
+          "hcc": "401",
+          "label": "Vertebral Fractures without Spinal Cord Injury",
+          "raf": 0.522
+        },
+        {
+          "hcc": "402",
+          "label": "Hip Fracture/Dislocation",
+          "raf": 0.467
+        },
+        {
+          "hcc": "405",
+          "label": "Traumatic Amputations and Complications",
+          "raf": 0.598
+        },
+        {
+          "hcc": "409",
+          "label": "Amputation Status, Lower Limb/Amputation Complications",
+          "raf": 0.598
+        }
+      ]
+    },
+    "Transplants": {
+      "description": "Organ Transplant Status",
+      "hierarchy": null,
+      "hccs": [
+        {
+          "hcc": "454",
+          "label": "Stem Cell, Including Bone Marrow, Transplant Status/Complications",
+          "raf": 1.068
+        },
+        {
+          "hcc": "463",
+          "label": "Artificial Openings for Feeding or Elimination",
+          "raf": 0.673
+        }
+      ]
+    }
+  }
+}

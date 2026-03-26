@@ -73,7 +73,9 @@
       "Bash(python -m scripts.setup_db)",
       "Bash(python -c \"from app.main import app; print\\(f''Registered {len\\(app.routes\\)} routes''\\)\")",
       "Bash(python -m scripts.generate_insights)",
-      "Bash(alembic current:*)"
+      "Bash(alembic current:*)",
+      "Bash(python:*)",
+      "Bash(# Copy the real reference files to the Health Platform\ncp \"C:/Users/drcra/Documents/Coding Projects/SNF Admit Assist/backend/data/hcc_mappings.json\" \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/hcc_mappings.json\"\ncp \"C:/Users/drcra/Documents/Coding Projects/SNF Admit Assist/backend/data/hcc_groups_v28_2025midyear.json\" \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/hcc_groups_v28_2025midyear.json\"\necho \"Copied reference data\"\nls -lh \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/\")"
     ]
   }
 }
