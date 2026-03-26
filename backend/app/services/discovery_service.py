@@ -787,10 +787,12 @@ async def revenue_cycle_scan(db: AsyncSession) -> list[dict]:
 # Synthesis
 # ---------------------------------------------------------------------------
 
-async def synthesize_discoveries(raw_discoveries: list[dict]) -> list[dict]:
+async def synthesize_discoveries(raw_discoveries: list[dict], cross_module_context: dict | None = None) -> list[dict]:
     """
     Send raw scan results to Claude for ranking, connecting, and polishing
-    into actionable insights.
+    into actionable insights.  Includes cross-module context (practice costs,
+    risk accounting, BOI, clinical exchange, AWV, TCM) so Claude can draw
+    connections like "overhead is 22% above benchmark AND capture rate is low".
     """
     if not settings.anthropic_api_key:
         logger.warning("No API key — returning raw discoveries as-is")
@@ -805,20 +807,33 @@ async def synthesize_discoveries(raw_discoveries: list[dict]) -> list[dict]:
 
     system_prompt = """\
 You are an autonomous healthcare analytics engine for a Medicare Advantage MSO.
-You receive raw findings from systematic data scans across the entire population.
+You receive raw findings from systematic data scans across the entire population,
+PLUS summary data from every operational module (practice costs, risk accounting,
+BOI/interventions, clinical data exchange, AWV tracking, TCM compliance).
+
 Your job:
 1) Rank by dollar impact and actionability.
-2) Connect related findings across scans (e.g., a facility anomaly + SNF LOS opportunity + denial pattern = one connected insight).
+2) Connect related findings across scans AND across modules (e.g., a facility anomaly + SNF LOS opportunity + denial pattern = one connected insight; practice overhead above benchmark + low capture rate = hiring a dedicated coder would cost $X but generate $Y in RAF uplift).
 3) Generate plain-English insights with specific numbers.
-4) For each insight, specify WHO should see it (admin, provider, group_lead) and WHERE it should surface (dashboard, hcc, expenditure, providers, care_gaps, revenue_cycle).
+4) For each insight, specify WHO should see it (admin, provider, group_lead) and WHERE it should surface (dashboard, hcc, expenditure, providers, care_gaps, revenue_cycle, practice_costs, risk_accounting, boi, awv, tcm).
 5) Suggest follow-up analyses.
+6) Specifically look for cross-module synergies: staffing investments that could close care gaps, AWV completion driving HCC capture, TCM compliance reducing readmissions, etc.
 
 Be specific. Name dollar amounts. Be actionable."""
+
+    context_section = ""
+    if cross_module_context:
+        context_section = f"""
+
+CROSS-MODULE CONTEXT (current state of all operational modules):
+
+{json.dumps(cross_module_context, indent=2, default=str)}
+"""
 
     user_prompt = f"""\
 Here are raw findings from 6 systematic data scans:
 
-{json.dumps(raw_discoveries, indent=2, default=str)}
+{json.dumps(raw_discoveries, indent=2, default=str)}{context_section}
 
 Generate 10-20 polished insights. For each, return a JSON object with:
 - "category": one of "revenue", "cost", "quality", "provider", "cross_module", "trend"
@@ -893,12 +908,119 @@ def _fallback_synthesize(raw_discoveries: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Cross-module context gathering (for richer AI synthesis)
+# ---------------------------------------------------------------------------
+
+async def _gather_cross_module_context(db: AsyncSession) -> dict:
+    """Pull summary data from ALL modules so Claude can make cross-module
+    connections during synthesis (e.g. practice overhead + capture rate).
+
+    Each section is wrapped in try/except so a single module failure
+    never blocks the rest of the discovery pipeline.
+    """
+    context: dict = {}
+
+    # --- Practice costs summary ---
+    try:
+        from app.services.practice_expense_service import get_expense_dashboard
+        expense_data = await get_expense_dashboard(db)
+        context["practice_costs"] = {
+            "total_operational_cost": expense_data.get("total_actual", 0),
+            "total_budget": expense_data.get("total_budget", 0),
+            "budget_utilization_pct": expense_data.get("budget_utilization", 0),
+            "staffing_cost": expense_data.get("staffing_cost", 0),
+        }
+    except Exception as e:
+        logger.debug("Cross-module: practice costs unavailable: %s", e)
+
+    # --- Risk accounting summary ---
+    try:
+        from app.services.risk_accounting_service import get_risk_dashboard
+        risk_data = await get_risk_dashboard(db)
+        context["risk_accounting"] = {
+            "cap_revenue": risk_data.get("total_cap_revenue", 0),
+            "medical_spend": risk_data.get("total_medical_spend", 0),
+            "mlr": risk_data.get("mlr", 0),
+            "surplus_deficit": risk_data.get("surplus_deficit", 0),
+            "ibnr_estimate": risk_data.get("ibnr_estimate", 0),
+        }
+    except Exception as e:
+        logger.debug("Cross-module: risk accounting unavailable: %s", e)
+
+    # --- BOI summary ---
+    try:
+        from app.services.boi_service import get_boi_dashboard
+        boi_data = await get_boi_dashboard(db)
+        active_interventions = [
+            i for i in boi_data.get("interventions", []) if i.get("status") == "active"
+        ]
+        avg_roi = 0.0
+        roi_vals = [i["roi_percentage"] for i in active_interventions if i.get("roi_percentage")]
+        if roi_vals:
+            avg_roi = sum(roi_vals) / len(roi_vals)
+        context["boi"] = {
+            "active_interventions": len(active_interventions),
+            "total_invested": boi_data.get("total_invested", 0),
+            "total_returned": boi_data.get("total_returned", 0),
+            "avg_roi": round(avg_roi, 1),
+        }
+    except Exception as e:
+        logger.debug("Cross-module: BOI unavailable: %s", e)
+
+    # --- Clinical exchange stats ---
+    try:
+        from app.services.clinical_exchange_service import get_exchange_dashboard
+        exchange_data = await get_exchange_dashboard(db)
+        auto_responded = exchange_data.get("auto_responded", 0)
+        total_req = exchange_data.get("total_requests", 0)
+        context["clinical_exchange"] = {
+            "total_requests": total_req,
+            "pending": exchange_data.get("pending", 0),
+            "auto_responded": auto_responded,
+            "auto_response_rate": round(auto_responded / total_req * 100, 1) if total_req else 0,
+            "avg_response_hours": exchange_data.get("avg_response_hours", 0),
+        }
+    except Exception as e:
+        logger.debug("Cross-module: clinical exchange unavailable: %s", e)
+
+    # --- AWV completion rate ---
+    try:
+        from app.services.awv_service import get_awv_dashboard
+        awv_data = await get_awv_dashboard(db)
+        context["awv"] = {
+            "total_members": awv_data.get("total_members", 0),
+            "completed": awv_data.get("awv_completed", 0),
+            "overdue": awv_data.get("awv_overdue", 0),
+            "completion_rate": awv_data.get("completion_rate", 0),
+            "revenue_opportunity": awv_data.get("revenue_opportunity", 0),
+        }
+    except Exception as e:
+        logger.debug("Cross-module: AWV unavailable: %s", e)
+
+    # --- TCM compliance rate ---
+    try:
+        from app.services.tcm_service import get_tcm_dashboard
+        tcm_data = await get_tcm_dashboard(db)
+        context["tcm"] = {
+            "active_cases": tcm_data.get("active_cases", 0),
+            "compliance_rate": tcm_data.get("compliance_rate", 0),
+            "revenue_captured": tcm_data.get("revenue_captured", 0),
+            "revenue_potential": tcm_data.get("revenue_potential", 0),
+        }
+    except Exception as e:
+        logger.debug("Cross-module: TCM unavailable: %s", e)
+
+    return context
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 
 async def run_full_discovery(db: AsyncSession) -> list[dict]:
     """
-    Orchestrate all 6 scans and synthesize results into ranked discoveries.
+    Orchestrate all 6 scans, gather cross-module context, and synthesize
+    results into ranked discoveries.
     """
     logger.info("Starting autonomous discovery scan...")
 
@@ -929,8 +1051,12 @@ async def run_full_discovery(db: AsyncSession) -> list[dict]:
     if not all_raw:
         return []
 
-    # Synthesize into polished insights
-    discoveries = await synthesize_discoveries(all_raw)
+    # Gather cross-module context for richer AI synthesis
+    cross_module_context = await _gather_cross_module_context(db)
+    logger.info("Gathered cross-module context from %d modules", len(cross_module_context))
+
+    # Synthesize into polished insights (with cross-module context)
+    discoveries = await synthesize_discoveries(all_raw, cross_module_context)
     logger.info("Synthesized %d discoveries", len(discoveries))
 
     return discoveries

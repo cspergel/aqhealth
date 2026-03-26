@@ -367,6 +367,47 @@ async def generate_alerts(db: AsyncSession, event: dict) -> list[dict]:
         )
         alerts.append(alert)
 
+    # --- Cross-module: match ADT diagnoses against open HCC suspects ---
+    try:
+        if member_id and diagnoses:
+            from app.services.hcc_engine import lookup_hcc_for_icd10
+            open_suspects_q = await db.execute(
+                text(
+                    "SELECT hcc_code, hcc_label FROM hcc_suspects "
+                    "WHERE member_id = :mid AND status = 'open'"
+                ),
+                {"mid": member_id},
+            )
+            open_suspects = {row[0]: row[1] for row in open_suspects_q.all()}
+
+            if open_suspects:
+                for code in diagnoses:
+                    hcc_info = lookup_hcc_for_icd10(str(code))
+                    if hcc_info and hcc_info.get("hcc") in open_suspects:
+                        hcc_code = hcc_info["hcc"]
+                        hcc_label = open_suspects[hcc_code]
+                        alert = await _create_alert(
+                            db,
+                            adt_event_id=event_id,
+                            member_id=member_id,
+                            alert_type="hcc_suspect_match",
+                            priority="high",
+                            title=f"Member admitted with {code} — HCC {hcc_code} capture opportunity during this stay",
+                            description=(
+                                f"Diagnosis {code} maps to HCC {hcc_code} ({hcc_label}), "
+                                f"which is an open suspect for this member. "
+                                f"This inpatient stay is an ideal opportunity to capture and document this condition."
+                            ),
+                            recommended_action=(
+                                "Coordinate with attending physician to ensure HCC condition is "
+                                "documented and coded during this encounter. Update suspect status "
+                                "to 'captured' once confirmed."
+                            ),
+                        )
+                        alerts.append(alert)
+    except Exception as e:
+        logger.warning("Cross-module HCC suspect matching failed (non-fatal): %s", e)
+
     return alerts
 
 

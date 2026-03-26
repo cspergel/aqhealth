@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef, useCallback } from "react";
 import { NavLink } from "react-router-dom";
 import { tokens, fonts } from "../../lib/tokens";
 import { mockCareAlerts, mockWatchlistItems } from "../../lib/mockData";
@@ -109,6 +110,41 @@ const navSections: NavSection[] = [
 ];
 
 /* ------------------------------------------------------------------ */
+/* Collapsible section state (persisted to localStorage)               */
+/* ------------------------------------------------------------------ */
+
+const STORAGE_KEY = "aqsoft_sidebar_sections";
+
+/** Sections expanded by default on first visit */
+const DEFAULT_EXPANDED: Record<string, boolean> = {
+  Clinical: true,
+  Overview: true,
+};
+
+function loadSectionState(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore corrupt data
+  }
+  // First visit: expand defaults, collapse everything else
+  const state: Record<string, boolean> = {};
+  for (const section of navSections) {
+    state[section.title] = DEFAULT_EXPANDED[section.title] ?? false;
+  }
+  return state;
+}
+
+function saveSectionState(state: Record<string, boolean>) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // storage full — ignore
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Sidebar component                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -120,6 +156,16 @@ export function Sidebar({
   onToggle: () => void;
 }) {
   const width = collapsed ? 60 : 240;
+
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(loadSectionState);
+
+  const toggleSection = useCallback((title: string) => {
+    setExpandedSections((prev) => {
+      const next = { ...prev, [title]: !prev[title] };
+      saveSectionState(next);
+      return next;
+    });
+  }, []);
 
   return (
     <aside
@@ -186,33 +232,13 @@ export function Sidebar({
         }}
       >
         {navSections.map((section) => (
-          <div key={section.title} style={{ marginBottom: 4 }}>
-            {/* Section header */}
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                color: tokens.textMuted,
-                padding: collapsed ? "14px 0 6px 0" : "14px 20px 6px 20px",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textAlign: collapsed ? "center" : "left",
-              }}
-            >
-              {collapsed ? section.title.charAt(0) : section.title}
-            </div>
-
-            {/* Nav items */}
-            {section.items.map((item) => (
-              <SidebarNavItem
-                key={item.path}
-                item={item}
-                collapsed={collapsed}
-              />
-            ))}
-          </div>
+          <CollapsibleSection
+            key={section.title}
+            section={section}
+            sidebarCollapsed={collapsed}
+            expanded={expandedSections[section.title] ?? false}
+            onToggle={() => toggleSection(section.title)}
+          />
         ))}
       </nav>
 
@@ -253,6 +279,122 @@ export function Sidebar({
         {!collapsed && <span>Collapse</span>}
       </button>
     </aside>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Collapsible section wrapper                                         */
+/* ------------------------------------------------------------------ */
+
+function CollapsibleSection({
+  section,
+  sidebarCollapsed,
+  expanded,
+  onToggle,
+}: {
+  section: NavSection;
+  sidebarCollapsed: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [measuredHeight, setMeasuredHeight] = useState<number>(0);
+
+  // Measure the natural height of the items whenever they change
+  useEffect(() => {
+    if (contentRef.current) {
+      setMeasuredHeight(contentRef.current.scrollHeight);
+    }
+  }, [section.items.length, expanded]);
+
+  // When sidebar is fully collapsed, don't show expand/collapse — just the letter
+  if (sidebarCollapsed) {
+    return (
+      <div style={{ marginBottom: 4 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            color: tokens.textMuted,
+            padding: "14px 0 6px 0",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textAlign: "center",
+          }}
+        >
+          {section.title.charAt(0)}
+        </div>
+        {section.items.map((item) => (
+          <SidebarNavItem key={item.path} item={item} collapsed={true} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      {/* Clickable section header */}
+      <button
+        onClick={onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          color: tokens.textMuted,
+          padding: "14px 20px 6px 20px",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textAlign: "left",
+          transition: "color 150ms",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = tokens.text;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = tokens.textMuted;
+        }}
+        title={expanded ? `Collapse ${section.title}` : `Expand ${section.title}`}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            fontSize: 10,
+            lineHeight: 1,
+            transition: "transform 200ms ease",
+            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+            flexShrink: 0,
+          }}
+        >
+          {"\u25B8"}
+        </span>
+        <span>{section.title}</span>
+      </button>
+
+      {/* Animated collapsible content */}
+      <div
+        style={{
+          overflow: "hidden",
+          transition: "max-height 200ms ease",
+          maxHeight: expanded ? measuredHeight : 0,
+        }}
+      >
+        <div ref={contentRef}>
+          {section.items.map((item) => (
+            <SidebarNavItem key={item.path} item={item} collapsed={false} />
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

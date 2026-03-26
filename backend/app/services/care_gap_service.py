@@ -345,10 +345,19 @@ async def detect_gaps(db: AsyncSession) -> dict[str, int]:
         total_closed += closed
 
     await db.commit()
+
+    # --- Cross-module: auto-create action items for triple-weighted measure gaps ---
+    action_items_created = 0
+    try:
+        action_items_created = await _auto_create_actions_for_critical_gaps(db, measurement_year)
+    except Exception as e:
+        logger.warning("Cross-module: auto-create action items failed (non-fatal): %s", e)
+
     return {
         "scanned": len(measures),
         "gaps_created": total_created,
         "gaps_closed": total_closed,
+        "action_items_created": action_items_created,
     }
 
 
@@ -903,3 +912,74 @@ async def get_all_measures(db: AsyncSession) -> list[dict[str, Any]]:
         }
         for m in measures
     ]
+
+
+# ---------------------------------------------------------------------------
+# Cross-module: auto-create action items for critical (triple-weighted) gaps
+# ---------------------------------------------------------------------------
+
+async def _auto_create_actions_for_critical_gaps(
+    db: AsyncSession, measurement_year: int
+) -> int:
+    """For every open gap on a triple-weighted Stars measure (weight >= 3),
+    auto-create a high-priority ActionItem for member outreach.
+
+    Only creates an action item if one doesn't already exist for the same
+    member + measure combination. Returns number of action items created.
+    """
+    from app.models.action import ActionItem
+
+    # Find open gaps on measures with stars_weight >= 3
+    result = await db.execute(
+        select(MemberGap, GapMeasure, Member)
+        .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
+        .join(Member, MemberGap.member_id == Member.id)
+        .where(
+            MemberGap.status == GapStatus.open.value,
+            MemberGap.measurement_year == measurement_year,
+            GapMeasure.stars_weight >= 3,
+        )
+    )
+    rows = result.all()
+
+    created = 0
+    for gap, measure, member in rows:
+        member_name = f"{member.first_name} {member.last_name}".strip()
+
+        # Check if an action item already exists for this gap
+        existing = await db.execute(
+            select(ActionItem.id).where(
+                ActionItem.source_type == "care_gap",
+                ActionItem.member_id == member.id,
+                ActionItem.title.ilike(f"%{measure.code}%"),
+                ActionItem.status.in_(["open", "in_progress"]),
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            continue
+
+        action = ActionItem(
+            source_type="care_gap",
+            source_id=gap.id,
+            title=f"Close {measure.name} gap for {member_name}",
+            description=(
+                f"Triple-weighted Stars measure {measure.code} ({measure.name}) "
+                f"has an open gap for {member_name}. "
+                f"Stars weight: {measure.stars_weight}x. "
+                f"Due date: {gap.due_date}."
+            ),
+            action_type="outreach",
+            priority="high",
+            member_id=member.id,
+            provider_id=gap.responsible_provider_id,
+            due_date=gap.due_date,
+            expected_impact=f"Close {measure.code} gap — triple-weighted Stars measure",
+        )
+        db.add(action)
+        created += 1
+
+    if created:
+        await db.commit()
+        logger.info("Auto-created %d action items for triple-weighted care gaps", created)
+
+    return created
