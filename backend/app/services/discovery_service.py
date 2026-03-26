@@ -7,6 +7,7 @@ cross-module, revenue-cycle), then synthesizes raw findings via Claude into
 polished, ranked, actionable insights.
 """
 
+import asyncio
 import json
 import logging
 from datetime import date, timedelta
@@ -16,6 +17,7 @@ from sqlalchemy import select, func, case, distinct, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.llm_guard import guarded_llm_call
 from app.models.claim import Claim, ClaimType
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
 from app.models.hcc import HccSuspect, SuspectStatus
@@ -787,7 +789,7 @@ async def revenue_cycle_scan(db: AsyncSession) -> list[dict]:
 # Synthesis
 # ---------------------------------------------------------------------------
 
-async def synthesize_discoveries(raw_discoveries: list[dict], cross_module_context: dict | None = None) -> list[dict]:
+async def synthesize_discoveries(raw_discoveries: list[dict], cross_module_context: dict | None = None, tenant_schema: str = "default") -> list[dict]:
     """
     Send raw scan results to Claude for ranking, connecting, and polishing
     into actionable insights.  Includes cross-module context (practice costs,
@@ -796,13 +798,6 @@ async def synthesize_discoveries(raw_discoveries: list[dict], cross_module_conte
     """
     if not settings.anthropic_api_key:
         logger.warning("No API key — returning raw discoveries as-is")
-        return _fallback_synthesize(raw_discoveries)
-
-    try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    except ImportError:
-        logger.warning("anthropic SDK not installed — returning raw discoveries")
         return _fallback_synthesize(raw_discoveries)
 
     system_prompt = """\
@@ -853,13 +848,18 @@ Generate 10-20 polished insights. For each, return a JSON object with:
 Return ONLY a JSON array. No markdown. No explanation."""
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            context_data={"discovery_count": len(raw_discoveries), "has_cross_module": cross_module_context is not None},
             max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
         )
-        text = response.content[0].text.strip()
+        if guard_result["warnings"]:
+            logger.warning("Synthesis LLM output warnings: %s", guard_result["warnings"])
+        text = guard_result["response"].strip()
+        if not text:
+            return _fallback_synthesize(raw_discoveries)
         if text.startswith("```"):
             text = text.split("\n", 1)[1] if "\n" in text else text[3:]
             if text.endswith("```"):

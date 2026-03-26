@@ -13,6 +13,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.llm_guard import guarded_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,7 @@ async def answer_question(
     db: AsyncSession,
     question: str,
     page_context: Optional[str] = None,
+    tenant_schema: str = "default",
 ) -> dict:
     """
     Send a natural-language question to Claude and return a structured answer.
@@ -135,41 +137,36 @@ async def answer_question(
     )
 
     try:
-        import httpx
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=system_prompt,
+            user_prompt=f"{context_block}\n\nQuestion: {question}",
+            context_data={"page_context": ctx_label, "question": question},
+            max_tokens=1024,
+        )
 
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-sonnet-4-20250514",
-                    "max_tokens": 1024,
-                    "system": system_prompt,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": f"{context_block}\n\nQuestion: {question}",
-                        }
-                    ],
-                },
-            )
-            resp.raise_for_status()
-            body = resp.json()
-            text = body["content"][0]["text"]
-
-            # Parse JSON from response
-            parsed = json.loads(text)
+        if not guard_result["response"]:
             return {
-                "answer": parsed.get("answer", text),
-                "data_points": parsed.get("data_points", []),
-                "related_members": parsed.get("related_members", []),
-                "recommended_actions": parsed.get("recommended_actions", []),
-                "follow_up_questions": parsed.get("follow_up_questions", []),
+                "answer": "Sorry, I wasn't able to process that question.",
+                "data_points": [],
+                "related_members": [],
+                "recommended_actions": [],
+                "follow_up_questions": [],
             }
+
+        if guard_result["warnings"]:
+            logger.warning("Query LLM output warnings: %s", guard_result["warnings"])
+
+        text = guard_result["response"]
+        # Parse JSON from response
+        parsed = json.loads(text)
+        return {
+            "answer": parsed.get("answer", text),
+            "data_points": parsed.get("data_points", []),
+            "related_members": parsed.get("related_members", []),
+            "recommended_actions": parsed.get("recommended_actions", []),
+            "follow_up_questions": parsed.get("follow_up_questions", []),
+        }
 
     except Exception as exc:
         logger.exception("AI query failed: %s", exc)

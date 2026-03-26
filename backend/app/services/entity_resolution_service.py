@@ -20,6 +20,7 @@ from sqlalchemy import text, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.llm_guard import guarded_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +181,7 @@ async def ai_match_member(
     db: AsyncSession,
     incoming: dict,
     candidates: list[dict],
+    tenant_schema: str = "default",
 ) -> dict:
     """Use Claude to evaluate which candidate (if any) matches the incoming member.
 
@@ -261,13 +263,18 @@ async def ai_match_member(
     )
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=_MEMBER_SYSTEM_PROMPT,
+            user_prompt=user_message,
+            context_data={"incoming": incoming, "candidate_count": len(enriched_candidates)},
             max_tokens=1024,
-            system=_MEMBER_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
         )
-        raw = response.content[0].text.strip()
+        if guard_result["warnings"]:
+            logger.warning("Member matching LLM warnings: %s", guard_result["warnings"])
+        raw = guard_result["response"].strip()
+        if not raw:
+            return _deterministic_fallback(candidates, entity_key="member_id")
         # Parse JSON — handle possible markdown fences
         if raw.startswith("```"):
             raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -349,6 +356,7 @@ async def ai_match_provider(
     db: AsyncSession,
     incoming: dict,
     candidates: list[dict],
+    tenant_schema: str = "default",
 ) -> dict:
     """Use Claude to evaluate which candidate (if any) matches the incoming provider.
 
@@ -403,13 +411,18 @@ async def ai_match_provider(
     )
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=_PROVIDER_SYSTEM_PROMPT,
+            user_prompt=user_message,
+            context_data={"incoming": incoming, "candidate_count": len(enriched_candidates)},
             max_tokens=1024,
-            system=_PROVIDER_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
         )
-        raw = response.content[0].text.strip()
+        if guard_result["warnings"]:
+            logger.warning("Provider matching LLM warnings: %s", guard_result["warnings"])
+        raw = guard_result["response"].strip()
+        if not raw:
+            return _deterministic_fallback(candidates, entity_key="provider_id")
         if raw.startswith("```"):
             raw = re.sub(r"^```(?:json)?\s*", "", raw)
             raw = re.sub(r"```\s*$", "", raw)
@@ -482,6 +495,7 @@ Return ONLY the JSON array, no other text."""
 async def ai_resolve_batch(
     db: AsyncSession,
     unresolved: list[dict],
+    tenant_schema: str = "default",
 ) -> list[dict]:
     """Process multiple unresolved matches in a single LLM call for efficiency.
 
@@ -513,13 +527,21 @@ async def ai_resolve_batch(
     )
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=_BATCH_SYSTEM_PROMPT,
+            user_prompt=user_message,
+            context_data={"batch_size": len(tasks_for_prompt)},
             max_tokens=4096,
-            system=_BATCH_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
         )
-        raw = response.content[0].text.strip()
+        if guard_result["warnings"]:
+            logger.warning("Batch resolution LLM warnings: %s", guard_result["warnings"])
+        raw = guard_result["response"].strip()
+        if not raw:
+            return [
+                _deterministic_fallback(item.get("candidates", []), entity_key="member_id")
+                for item in unresolved
+            ]
         if raw.startswith("```"):
             raw = re.sub(r"^```(?:json)?\s*", "", raw)
             raw = re.sub(r"```\s*$", "", raw)

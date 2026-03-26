@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import { tokens, fonts } from "../../lib/tokens";
 import { mockCareAlerts, mockWatchlistItems } from "../../lib/mockData";
+import { useAuth } from "../../lib/auth";
+import { canAccessSection, canAccessPage } from "../../lib/roleAccess";
 
 /* ------------------------------------------------------------------ */
 /* Navigation structure                                                */
@@ -156,6 +158,8 @@ export function Sidebar({
   onToggle: () => void;
 }) {
   const width = collapsed ? 60 : 240;
+  const { user } = useAuth();
+  const userRole = user?.role || "mso_admin";
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(loadSectionState);
 
@@ -166,6 +170,17 @@ export function Sidebar({
       return next;
     });
   }, []);
+
+  // Filter sections and items based on role
+  const filteredSections = useMemo(() => {
+    return navSections
+      .filter((section) => canAccessSection(userRole, section.title))
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => canAccessPage(userRole, item.path)),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [userRole]);
 
   return (
     <aside
@@ -231,7 +246,7 @@ export function Sidebar({
           padding: collapsed ? "8px 0" : "8px 0",
         }}
       >
-        {navSections.map((section) => (
+        {filteredSections.map((section) => (
           <CollapsibleSection
             key={section.title}
             section={section}

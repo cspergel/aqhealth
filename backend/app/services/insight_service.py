@@ -18,6 +18,7 @@ from sqlalchemy import select, func, case, update, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.llm_guard import guarded_llm_call
 from app.models.claim import Claim, ClaimType
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
 from app.models.hcc import HccSuspect, SuspectStatus
@@ -417,7 +418,7 @@ def _parse_llm_json(raw_text: str) -> list[dict] | None:
         return None
 
 
-async def generate_insights(db: AsyncSession) -> list[dict]:
+async def generate_insights(db: AsyncSession, tenant_schema: str = "default") -> list[dict]:
     """
     Build full context graph, call Claude for cross-module pattern detection,
     persist Insight records, and clean up stale insights.
@@ -496,19 +497,27 @@ async def generate_insights(db: AsyncSession) -> list[dict]:
     ) + learning_addendum + discovery_addendum
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=POPULATION_SYSTEM_PROMPT,
+            user_prompt=enriched_prompt,
+            context_data=context,
             max_tokens=4096,
-            system=POPULATION_SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": enriched_prompt}
-            ],
         )
+        if not guard_result["response"]:
+            logger.error("Guarded LLM call returned empty response")
+            if discoveries:
+                return await _persist_insights(db, discoveries)
+            return []
+        if guard_result["warnings"]:
+            logger.warning("LLM output warnings: %s", guard_result["warnings"])
     except Exception as e:
-        logger.error("Claude API call failed: %s", e, exc_info=True)
+        logger.error("Guarded LLM call failed: %s", e, exc_info=True)
+        if discoveries:
+            return await _persist_insights(db, discoveries)
         return []
 
-    insights_data = _parse_llm_json(response.content[0].text)
+    insights_data = _parse_llm_json(guard_result["response"])
     if not insights_data:
         # Fall back to discovery results if LLM parsing fails
         if discoveries:
@@ -594,7 +603,7 @@ Prioritize insights that connect multiple data points (e.g., suspect HCC + open 
 Return ONLY a JSON array."""
 
 
-async def generate_member_insights(db: AsyncSession, member_id: int) -> list[dict]:
+async def generate_member_insights(db: AsyncSession, member_id: int, tenant_schema: str = "default") -> list[dict]:
     """Build patient-level context and generate insights via LLM."""
     client = _get_anthropic_client()
     if client is None:
@@ -685,21 +694,21 @@ async def generate_member_insights(db: AsyncSession, member_id: int) -> list[dic
     }
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=MEMBER_SYSTEM_PROMPT,
+            user_prompt=MEMBER_USER_PROMPT.format(
+                context_json=json.dumps(context, indent=2, default=str)
+            ),
+            context_data=context,
             max_tokens=2048,
-            system=MEMBER_SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": MEMBER_USER_PROMPT.format(
-                    context_json=json.dumps(context, indent=2, default=str)
-                )}
-            ],
         )
+        if guard_result["warnings"]:
+            logger.warning("Member insight LLM warnings: %s", guard_result["warnings"])
+        return _parse_llm_json(guard_result["response"]) or []
     except Exception as e:
-        logger.error("Claude API call failed for member %d: %s", member_id, e)
+        logger.error("Guarded LLM call failed for member %d: %s", member_id, e)
         return []
-
-    return _parse_llm_json(response.content[0].text) or []
 
 
 # ---------------------------------------------------------------------------
@@ -729,7 +738,7 @@ Focus on the biggest improvement opportunities. Compare to the network top quart
 Return ONLY a JSON array."""
 
 
-async def generate_provider_insights(db: AsyncSession, provider_id: int) -> list[dict]:
+async def generate_provider_insights(db: AsyncSession, provider_id: int, tenant_schema: str = "default") -> list[dict]:
     """Build provider-level context and generate coaching insights via LLM."""
     client = _get_anthropic_client()
     if client is None:
@@ -812,18 +821,18 @@ async def generate_provider_insights(db: AsyncSession, provider_id: int) -> list
     }
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=PROVIDER_SYSTEM_PROMPT,
+            user_prompt=PROVIDER_USER_PROMPT.format(
+                context_json=json.dumps(context, indent=2, default=str)
+            ),
+            context_data=context,
             max_tokens=2048,
-            system=PROVIDER_SYSTEM_PROMPT,
-            messages=[
-                {"role": "user", "content": PROVIDER_USER_PROMPT.format(
-                    context_json=json.dumps(context, indent=2, default=str)
-                )}
-            ],
         )
+        if guard_result["warnings"]:
+            logger.warning("Provider insight LLM warnings: %s", guard_result["warnings"])
+        return _parse_llm_json(guard_result["response"]) or []
     except Exception as e:
-        logger.error("Claude API call failed for provider %d: %s", provider_id, e)
+        logger.error("Guarded LLM call failed for provider %d: %s", provider_id, e)
         return []
-
-    return _parse_llm_json(response.content[0].text) or []

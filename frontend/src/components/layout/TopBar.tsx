@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../../lib/auth";
 import { tokens } from "../../lib/tokens";
 import { useGlobalFilter, type FilterOption } from "../../lib/filterContext";
+import { ALL_ROLES, ROLE_LABELS } from "../../lib/roleAccess";
 
 /* ------------------------------------------------------------------ */
 /* Filter dropdown (reused from old AppShell, lightly restyled)        */
@@ -149,7 +150,7 @@ function FilterDropdown({
 /* ------------------------------------------------------------------ */
 
 export function TopBar() {
-  const { user, logout } = useAuth();
+  const { user, logout, isDemo, setDemoRole } = useAuth();
   const {
     selectedGroup,
     selectedProvider,
@@ -218,8 +219,14 @@ export function TopBar() {
         )}
       </div>
 
-      {/* Right side: user info */}
+      {/* Right side: user info + role switcher */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {isDemo && (
+          <RoleSwitcher
+            currentRole={user?.role || "mso_admin"}
+            onRoleChange={setDemoRole}
+          />
+        )}
         <span style={{ fontSize: 12, color: tokens.textMuted }}>
           {user?.full_name}
         </span>
@@ -246,5 +253,106 @@ export function TopBar() {
         </button>
       </div>
     </header>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Role Switcher — demo-only dropdown for switching between roles       */
+/* ------------------------------------------------------------------ */
+
+function RoleSwitcher({
+  currentRole,
+  onRoleChange,
+}: {
+  currentRole: string;
+  onRoleChange: (role: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          fontSize: 11,
+          padding: "2px 10px",
+          borderRadius: 4,
+          border: `1px solid ${tokens.accent}`,
+          color: tokens.accentText,
+          background: tokens.accentSoft,
+          cursor: "pointer",
+          fontWeight: 500,
+          transition: "background 150ms",
+          whiteSpace: "nowrap",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = tokens.accent;
+          e.currentTarget.style.color = "#fff";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = tokens.accentSoft;
+          e.currentTarget.style.color = tokens.accentText;
+        }}
+      >
+        Viewing as: {ROLE_LABELS[currentRole] || currentRole} &#9662;
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 4,
+            zIndex: 60,
+            borderRadius: 6,
+            border: `1px solid ${tokens.border}`,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+            minWidth: 160,
+            background: tokens.surface,
+          }}
+        >
+          {ALL_ROLES.map((role) => (
+            <button
+              key={role}
+              onClick={() => {
+                onRoleChange(role);
+                setOpen(false);
+              }}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                fontSize: 12,
+                padding: "6px 12px",
+                background: role === currentRole ? tokens.accentSoft : "transparent",
+                border: "none",
+                cursor: "pointer",
+                color: role === currentRole ? tokens.accentText : tokens.text,
+                fontWeight: role === currentRole ? 600 : 400,
+                transition: "background 100ms",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = tokens.surfaceAlt;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background =
+                  role === currentRole ? tokens.accentSoft : "transparent";
+              }}
+            >
+              {ROLE_LABELS[role] || role}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

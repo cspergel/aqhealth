@@ -12,6 +12,7 @@ import re
 from typing import Any
 
 from app.config import settings
+from app.services.llm_guard import guarded_llm_call
 
 logger = logging.getLogger(__name__)
 
@@ -387,19 +388,12 @@ async def _ai_mapping(
     headers: list[str],
     sample_rows: list[list[str]],
     data_type_hint: str | None = None,
+    tenant_schema: str = "default",
 ) -> dict[str, Any]:
     """
     Call Anthropic Claude to propose column mapping.
     Returns {"data_type": str, "mapping": {source_col: {platform_field, confidence}}}.
     """
-    try:
-        import anthropic
-    except ImportError:
-        logger.warning("anthropic package not installed, falling back to heuristic")
-        return {}
-
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-
     # Build the sample data table for context
     sample_table = "Headers: " + " | ".join(headers) + "\n"
     for i, row in enumerate(sample_rows[:5]):
@@ -407,7 +401,9 @@ async def _ai_mapping(
 
     all_fields_desc = json.dumps(PLATFORM_FIELDS, indent=2)
 
-    prompt = f"""You are a healthcare data analyst assistant. Analyze these CSV/Excel column headers and sample data from a healthcare file upload.
+    system_prompt = "You are a healthcare data analyst assistant. Analyze CSV/Excel column headers and sample data from a healthcare file upload and propose column mappings."
+
+    prompt = f"""Analyze these CSV/Excel column headers and sample data from a healthcare file upload.
 
 ## Sample Data
 {sample_table}
@@ -437,14 +433,21 @@ Return ONLY valid JSON in this exact format:
 }}"""
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=system_prompt,
+            user_prompt=prompt,
+            context_data={"headers": headers, "sample_row_count": len(sample_rows)},
             max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
         )
 
-        # Extract JSON from the response
-        text = response.content[0].text
+        if guard_result["warnings"]:
+            logger.warning("Mapping LLM output warnings: %s", guard_result["warnings"])
+
+        text = guard_result["response"]
+        if not text:
+            return {}
+
         # Try to find JSON block in the response
         json_match = re.search(r"\{[\s\S]*\}", text)
         if json_match:
@@ -455,7 +458,7 @@ Return ONLY valid JSON in this exact format:
             return {}
 
     except Exception as e:
-        logger.error(f"Anthropic API call failed: {e}")
+        logger.error(f"Guarded LLM call failed for mapping: {e}")
         return {}
 
 

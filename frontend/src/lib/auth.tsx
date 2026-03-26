@@ -15,6 +15,7 @@ interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
   isDemo: boolean;
+  setDemoRole: (role: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -76,8 +77,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsDemo(false);
   };
 
+  const setDemoRole = (role: string) => {
+    if (!isDemo) return;
+    const ROLE_NAMES: Record<string, string> = {
+      superadmin: "Super Admin",
+      mso_admin: "MSO Admin",
+      analyst: "Analyst",
+      provider: "Provider",
+      care_manager: "Care Manager",
+      outreach: "Outreach",
+      auditor: "Auditor",
+      financial: "Financial",
+    };
+    setUser({
+      ...DEMO_USER,
+      role,
+      full_name: `Demo User (${ROLE_NAMES[role] || role})`,
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading, isDemo }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, isDemo, setDemoRole }}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,6 +4,7 @@ reports, and feeds context back into the insight generation pipeline so
 the AI improves over time.
 """
 
+import asyncio
 import json
 import logging
 from datetime import date, timedelta
@@ -13,6 +14,7 @@ from sqlalchemy import select, func, case, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.llm_guard import guarded_llm_call
 from app.models.hcc import HccSuspect, SuspectStatus
 from app.models.insight import Insight, InsightStatus
 from app.models.care_gap import MemberGap, GapStatus
@@ -287,18 +289,13 @@ async def _generate_ai_lessons(
     by_type: dict,
     blind_spots: list,
     strengths: list,
+    tenant_schema: str = "default",
 ) -> list[str]:
     """Use Claude to generate learning lessons from accuracy patterns."""
     if not settings.anthropic_api_key:
         return [
             "Insufficient data for AI-generated lessons. Connect an API key to enable.",
         ]
-
-    try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    except ImportError:
-        return ["Anthropic SDK not installed."]
 
     prompt = f"""Based on these prediction accuracy patterns for a Medicare Advantage risk adjustment platform,
 generate 3-5 concise lessons (1-2 sentences each) about what we should adjust:
@@ -311,12 +308,16 @@ Return a JSON array of strings. Each string is one lesson.
 Return ONLY valid JSON."""
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt="You are a healthcare AI learning advisor. Generate concise lessons from prediction accuracy data.",
+            user_prompt=prompt,
+            context_data={"by_type": by_type, "blind_spots": blind_spots, "strengths": strengths},
             max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
         )
-        text = response.content[0].text.strip()
+        if guard_result["warnings"]:
+            logger.warning("AI lessons LLM warnings: %s", guard_result["warnings"])
+        text = guard_result["response"].strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1] if "\n" in text else text[3:]
             if text.endswith("```"):
@@ -520,4 +521,133 @@ async def get_user_preference_model(db: AsyncSession) -> dict[str, Any]:
         "top_pages": [{"page": r.page_context, "interactions": r.count} for r in page_activity],
         "recent_questions": question_topics[:10],
         "has_preference_data": len(interactions) > 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Per-provider learning profile
+# ---------------------------------------------------------------------------
+
+async def get_provider_learning_profile(db: AsyncSession, provider_id: int) -> dict[str, Any]:
+    """
+    Build a per-provider accuracy profile by analyzing prediction outcomes
+    for members attributed to this provider (via member -> PCP).
+
+    Returns:
+        {
+            provider_id: int,
+            overall_accuracy: float,
+            total_predictions: int,
+            by_type: {prediction_type: {total, correct, accuracy}},
+            blind_spots: [{hcc_code, total, correct, accuracy}],
+            strengths: [{hcc_code, total, correct, accuracy}],
+        }
+    """
+    from app.models.member import Member
+
+    # Find all member IDs attributed to this provider
+    member_ids_q = await db.execute(
+        select(Member.id).where(Member.pcp_provider_id == provider_id)
+    )
+    member_ids = [r[0] for r in member_ids_q.all()]
+
+    if not member_ids:
+        return {
+            "provider_id": provider_id,
+            "overall_accuracy": 0.0,
+            "total_predictions": 0,
+            "by_type": {},
+            "blind_spots": [],
+            "strengths": [],
+        }
+
+    # Get all prediction outcomes where context has a member_id in our set
+    # PredictionOutcome.context is JSONB with a "member_id" key for hcc_suspect type
+    all_outcomes = (await db.execute(
+        select(PredictionOutcome).where(
+            PredictionOutcome.context.isnot(None),
+        )
+    )).scalars().all()
+
+    # Filter to outcomes for this provider's members
+    provider_outcomes = []
+    for outcome in all_outcomes:
+        ctx = outcome.context
+        if isinstance(ctx, dict) and ctx.get("member_id") in member_ids:
+            provider_outcomes.append(outcome)
+
+    if not provider_outcomes:
+        return {
+            "provider_id": provider_id,
+            "overall_accuracy": 0.0,
+            "total_predictions": 0,
+            "by_type": {},
+            "blind_spots": [],
+            "strengths": [],
+        }
+
+    # Accuracy by prediction type
+    by_type: dict[str, dict] = {}
+    total_correct = 0
+    total_count = 0
+
+    for po in provider_outcomes:
+        ptype = po.prediction_type
+        if ptype not in by_type:
+            by_type[ptype] = {"total": 0, "correct": 0}
+        by_type[ptype]["total"] += 1
+        total_count += 1
+        if po.was_correct:
+            by_type[ptype]["correct"] += 1
+            total_correct += 1
+
+    for ptype_data in by_type.values():
+        ptype_data["accuracy"] = round(
+            ptype_data["correct"] / max(ptype_data["total"], 1) * 100, 1
+        )
+
+    overall_accuracy = round(total_correct / max(total_count, 1) * 100, 1)
+
+    # HCC-specific accuracy for this provider
+    hcc_performance: dict[str, dict] = {}
+    for po in provider_outcomes:
+        if po.prediction_type == "hcc_suspect" and isinstance(po.context, dict):
+            hcc_code = str(po.context.get("hcc_code", "unknown"))
+            if hcc_code not in hcc_performance:
+                hcc_performance[hcc_code] = {"total": 0, "correct": 0}
+            hcc_performance[hcc_code]["total"] += 1
+            if po.was_correct:
+                hcc_performance[hcc_code]["correct"] += 1
+
+    for hcc_data in hcc_performance.values():
+        hcc_data["accuracy"] = round(
+            hcc_data["correct"] / max(hcc_data["total"], 1) * 100, 1
+        )
+
+    # Sort to find blind spots (lowest accuracy) and strengths (highest accuracy)
+    # Only include codes with 2+ predictions to be meaningful
+    significant = [
+        (code, data) for code, data in hcc_performance.items()
+        if data["total"] >= 2
+    ]
+    sorted_hcc = sorted(significant, key=lambda x: x[1]["accuracy"])
+
+    blind_spots = [
+        {"hcc_code": code, **data}
+        for code, data in sorted_hcc[:5]
+        if data["accuracy"] < 70
+    ]
+    strengths = [
+        {"hcc_code": code, **data}
+        for code, data in sorted_hcc[-5:]
+        if data["accuracy"] >= 70
+    ]
+
+    return {
+        "provider_id": provider_id,
+        "overall_accuracy": overall_accuracy,
+        "total_predictions": total_count,
+        "by_type": by_type,
+        "blind_spots": blind_spots,
+        "strengths": strengths,
     }

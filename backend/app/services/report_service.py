@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.llm_guard import guarded_llm_call
 from app.models.report import ReportTemplate, GeneratedReport
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ async def generate_report(
     period: str,
     generated_by: int,
     params: dict | None = None,
+    tenant_schema: str = "default",
 ) -> dict:
     """
     Generate a report from a template:
@@ -80,7 +82,7 @@ async def generate_report(
             section_type = section_def.get("type", "")
             section_title = section_def.get("title", section_type.replace("_", " ").title())
             data = await _pull_section_data(db, section_type)
-            narrative = await _generate_section_narrative(section_type, section_title, data)
+            narrative = await _generate_section_narrative(section_type, section_title, data, tenant_schema=tenant_schema)
             sections_data.append({
                 "type": section_type,
                 "title": section_title,
@@ -89,7 +91,7 @@ async def generate_report(
             })
 
         # Generate executive summary
-        executive_summary = await _generate_executive_summary(template.name, period, sections_data)
+        executive_summary = await _generate_executive_summary(template.name, period, sections_data, tenant_schema=tenant_schema)
 
         # Update report
         report.content = {"sections": sections_data}
@@ -238,32 +240,30 @@ def _get_anthropic_client():
         return None
 
 
-async def _generate_section_narrative(section_type: str, title: str, data: dict) -> str:
+async def _generate_section_narrative(section_type: str, title: str, data: dict, tenant_schema: str = "default") -> str:
     """Generate a narrative summary for a report section using Claude."""
-    client = _get_anthropic_client()
-    if not client:
+    if not settings.anthropic_api_key:
         return f"[AI narrative for {title} would appear here with live data.]"
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt="You are a healthcare analytics report writer for a Medicare Advantage MSO. Write concise, data-driven narratives suitable for board reports and regulatory submissions. Use specific numbers from the data provided. Write in professional third person.",
+            user_prompt=f"Write a 2-3 paragraph narrative summary for the '{title}' section of a report.\n\nData:\n{json.dumps(data, indent=2, default=str)}\n\nBe specific with numbers. Write professionally.",
+            context_data=data.copy() if isinstance(data, dict) else {"data": data},
             max_tokens=1024,
-            system="You are a healthcare analytics report writer for a Medicare Advantage MSO. Write concise, data-driven narratives suitable for board reports and regulatory submissions. Use specific numbers from the data provided. Write in professional third person.",
-            messages=[{
-                "role": "user",
-                "content": f"Write a 2-3 paragraph narrative summary for the '{title}' section of a report.\n\nData:\n{json.dumps(data, indent=2, default=str)}\n\nBe specific with numbers. Write professionally.",
-            }],
         )
-        return response.content[0].text
+        if guard_result["warnings"]:
+            logger.warning("Section narrative LLM warnings for %s: %s", title, guard_result["warnings"])
+        return guard_result["response"] or f"[Narrative generation failed for {title}]"
     except Exception as e:
         logger.error("Failed to generate section narrative: %s", e)
         return f"[Narrative generation failed for {title}]"
 
 
-async def _generate_executive_summary(report_name: str, period: str, sections: list[dict]) -> str:
+async def _generate_executive_summary(report_name: str, period: str, sections: list[dict], tenant_schema: str = "default") -> str:
     """Generate an executive summary from all section data and narratives."""
-    client = _get_anthropic_client()
-    if not client:
+    if not settings.anthropic_api_key:
         return "[AI-generated executive summary would appear here with live data.]"
 
     sections_text = ""
@@ -271,16 +271,16 @@ async def _generate_executive_summary(report_name: str, period: str, sections: l
         sections_text += f"\n## {s['title']}\n{s.get('narrative', '')}\n"
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt="You are a healthcare analytics executive report writer. Write a compelling executive summary that synthesizes key findings across all sections. Focus on the most impactful data points, risks, and opportunities. Write for a board audience.",
+            user_prompt=f"Write an executive summary for the '{report_name}' covering {period}.\n\nSection summaries:\n{sections_text}\n\nWrite 3-5 paragraphs synthesizing the key findings, risks, and recommended actions.",
+            context_data={"report_name": report_name, "period": period, "section_count": len(sections)},
             max_tokens=2048,
-            system="You are a healthcare analytics executive report writer. Write a compelling executive summary that synthesizes key findings across all sections. Focus on the most impactful data points, risks, and opportunities. Write for a board audience.",
-            messages=[{
-                "role": "user",
-                "content": f"Write an executive summary for the '{report_name}' covering {period}.\n\nSection summaries:\n{sections_text}\n\nWrite 3-5 paragraphs synthesizing the key findings, risks, and recommended actions.",
-            }],
         )
-        return response.content[0].text
+        if guard_result["warnings"]:
+            logger.warning("Executive summary LLM warnings: %s", guard_result["warnings"])
+        return guard_result["response"] or "[Executive summary generation failed]"
     except Exception as e:
         logger.error("Failed to generate executive summary: %s", e)
         return "[Executive summary generation failed]"

@@ -1,7 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { FilterProvider } from "./lib/filterContext";
+import { canAccessPage } from "./lib/roleAccess";
 import { AppShell } from "./components/layout/AppShell";
 import { LoginPage } from "./pages/LoginPage";
 
@@ -76,8 +77,51 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
   if (isLoading) return null;
   if (!user) return <Navigate to="/login" />;
+
+  // Role-based page access check
+  const userRole = user.role || "mso_admin";
+  if (!canAccessPage(userRole, location.pathname)) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+          fontFamily: "Inter, system-ui, sans-serif",
+          color: "#334155",
+          padding: 32,
+          textAlign: "center",
+        }}
+      >
+        <h1 style={{ fontSize: 24, marginBottom: 8 }}>Access Denied</h1>
+        <p style={{ fontSize: 14, color: "#64748b", marginBottom: 24, maxWidth: 420 }}>
+          Your role ({userRole}) does not have access to this page.
+          Please contact your administrator if you believe this is an error.
+        </p>
+        <button
+          onClick={() => window.location.replace("/")}
+          style={{
+            padding: "10px 24px",
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#fff",
+            background: "#2563eb",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        >
+          Go to Dashboard
+        </button>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 }
 
