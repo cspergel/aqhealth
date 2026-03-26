@@ -79,7 +79,6 @@ import {
   mockAWVMembersDue,
   mockAWVOpportunities,
   mockStarsProjection,
-  mockStarsSimulationResult,
   mockStarsOpportunities,
 } from "./mockData";
 
@@ -236,7 +235,57 @@ export function enableDemoMode() {
 
     // ---------- PATCH endpoints (mutations) ----------
     if (method === "patch") {
-      if (url.includes("/api/annotations/")) {
+      // HCC suspect capture/dismiss: /api/hcc/suspects/:suspectId
+      if (/\/api\/hcc\/suspects\/S\w+/.test(url)) {
+        const suspectId = url.match(/\/api\/hcc\/suspects\/(S\w+)/)?.[1] || "";
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newStatus = body?.status; // "captured" or "dismissed"
+        // Update in mockMemberDetails
+        for (const memberId of Object.keys(mockMemberDetails)) {
+          const detail = mockMemberDetails[memberId];
+          const suspect = detail.suspects.find((s) => s.id === suspectId);
+          if (suspect) {
+            suspect.status = newStatus;
+            // Update the member row in mockSuspectsData
+            const memberRow = mockSuspectsData.items.find((m) => m.member_id === memberId);
+            if (memberRow) {
+              const openSuspects = detail.suspects.filter((s) => s.status === "open");
+              if (openSuspects.length === 0) {
+                memberRow.status = "captured";
+              }
+              // Recalculate projected RAF: current + sum of open suspect raf values
+              const openRafSum = openSuspects.reduce((sum, s) => sum + s.raf_value, 0);
+              memberRow.projected_raf = Math.round((memberRow.current_raf + openRafSum) * 1000) / 1000;
+              memberRow.uplift = Math.round((memberRow.projected_raf - memberRow.current_raf) * 1000) / 1000;
+              memberRow.suspect_count = openSuspects.length;
+            }
+            mockResponse = { success: true, suspect_id: suspectId, status: newStatus, raf_value: suspect.raf_value };
+            break;
+          }
+        }
+        if (!mockResponse) mockResponse = { success: true };
+      }
+      // Care gap close/exclude: /api/care-gaps/:id
+      else if (/\/api\/care-gaps\/\d+/.test(url)) {
+        const gapId = parseInt(url.match(/\/api\/care-gaps\/(\d+)/)![1]);
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newStatus = body?.status || "closed";
+        // Update in mockMemberGaps
+        const gap = mockMemberGaps.find((g) => g.id === gapId);
+        if (gap && gap.status === "open") {
+          gap.status = newStatus;
+          gap.closed_date = new Date().toISOString().split("T")[0];
+          // Recalculate closure rate in mockCareGapSummaries for this measure
+          const summary = mockCareGapSummaries.find((s) => s.code === gap.measure_code);
+          if (summary && newStatus === "closed") {
+            summary.open_gaps = Math.max(0, summary.open_gaps - 1);
+            summary.closed_gaps += 1;
+            summary.closure_rate = Math.round((summary.closed_gaps / summary.total_eligible) * 1000) / 10;
+          }
+        }
+        mockResponse = { success: true, gap_id: gapId, status: newStatus };
+      }
+      else if (url.includes("/api/annotations/")) {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         const annotationId = parseInt(url.split("/api/annotations/")[1]);
         // Find annotation across all entity keys
@@ -396,22 +445,78 @@ export function enableDemoMode() {
       if (url.includes("/api/query/ask")) {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         const q = (body?.question || "").toLowerCase();
-        // Match by keyword
+
+        // Dynamic data for answers
+        const openSuspects = mockSuspectsData.items.filter((s) => s.status === "open");
+        const totalOpenSuspects = openSuspects.length;
+        const totalOpenRaf = Math.round(openSuspects.reduce((s, m) => s + m.uplift, 0) * 100) / 100;
+        const totalLives = mockDashboard.metrics.total_lives;
+        const avgRaf = mockDashboard.metrics.avg_raf;
+
         if (q.includes("readmission") || q.includes("memorial")) {
           mockResponse = mockQueryAnswers.readmission;
-        } else if (q.includes("diabetic") || q.includes("eye exam") || q.includes("retinal")) {
+        } else if (q.includes("diabetes") || q.includes("diabetic") || q.includes("eye exam") || q.includes("retinal") || q.includes("gap")) {
           mockResponse = mockQueryAnswers.diabetic;
-        } else if (q.includes("pharmacy") || q.includes("drug") || q.includes("medication") || q.includes("glp")) {
+        } else if (q.includes("pharmacy") || q.includes("drug") || q.includes("medication") || q.includes("glp") || q.includes("cost")) {
           mockResponse = mockQueryAnswers.pharmacy;
-        } else {
-          // Default fallback answer
+        } else if (q.includes("raf") || q.includes("capture") || q.includes("hcc") || q.includes("suspect")) {
+          // Dynamic answer from current suspect data
+          const topByUplift = [...openSuspects].sort((a, b) => b.uplift - a.uplift).slice(0, 5);
           mockResponse = {
-            answer: `Based on your population of 4,832 members, here's what I found regarding "${body?.question}":\n\nYour network shows a weighted average RAF of 1.247 with a recapture rate of 68.4%. Total PMPM is $1,247 against an MLR of 84.2%. There are 1,847 suspect HCC opportunities worth an estimated $3.4M in annual revenue.\n\nI'd recommend focusing on the highest-value suspect conditions and providers with the lowest capture rates to maximize impact.`,
+            answer: `Your population currently has ${totalOpenSuspects} open suspect HCC opportunities representing ${totalOpenRaf.toFixed(2)} RAF uplift. The average RAF across ${totalLives.toLocaleString()} members is ${avgRaf}.\n\nTop members by RAF opportunity:\n${topByUplift.map((m, i) => `${i + 1}. ${m.member_name} (${m.member_id}) — ${m.uplift.toFixed(3)} RAF uplift, ${m.suspect_count} open suspects`).join("\n")}\n\nFocusing on these high-value members first will maximize your capture impact.`,
             data_points: [
-              { label: "Total Lives", value: "4,832" },
-              { label: "Avg RAF", value: "1.247" },
-              { label: "Recapture Rate", value: "68.4%" },
-              { label: "Suspect Opportunities", value: "1,847" },
+              { label: "Open Suspects", value: totalOpenSuspects.toString() },
+              { label: "Total RAF Uplift", value: totalOpenRaf.toFixed(2) },
+              { label: "Avg RAF", value: avgRaf.toString() },
+              { label: "Est. Annual Value", value: `$${Math.round(totalOpenRaf * 11000).toLocaleString()}` },
+            ],
+            related_members: topByUplift.map((m) => ({ member_id: m.member_id, member_name: m.member_name, raf: m.current_raf, uplift: m.uplift })),
+            recommended_actions: [
+              "Schedule visits for members with highest RAF uplift potential",
+              "Review recapture suspects — these are conditions coded last year but not yet this year",
+              "Prioritize members with 3+ suspects for comprehensive visits",
+            ],
+            follow_up_questions: [
+              "Which providers have the lowest capture rates?",
+              "Show me recapture suspects specifically",
+              "What HCC codes have the highest value?",
+            ],
+          };
+        } else if (mockProviders.some((p) => q.includes(p.name.toLowerCase().split(" ").pop()!.toLowerCase()))) {
+          // Provider-specific answer
+          const matchedProvider = mockProviders.find((p) => q.includes(p.name.toLowerCase().split(" ").pop()!.toLowerCase()))!;
+          const provSuspects = mockSuspectsData.items.filter((s) => s.pcp.includes(matchedProvider.name.split(" ").pop()!));
+          mockResponse = {
+            answer: `Here's what I found about ${matchedProvider.name}:\n\n• Specialty: ${matchedProvider.specialty}\n• Panel Size: ${matchedProvider.panel_size} members\n• Capture Rate: ${matchedProvider.capture_rate}%\n• Recapture Rate: ${matchedProvider.recapture_rate}%\n• Avg RAF: ${matchedProvider.avg_raf}\n• Panel PMPM: $${matchedProvider.panel_pmpm}\n• Gap Closure Rate: ${matchedProvider.gap_closure_rate}%\n• Tier: ${matchedProvider.tier}\n\nThey have ${provSuspects.length} members with suspect HCCs in the current worklist.`,
+            data_points: [
+              { label: "Capture Rate", value: `${matchedProvider.capture_rate}%` },
+              { label: "Panel Size", value: matchedProvider.panel_size.toString() },
+              { label: "PMPM", value: `$${matchedProvider.panel_pmpm}` },
+              { label: "Gap Closure", value: `${matchedProvider.gap_closure_rate}%` },
+            ],
+            related_members: provSuspects.map((m) => ({ member_id: m.member_id, member_name: m.member_name, raf: m.current_raf, uplift: m.uplift })),
+            recommended_actions: [
+              (matchedProvider.capture_rate ?? 0) < 60 ? "Schedule coding education session — capture rate is below network average" : "Capture rate is strong — consider peer mentoring role",
+              (matchedProvider.gap_closure_rate ?? 0) < 60 ? "Review open care gaps and prioritize outreach" : "Gap closure is above average — maintain current workflows",
+              "Review suspect HCC list for upcoming patient visits",
+            ],
+            follow_up_questions: [
+              `What are ${matchedProvider.name}'s open suspect HCCs?`,
+              `How does ${matchedProvider.name} compare to peers?`,
+              `What care gaps are open for ${matchedProvider.name}'s panel?`,
+            ],
+          };
+        } else {
+          // Generic helpful fallback using live data
+          const openGapCount = mockCareGapSummaries.reduce((s, g) => s + g.open_gaps, 0);
+          const avgClosure = Math.round(mockCareGapSummaries.reduce((s, g) => s + g.closure_rate, 0) / mockCareGapSummaries.length * 10) / 10;
+          mockResponse = {
+            answer: `Based on your population of ${totalLives.toLocaleString()} members, here's a summary regarding "${body?.question}":\n\n• Average RAF: ${avgRaf} | Recapture Rate: ${mockDashboard.metrics.recapture_rate}%\n• Open HCC Suspects: ${totalOpenSuspects} (${totalOpenRaf.toFixed(1)} RAF opportunity)\n• Open Care Gaps: ${openGapCount} across ${mockCareGapSummaries.length} measures (avg closure: ${avgClosure}%)\n• Total PMPM: $${mockDashboard.metrics.total_pmpm} | MLR: ${mockDashboard.metrics.mlr}%\n• Stars Rating: ${mockStarsProjection.overall_rating} overall\n\nI can dig deeper into any of these areas. Try asking about specific providers, RAF capture, care gaps, costs, or Star ratings.`,
+            data_points: [
+              { label: "Total Lives", value: totalLives.toLocaleString() },
+              { label: "Avg RAF", value: avgRaf.toString() },
+              { label: "Open Suspects", value: totalOpenSuspects.toString() },
+              { label: "Open Care Gaps", value: openGapCount.toString() },
             ],
             related_members: [],
             recommended_actions: [
@@ -422,7 +527,8 @@ export function enableDemoMode() {
             follow_up_questions: [
               "Which providers have the most suspect HCCs?",
               "What's driving our highest cost categories?",
-              "Show me patients with the highest RAF scores",
+              "Show me our Stars rating breakdown",
+              "Which care gaps have the lowest closure rates?",
             ],
           };
         }
@@ -546,6 +652,25 @@ export function enableDemoMode() {
           const suspect = patient.suspects.find((s) => s.id === suspectId);
           if (suspect) {
             suspect.captured = true;
+            // Also update mockMemberDetails if matching suspect exists
+            const memberIdStr = typeof memberId === "number" ? `M${memberId}` : memberId;
+            const detail = mockMemberDetails[memberIdStr];
+            if (detail) {
+              const detailSuspect = detail.suspects.find((s) => s.id === suspectId || s.hcc_code === String(suspect.hcc_code) || s.hcc_code.includes(String(suspect.hcc_code)));
+              if (detailSuspect) detailSuspect.status = "captured";
+            }
+            // Update suspects data row
+            const row = mockSuspectsData.items.find((m) => m.member_id === memberIdStr);
+            if (row) {
+              const openCount = detail ? detail.suspects.filter((s) => s.status === "open").length : Math.max(0, row.suspect_count - 1);
+              row.suspect_count = openCount;
+              if (openCount === 0) row.status = "captured";
+              if (detail) {
+                const openRaf = detail.suspects.filter((s) => s.status === "open").reduce((sum, s) => sum + s.raf_value, 0);
+                row.projected_raf = Math.round((row.current_raf + openRaf) * 1000) / 1000;
+                row.uplift = Math.round((row.projected_raf - row.current_raf) * 1000) / 1000;
+              }
+            }
             mockResponse = {
               success: true,
               suspect_id: suspectId,
@@ -583,9 +708,65 @@ export function enableDemoMode() {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
         mockResponse = { provider_id: body?.provider_id, module_id: body?.module_id, completed: true, completed_date: new Date().toISOString().split("T")[0] };
       }
-      // Stars: simulate
+      // Stars: simulate — dynamic calculation from interventions
       else if (url.includes("/api/stars/simulate")) {
-        mockResponse = mockStarsSimulationResult;
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const interventions: { measure_code: string; gaps_to_close: number }[] = body?.interventions || [];
+
+        const measuresChanged: { code: string; name: string; weight: number; old_star: number; new_star: number; old_rate: number; new_rate: number }[] = [];
+        const simMeasures = mockStarsProjection.measures.map((m) => {
+          const intv = interventions.find((i) => i.measure_code === m.code);
+          if (!intv || intv.gaps_to_close <= 0) return { ...m };
+
+          const newNumerator = m.numerator + intv.gaps_to_close;
+          const newRate = Math.min(100, Math.round((newNumerator / m.total_eligible) * 1000) / 10);
+          let newStar = 2;
+          if (newRate >= m.star_5_cutpoint) newStar = 5;
+          else if (newRate >= m.star_4_cutpoint) newStar = 4;
+          else if (newRate >= m.star_3_cutpoint) newStar = 3;
+
+          if (newStar !== m.star_level) {
+            measuresChanged.push({
+              code: m.code, name: m.name, weight: m.weight,
+              old_star: m.star_level, new_star: newStar,
+              old_rate: m.current_rate, new_rate: newRate,
+            });
+          }
+          return { ...m, current_rate: newRate, numerator: newNumerator, star_level: newStar };
+        });
+
+        // Compute weighted average for overall rating
+        let totalWeight = 0;
+        let weightedSum = 0;
+        let partCWeight = 0; let partCSum = 0;
+        let partDWeight = 0; let partDSum = 0;
+        for (const m of simMeasures) {
+          totalWeight += m.weight;
+          weightedSum += m.star_level * m.weight;
+          if (m.part === "D") { partDWeight += m.weight; partDSum += m.star_level * m.weight; }
+          else { partCWeight += m.weight; partCSum += m.star_level * m.weight; }
+        }
+        const projOverall = totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 2) / 2 : 3.5; // round to nearest 0.5
+        const projPartC = partCWeight > 0 ? Math.round((partCSum / partCWeight) * 2) / 2 : 3.5;
+        const projPartD = partDWeight > 0 ? Math.round((partDSum / partDWeight) * 2) / 2 : 4.0;
+        const qualifiesForBonus = projOverall >= 4.0;
+        // Quality bonus: ~$1,028/member/year for 4+ stars
+        const bonusAmount = qualifiesForBonus ? Math.round(mockDashboard.metrics.total_lives * 1028 * (projOverall >= 4.5 ? 1.15 : 1.0)) : 0;
+
+        mockResponse = {
+          current_overall: mockStarsProjection.overall_rating,
+          projected_overall: projOverall,
+          current_part_c: mockStarsProjection.part_c_rating,
+          projected_part_c: projPartC,
+          current_part_d: mockStarsProjection.part_d_rating,
+          projected_part_d: projPartD,
+          rating_change: Math.round((projOverall - mockStarsProjection.overall_rating) * 10) / 10,
+          measures_changed: measuresChanged,
+          qualifies_for_bonus: qualifiesForBonus,
+          quality_bonus_amount: bonusAmount,
+          quality_bonus_change: bonusAmount - (mockStarsProjection.qualifies_for_bonus ? Math.round(mockDashboard.metrics.total_lives * 1028) : 0),
+          simulated_measures: simMeasures,
+        };
       }
       else {
         mockResponse = { success: true };
@@ -634,14 +815,57 @@ export function enableDemoMode() {
       else if (url.includes("/api/dashboard/insights")) {
         mockResponse = mockInsights;
       }
-      // Dashboard overview
+      // Dashboard overview — derived from current mock data state
       else if (url.includes("/api/dashboard")) {
-        mockResponse = mockDashboard;
+        // Count open suspects dynamically
+        const openSuspectsCount = mockSuspectsData.items.filter((s) => s.status === "open").length;
+        const openRafTotal = Math.round(mockSuspectsData.items.filter((s) => s.status === "open").reduce((sum, s) => sum + s.uplift, 0) * 10) / 10;
+        // Scale: each row represents ~185 members (1847 total / 10 rows)
+        const scaleFactor = mockDashboard.metrics.suspect_inventory.count / mockSuspectsData.items.length;
+        const scaledCount = Math.round(openSuspectsCount * scaleFactor);
+        const scaledRaf = Math.round(openRafTotal * scaleFactor * 10) / 10;
+
+        // Build dynamic care gap summary from current state
+        const dynamicCareGaps = mockCareGapSummaries.map((g) => ({
+          measure_code: g.code,
+          measure_name: g.name,
+          category: g.category,
+          total_gaps: g.total_eligible,
+          open_count: g.open_gaps,
+          closed_count: g.closed_gaps,
+          closure_rate: g.closure_rate,
+        }));
+
+        mockResponse = {
+          ...mockDashboard,
+          metrics: {
+            ...mockDashboard.metrics,
+            suspect_inventory: {
+              count: scaledCount,
+              total_raf_value: scaledRaf,
+              total_annual_value: Math.round(scaledRaf * 11000),
+            },
+          },
+          care_gap_summary: dynamicCareGaps,
+        };
       }
 
-      // HCC summary
+      // HCC summary — derived from current mock data state
       else if (url === "/api/hcc/summary" || url.endsWith("/api/hcc/summary")) {
-        mockResponse = mockSuspectsSummary;
+        const openItems = mockSuspectsData.items.filter((s) => s.status === "open");
+        const totalOpen = openItems.length;
+        const scaleFactor = mockSuspectsSummary.total_suspects / mockSuspectsData.items.length;
+        const scaledTotal = Math.round(totalOpen * scaleFactor);
+        const totalRafOpp = Math.round(openItems.reduce((sum, s) => sum + s.uplift, 0) * scaleFactor * 10) / 10;
+        const capturedCount = mockSuspectsData.items.length - totalOpen;
+        const captureRate = mockSuspectsData.items.length > 0 ? Math.round((capturedCount / mockSuspectsData.items.length) * 1000) / 10 : mockSuspectsSummary.capture_rate;
+        mockResponse = {
+          ...mockSuspectsSummary,
+          total_suspects: scaledTotal,
+          total_raf_opportunity: totalRafOpp,
+          estimated_annual_value: Math.round(totalRafOpp * 11000),
+          capture_rate: captureRate,
+        };
       }
       // HCC export
       else if (url.includes("/api/hcc/export")) {
