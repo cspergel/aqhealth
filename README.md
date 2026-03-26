@@ -321,6 +321,45 @@ The backend exposes 30 routers covering: `actions`, `adt`, `annotations`, `auth`
 
 ---
 
+## Competitive Landscape
+
+### Why This Platform
+
+**The market today:** MSOs cobble together 5–8 vendors that don't talk to each other.
+
+| What They Need | What They Buy | Typical Annual Cost | AQSoft Replaces |
+|---|---|---|---|
+| HCC capture / risk adjustment | Vatica Health (embedded nurses), Episource, Cotiviti | $150-400K | AI-driven prospective capture, no headcount |
+| Care management platform | GuidingCare, Medecision | $100-200K | Integrated with clinical workflow |
+| Quality / Stars tracking | Inovalon, Cotiviti | $75-150K | Built-in with Stars simulator |
+| Population analytics | Arcadia, Lightbeam, Innovaccer | $100-250K | Built-in with autonomous discovery |
+| Expenditure analysis | Milliman, custom builds | $50-200K | Deep drill-downs with AI recommendations |
+| Data aggregation | Innovaccer, Arcadia | $150-300K | Intelligent ingestion with entity resolution |
+
+**Total MSO spend: $800K–1.8M/year across disconnected vendors.**
+
+### What Makes AQSoft Different
+
+These are capabilities no competitor currently offers:
+
+1. **Autonomous Discovery Engine** — No competitor systematically scans across HCC capture + expenditure + quality + utilization + provider behavior simultaneously to surface cross-module insights automatically.
+
+2. **Self-Learning System** — Every platform on the market is static algorithms. AQSoft tracks prediction accuracy and improves over time. Recommendations that work get promoted; ones that don't get deprioritized.
+
+3. **Stars Rating Simulator** — No competitor lets you model "if I close these specific gaps, my rating goes from 3.5 to 4.0 stars, triggering $X in quality bonus."
+
+4. **Conversational AI Query** — No MSO tool lets you type "why is Memorial Hospital's readmission rate so high?" and get a data-backed answer with specific member lists and dollar estimates.
+
+5. **Dual Data Tiers** — Signal data (real-time predictions from AQTracker/ADT) and Record data (adjudicated claims) with reconciliation that validates and improves predictions.
+
+6. **Cross-Module Context Graph** — Revenue suspects, cost outliers, quality gaps, and provider performance are interconnected. A single insight can draw from HCC data + expenditure patterns + care gaps + provider behavior simultaneously.
+
+7. **Pre-Claims Visibility via AQTracker** — See what's being billed before the insurance company receives the claim. No competitor has this operational integration.
+
+The closest comparison is Palantir Foundry for healthcare — but that's a $10M+ enterprise platform requiring 6–12 months of professional services. AQSoft delivers Palantir-level analytics at SaaS pricing.
+
+---
+
 ## Screenshots
 
 See the [live demo](https://cspergel.github.io/aqhealth/?demo=true) for a walkthrough of the platform with synthetic data.
