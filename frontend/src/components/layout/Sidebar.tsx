@@ -90,6 +90,8 @@ const navSections: NavSection[] = [
     title: "Finance",
     items: [
       { path: "/financial", label: "Financial" },
+      { path: "/practice-costs", label: "Practice Costs" },
+      { path: "/roi-tracker", label: "ROI Tracker" },
       { path: "/stoploss", label: "Stop-Loss" },
       { path: "/reports", label: "Reports" },
     ],

@@ -35,6 +35,8 @@ import { AWVPage } from "../../pages/AWVPage";
 import { StarsSimulatorPage } from "../../pages/StarsSimulatorPage";
 import { TemporalPage } from "../../pages/TemporalPage";
 import { AlertRulesPage } from "../../pages/AlertRulesPage";
+import { PracticeExpensesPage } from "../../pages/PracticeExpensesPage";
+import { BOIPage } from "../../pages/BOIPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -116,6 +118,8 @@ export function AppShell() {
             <Route path="/stoploss" element={<StopLossPage />} />
             <Route path="/education" element={<EducationPage />} />
             <Route path="/time-machine" element={<TemporalPage />} />
+            <Route path="/practice-costs" element={<PracticeExpensesPage />} />
+            <Route path="/roi-tracker" element={<BOIPage />} />
           </Routes>
         </main>
 

@@ -88,6 +88,16 @@ import {
   mockAlertRules,
   mockAlertRuleTriggers,
   mockAlertRulePresets,
+  mockStaffMembers,
+  mockExpenseEntries,
+  mockExpenseDashboard,
+  mockStaffingAnalysis,
+  mockExpenseTrends,
+  mockEfficiencyMetrics,
+  mockHiringAnalysis,
+  mockBOIDashboard,
+  mockInterventions,
+  mockBOIRecommendations,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -1538,6 +1548,58 @@ export function enableDemoMode() {
       // Alert Rules: list
       else if (url.includes("/api/alert-rules")) {
         mockResponse = mockAlertRules;
+      }
+
+      // Practice Expenses: dashboard
+      else if (url.includes("/api/expenses/dashboard")) {
+        mockResponse = mockExpenseDashboard;
+      }
+      // Practice Expenses: staffing
+      else if (url.includes("/api/expenses/staffing")) {
+        mockResponse = mockStaffingAnalysis;
+      }
+      // Practice Expenses: trends
+      else if (url.includes("/api/expenses/trends")) {
+        mockResponse = mockExpenseTrends;
+      }
+      // Practice Expenses: efficiency
+      else if (url.includes("/api/expenses/efficiency")) {
+        mockResponse = mockEfficiencyMetrics;
+      }
+      // Practice Expenses: hiring analysis
+      else if (url.includes("/api/expenses/hiring-analysis")) {
+        mockResponse = mockHiringAnalysis;
+      }
+      // Practice Expenses: staff list
+      else if (url.includes("/api/expenses/staff")) {
+        mockResponse = mockStaffMembers;
+      }
+      // Practice Expenses: entries
+      else if (url.includes("/api/expenses/entries")) {
+        mockResponse = mockExpenseEntries;
+      }
+
+      // BOI: recommendations
+      else if (url.includes("/api/boi/recommendations")) {
+        mockResponse = mockBOIRecommendations;
+      }
+      // BOI: calculate-roi
+      else if (url.includes("/api/boi/calculate-roi")) {
+        mockResponse = { roi_percentage: 340, investment: 18500, actual_return: 81400 };
+      }
+      // BOI: intervention detail
+      else if (url.match(/\/api\/boi\/interventions\/\d+/)) {
+        const idMatch = url.match(/\/interventions\/(\d+)/);
+        const id = idMatch ? parseInt(idMatch[1]) : 1;
+        mockResponse = mockInterventions.find((i: any) => i.id === id) || mockInterventions[0];
+      }
+      // BOI: interventions list
+      else if (url.includes("/api/boi/interventions")) {
+        mockResponse = mockInterventions;
+      }
+      // BOI: dashboard
+      else if (url.includes("/api/boi/dashboard")) {
+        mockResponse = mockBOIDashboard;
       }
 
       // Generic insights

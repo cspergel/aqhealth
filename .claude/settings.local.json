@@ -75,7 +75,12 @@
       "Bash(python -m scripts.generate_insights)",
       "Bash(alembic current:*)",
       "Bash(python:*)",
-      "Bash(# Copy the real reference files to the Health Platform\ncp \"C:/Users/drcra/Documents/Coding Projects/SNF Admit Assist/backend/data/hcc_mappings.json\" \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/hcc_mappings.json\"\ncp \"C:/Users/drcra/Documents/Coding Projects/SNF Admit Assist/backend/data/hcc_groups_v28_2025midyear.json\" \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/hcc_groups_v28_2025midyear.json\"\necho \"Copied reference data\"\nls -lh \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/\")"
+      "Bash(# Copy the real reference files to the Health Platform\ncp \"C:/Users/drcra/Documents/Coding Projects/SNF Admit Assist/backend/data/hcc_mappings.json\" \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/hcc_mappings.json\"\ncp \"C:/Users/drcra/Documents/Coding Projects/SNF Admit Assist/backend/data/hcc_groups_v28_2025midyear.json\" \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/hcc_groups_v28_2025midyear.json\"\necho \"Copied reference data\"\nls -lh \"C:/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/data/\")",
+      "WebFetch(domain:www.aaneel.com)",
+      "WebFetch(domain:getvim.com)",
+      "WebSearch",
+      "WebFetch(domain:www.intersystems.com)",
+      "WebFetch(domain:www.cioreview.com)"
     ]
   }
 }
