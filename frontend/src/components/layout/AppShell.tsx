@@ -26,6 +26,13 @@ import { ReportsPage } from "../../pages/ReportsPage";
 import { ActionsPage } from "../../pages/ActionsPage";
 import { ClinicalPage } from "../../pages/ClinicalPage";
 import { DataQualityPage } from "../../pages/DataQualityPage";
+import { TCMPage } from "../../pages/TCMPage";
+import { RADVPage } from "../../pages/RADVPage";
+import { AttributionPage } from "../../pages/AttributionPage";
+import { StopLossPage } from "../../pages/StopLossPage";
+import { EducationPage } from "../../pages/EducationPage";
+import { AWVPage } from "../../pages/AWVPage";
+import { StarsSimulatorPage } from "../../pages/StarsSimulatorPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -88,6 +95,8 @@ export function AppShell() {
             <Route path="/groups/*" element={<GroupsPage />} />
             <Route path="/intelligence" element={<PatternsPage />} />
             <Route path="/care-gaps" element={<CareGapsPage />} />
+            <Route path="/awv" element={<AWVPage />} />
+            <Route path="/stars" element={<StarsSimulatorPage />} />
             <Route path="/journey" element={<JourneyPage />} />
             <Route path="/journey/:memberId" element={<JourneyPage />} />
             <Route path="/financial" element={<FinancialPage />} />
@@ -98,6 +107,11 @@ export function AppShell() {
             <Route path="/actions" element={<ActionsPage />} />
             <Route path="/ingestion" element={<IngestionPage />} />
             <Route path="/data-quality" element={<DataQualityPage />} />
+            <Route path="/tcm" element={<TCMPage />} />
+            <Route path="/radv" element={<RADVPage />} />
+            <Route path="/attribution" element={<AttributionPage />} />
+            <Route path="/stoploss" element={<StopLossPage />} />
+            <Route path="/education" element={<EducationPage />} />
           </Routes>
         </main>
 

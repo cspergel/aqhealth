@@ -63,6 +63,24 @@ import {
   mockQuarantinedRecords,
   mockUnresolvedMatches,
   mockDataLineage,
+  mockTCMDashboard,
+  mockTCMActiveCases,
+  mockRADVReadiness,
+  mockRADVMemberProfile,
+  mockAttributionDashboard,
+  mockAttributionChanges,
+  mockChurnRisk,
+  mockStopLossDashboard,
+  mockHighCostMembers,
+  mockRiskCorridor,
+  mockEducationLibrary,
+  mockEducationRecommendations,
+  mockAWVDashboard,
+  mockAWVMembersDue,
+  mockAWVOpportunities,
+  mockStarsProjection,
+  mockStarsSimulationResult,
+  mockStarsOpportunities,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -280,6 +298,18 @@ export function enableDemoMode() {
           updated.updated_at = new Date().toISOString();
           mockActionItems[idx] = updated;
           mockResponse = updated;
+        } else {
+          mockResponse = { success: true };
+        }
+      } else if (url.includes("/api/tcm/")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const memberId = url.split("/api/tcm/")[1];
+        const tcmCase = mockTCMActiveCases.find((c) => c.member_id === memberId);
+        if (tcmCase) {
+          if (body.phone_contact_date) { tcmCase.phone_contact_status = "done"; tcmCase.phone_contact_date = body.phone_contact_date; }
+          if (body.visit_date) { tcmCase.visit_status = "done"; tcmCase.visit_date = body.visit_date; }
+          if (body.billing_status) tcmCase.billing_status = body.billing_status;
+          mockResponse = tcmCase;
         } else {
           mockResponse = { success: true };
         }
@@ -547,6 +577,15 @@ export function enableDemoMode() {
         } else {
           mockResponse = { success: false, error: "Patient not found" };
         }
+      }
+      // Education: complete module
+      else if (url.includes("/api/education/complete")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        mockResponse = { provider_id: body?.provider_id, module_id: body?.module_id, completed: true, completed_date: new Date().toISOString().split("T")[0] };
+      }
+      // Stars: simulate
+      else if (url.includes("/api/stars/simulate")) {
+        mockResponse = mockStarsSimulationResult;
       }
       else {
         mockResponse = { success: true };
@@ -1094,6 +1133,100 @@ export function enableDemoMode() {
       // Data Quality: lineage
       else if (url.includes("/api/data-quality/lineage")) {
         mockResponse = mockDataLineage;
+      }
+
+      // TCM dashboard
+      else if (url.includes("/api/tcm/dashboard")) {
+        mockResponse = mockTCMDashboard;
+      }
+      // TCM active cases
+      else if (url.includes("/api/tcm/active")) {
+        mockResponse = mockTCMActiveCases;
+      }
+
+      // RADV member profile
+      else if (/\/api\/radv\/member\/M\w+/.test(url)) {
+        const memberId = url.match(/\/api\/radv\/member\/(M\w+)/)?.[1] || "";
+        mockResponse = mockRADVMemberProfile[memberId] || { member_id: memberId, member_name: "Unknown", overall_score: 0, hccs: [] };
+      }
+      // RADV readiness
+      else if (url.includes("/api/radv/readiness")) {
+        mockResponse = mockRADVReadiness;
+      }
+      // RADV vulnerable codes
+      else if (url.includes("/api/radv/vulnerable")) {
+        mockResponse = mockRADVReadiness.weakest_codes;
+      }
+
+      // Attribution dashboard
+      else if (url.includes("/api/attribution/dashboard")) {
+        mockResponse = mockAttributionDashboard;
+      }
+      // Attribution changes
+      else if (url.includes("/api/attribution/changes")) {
+        mockResponse = mockAttributionChanges;
+      }
+      // Attribution churn risk
+      else if (url.includes("/api/attribution/churn-risk")) {
+        mockResponse = mockChurnRisk;
+      }
+
+      // Stop-loss dashboard
+      else if (url.includes("/api/stoploss/dashboard")) {
+        mockResponse = mockStopLossDashboard;
+      }
+      // Stop-loss high-cost members
+      else if (url.includes("/api/stoploss/high-cost")) {
+        mockResponse = mockHighCostMembers;
+      }
+      // Stop-loss risk corridor
+      else if (url.includes("/api/stoploss/risk-corridor")) {
+        mockResponse = mockRiskCorridor;
+      }
+
+      // Education recommendations (provider-specific)
+      else if (url.includes("/api/education/recommendations")) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        const providerId = parseInt(params.get("provider_id") || config.params?.provider_id || "8");
+        mockResponse = mockEducationRecommendations[providerId] || mockEducationRecommendations[8] || [];
+      }
+      // Education library
+      else if (url.includes("/api/education/library")) {
+        mockResponse = mockEducationLibrary;
+      }
+
+      // AWV: opportunities
+      else if (url.includes("/api/awv/opportunities")) {
+        mockResponse = mockAWVOpportunities;
+      }
+      // AWV: dashboard
+      else if (url.includes("/api/awv/dashboard")) {
+        mockResponse = mockAWVDashboard;
+      }
+      // AWV: due list
+      else if (url.includes("/api/awv/due")) {
+        const params = new URLSearchParams(url.split("?")[1] || "");
+        let filtered = [...mockAWVMembersDue];
+        const provId = params.get("provider_id") || config.params?.provider_id;
+        const tier = params.get("risk_tier") || config.params?.risk_tier;
+        if (provId) filtered = filtered.filter((m) => m.pcp_provider_id === parseInt(provId));
+        if (tier) filtered = filtered.filter((m) => m.risk_tier === tier);
+        // Sort by RAF descending
+        filtered.sort((a, b) => b.current_raf - a.current_raf);
+        mockResponse = filtered;
+      }
+      // AWV: export (return same data as due list)
+      else if (url.includes("/api/awv/export")) {
+        mockResponse = mockAWVMembersDue;
+      }
+
+      // Stars: opportunities
+      else if (url.includes("/api/stars/opportunities")) {
+        mockResponse = mockStarsOpportunities;
+      }
+      // Stars: projection
+      else if (url.includes("/api/stars/projection")) {
+        mockResponse = mockStarsProjection;
       }
 
       // Generic insights

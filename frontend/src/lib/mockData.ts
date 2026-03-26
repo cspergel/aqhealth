@@ -4333,3 +4333,349 @@ export const mockDataLineage = [
     description: "Suspect HCC 85 (CHF/Heart Failure) identified for capture, projected RAF updated",
   },
 ];
+
+// ---- TCM (Transitional Care Management) ----
+
+export const mockTCMDashboard = {
+  active_cases: 12,
+  compliance_rate: 71.4,
+  revenue_captured: 14400,
+  revenue_potential: 8700,
+  by_provider: [
+    { provider_name: "Dr. Sarah Patel", active: 3, completed: 2, compliance_rate: 80.0, revenue: 4500 },
+    { provider_name: "Dr. James Rivera", active: 3, completed: 1, compliance_rate: 66.7, revenue: 3600 },
+    { provider_name: "Dr. Lisa Chen", active: 2, completed: 2, compliance_rate: 75.0, revenue: 3300 },
+    { provider_name: "Dr. Michael Torres", active: 2, completed: 1, compliance_rate: 60.0, revenue: 1800 },
+    { provider_name: "Dr. Angela Brooks", active: 2, completed: 1, compliance_rate: 66.7, revenue: 1200 },
+  ],
+};
+
+export const mockTCMActiveCases = [
+  { member_id: "M1001", member_name: "Margaret Chen", discharge_date: "2026-03-23", days_since_discharge: 2, phone_contact_status: "done", phone_contact_date: "2026-03-24", visit_status: "pending", visit_date: null, cpt_code: "99495", billing_status: "pending", provider_name: "Dr. Sarah Patel", facility: "Memorial Hospital" },
+  { member_id: "M1003", member_name: "Dorothy Martinez", discharge_date: "2026-03-22", days_since_discharge: 3, phone_contact_status: "overdue", phone_contact_date: null, visit_status: "pending", visit_date: null, cpt_code: "99495", billing_status: "pending", provider_name: "Dr. Lisa Chen", facility: "St. Luke's Medical Center" },
+  { member_id: "M1006", member_name: "Gerald Foster", discharge_date: "2026-03-21", days_since_discharge: 4, phone_contact_status: "overdue", phone_contact_date: null, visit_status: "pending", visit_date: null, cpt_code: "99495", billing_status: "pending", provider_name: "Dr. James Rivera", facility: "Memorial Hospital" },
+  { member_id: "M1008", member_name: "Frank Nguyen", discharge_date: "2026-03-20", days_since_discharge: 5, phone_contact_status: "overdue", phone_contact_date: null, visit_status: "overdue", visit_date: null, cpt_code: "99496", billing_status: "pending", provider_name: "Dr. Michael Torres", facility: "Riverside Community" },
+  { member_id: "M1010", member_name: "William Davis", discharge_date: "2026-03-19", days_since_discharge: 6, phone_contact_status: "overdue", phone_contact_date: null, visit_status: "pending", visit_date: null, cpt_code: "99496", billing_status: "pending", provider_name: "Dr. Angela Brooks", facility: "Memorial Hospital" },
+  { member_id: "M1002", member_name: "Robert Williams", discharge_date: "2026-03-18", days_since_discharge: 7, phone_contact_status: "done", phone_contact_date: "2026-03-19", visit_status: "pending", visit_date: null, cpt_code: "99495", billing_status: "pending", provider_name: "Dr. Sarah Patel", facility: "St. Luke's Medical Center" },
+  { member_id: "M1007", member_name: "Helen Washington", discharge_date: "2026-03-15", days_since_discharge: 10, phone_contact_status: "done", phone_contact_date: "2026-03-16", visit_status: "done", visit_date: "2026-03-20", cpt_code: "99495", billing_status: "billed", provider_name: "Dr. Lisa Chen", facility: "Memorial Hospital" },
+  { member_id: "M1004", member_name: "James Thornton", discharge_date: "2026-03-14", days_since_discharge: 11, phone_contact_status: "done", phone_contact_date: "2026-03-15", visit_status: "done", visit_date: "2026-03-21", cpt_code: "99496", billing_status: "billed", provider_name: "Dr. James Rivera", facility: "Riverside Community" },
+  { member_id: "M1005", member_name: "Patricia Okafor", discharge_date: "2026-03-12", days_since_discharge: 13, phone_contact_status: "done", phone_contact_date: "2026-03-13", visit_status: "done", visit_date: "2026-03-18", cpt_code: "99496", billing_status: "billed", provider_name: "Dr. Michael Torres", facility: "St. Luke's Medical Center" },
+  { member_id: "M1009", member_name: "Barbara Johnson", discharge_date: "2026-03-05", days_since_discharge: 20, phone_contact_status: "done", phone_contact_date: "2026-03-06", visit_status: "missed", visit_date: null, cpt_code: null, billing_status: "not_eligible", provider_name: "Dr. Angela Brooks", facility: "Memorial Hospital" },
+  { member_id: "M1011", member_name: "Edward Thompson", discharge_date: "2026-03-02", days_since_discharge: 23, phone_contact_status: "done", phone_contact_date: "2026-03-03", visit_status: "missed", visit_date: null, cpt_code: null, billing_status: "not_eligible", provider_name: "Dr. Sarah Patel", facility: "Riverside Community" },
+  { member_id: "M1012", member_name: "Alice Robinson", discharge_date: "2026-02-28", days_since_discharge: 25, phone_contact_status: "done", phone_contact_date: "2026-03-01", visit_status: "missed", visit_date: null, cpt_code: null, billing_status: "not_eligible", provider_name: "Dr. James Rivera", facility: "Memorial Hospital" },
+];
+
+// ---- RADV Audit Readiness ----
+
+export const mockRADVReadiness = {
+  overall_score: 82,
+  by_category: [
+    { category: "Diabetes", hcc_codes: [17, 18, 19], captures: 342, avg_meat_score: 88, status: "strong" },
+    { category: "Heart / Vascular", hcc_codes: [85, 86, 107], captures: 245, avg_meat_score: 79, status: "moderate" },
+    { category: "Renal", hcc_codes: [134, 135, 136, 137, 138], captures: 267, avg_meat_score: 84, status: "strong" },
+    { category: "Pulmonary", hcc_codes: [111, 112], captures: 198, avg_meat_score: 72, status: "moderate" },
+    { category: "Behavioral", hcc_codes: [57, 58, 59], captures: 284, avg_meat_score: 65, status: "weak" },
+    { category: "Nutritional", hcc_codes: [21, 22], captures: 225, avg_meat_score: 61, status: "weak" },
+  ],
+  weakest_codes: [
+    { hcc_code: 59, hcc_label: "Depression / Behavioral", member_count: 284, avg_meat_score: 52, weakest_member: "Robert Williams", risk_level: "high" },
+    { hcc_code: 22, hcc_label: "Morbid Obesity", member_count: 134, avg_meat_score: 58, weakest_member: "Margaret Chen", risk_level: "high" },
+    { hcc_code: 21, hcc_label: "Malnutrition", member_count: 91, avg_meat_score: 61, weakest_member: "Helen Washington", risk_level: "high" },
+    { hcc_code: 111, hcc_label: "COPD / Chronic Lung", member_count: 198, avg_meat_score: 64, weakest_member: "Dorothy Martinez", risk_level: "medium" },
+    { hcc_code: 107, hcc_label: "Vascular Disease", member_count: 156, avg_meat_score: 68, weakest_member: "Frank Nguyen", risk_level: "medium" },
+  ],
+  strongest_codes: [
+    { hcc_code: 18, hcc_label: "Diabetes with Complications", captures: 342, avg_meat_score: 94 },
+    { hcc_code: 85, hcc_label: "CHF / Heart Failure", captures: 189, avg_meat_score: 91 },
+    { hcc_code: 138, hcc_label: "CKD Stage 3-5", captures: 267, avg_meat_score: 89 },
+  ],
+};
+
+export const mockRADVMemberProfile: Record<string, any> = {
+  M1001: {
+    member_id: "M1001", member_name: "Margaret Chen", overall_score: 78,
+    hccs: [
+      { hcc_code: 18, hcc_label: "Diabetes with Complications", meat_score: 92, evidence_strength: "strong", vulnerability: "low", meat_detail: { monitored: true, evaluated: true, assessed: true, treated: true, score: 92 } },
+      { hcc_code: 85, hcc_label: "CHF / Heart Failure", meat_score: 85, evidence_strength: "strong", vulnerability: "low", meat_detail: { monitored: true, evaluated: true, assessed: true, treated: true, score: 85 } },
+      { hcc_code: 22, hcc_label: "Morbid Obesity", meat_score: 45, evidence_strength: "weak", vulnerability: "high", meat_detail: { monitored: true, evaluated: false, assessed: true, treated: false, score: 45 } },
+    ],
+  },
+  M1002: {
+    member_id: "M1002", member_name: "Robert Williams", overall_score: 68,
+    hccs: [
+      { hcc_code: 59, hcc_label: "Depression / Behavioral", meat_score: 42, evidence_strength: "weak", vulnerability: "high", meat_detail: { monitored: false, evaluated: true, assessed: true, treated: false, score: 42 } },
+      { hcc_code: 107, hcc_label: "Vascular Disease", meat_score: 78, evidence_strength: "moderate", vulnerability: "medium", meat_detail: { monitored: true, evaluated: true, assessed: true, treated: false, score: 78 } },
+    ],
+  },
+};
+
+// ---- Attribution Management ----
+
+export const mockAttributionDashboard = {
+  total_attributed: 4832,
+  new_this_month: 23,
+  lost_this_month: 18,
+  churn_rate: 4.5,
+  by_plan: [
+    { plan: "Humana Gold Plus", members: 1842, pct: 38.1 },
+    { plan: "Aetna Medicare Advantage", members: 1256, pct: 26.0 },
+    { plan: "UHC Dual Complete", members: 894, pct: 18.5 },
+    { plan: "Cigna HealthSpring", members: 542, pct: 11.2 },
+    { plan: "WellCare Value", members: 298, pct: 6.2 },
+  ],
+};
+
+export const mockAttributionChanges = [
+  { member_id: "M2001", member_name: "Thomas Anderson", change_type: "new", previous_plan: null, new_plan: "Humana Gold Plus", effective_date: "2026-03-01", reason: "Open enrollment", raf_score: 1.34 },
+  { member_id: "M2002", member_name: "Sandra Mitchell", change_type: "new", previous_plan: null, new_plan: "Aetna Medicare Advantage", effective_date: "2026-03-01", reason: "Open enrollment", raf_score: 0.89 },
+  { member_id: "M2003", member_name: "Richard Hall", change_type: "lost", previous_plan: "Humana Gold Plus", new_plan: null, effective_date: "2026-03-01", reason: "Moved out of service area", raf_score: 2.14 },
+  { member_id: "M2004", member_name: "Nancy Clark", change_type: "lost", previous_plan: "UHC Dual Complete", new_plan: null, effective_date: "2026-03-01", reason: "Deceased", raf_score: 1.87 },
+  { member_id: "M2005", member_name: "Charles Lewis", change_type: "transferred", previous_plan: "Cigna HealthSpring", new_plan: "Humana Gold Plus", effective_date: "2026-03-15", reason: "Member choice", raf_score: 1.12 },
+  { member_id: "M2006", member_name: "Betty Young", change_type: "new", previous_plan: null, new_plan: "WellCare Value", effective_date: "2026-03-01", reason: "New to Medicare", raf_score: 0.72 },
+  { member_id: "M2007", member_name: "George Wright", change_type: "lost", previous_plan: "Aetna Medicare Advantage", new_plan: null, effective_date: "2026-02-28", reason: "Switched to FFS Medicare", raf_score: 1.56 },
+  { member_id: "M2008", member_name: "Martha King", change_type: "new", previous_plan: null, new_plan: "Humana Gold Plus", effective_date: "2026-03-15", reason: "SEP - moved into area", raf_score: 1.91 },
+];
+
+export const mockChurnRisk = [
+  { member_id: "M1003", member_name: "Dorothy Martinez", days_since_last_visit: 287, engagement_score: 22, raf_score: 2.456, annual_value: 27016, risk_level: "high" },
+  { member_id: "M1008", member_name: "Frank Nguyen", days_since_last_visit: 264, engagement_score: 31, raf_score: 1.456, annual_value: 16016, risk_level: "high" },
+  { member_id: "M1010", member_name: "William Davis", days_since_last_visit: 251, engagement_score: 35, raf_score: 1.123, annual_value: 12353, risk_level: "high" },
+  { member_id: "M2009", member_name: "Susan Phillips", days_since_last_visit: 245, engagement_score: 38, raf_score: 1.89, annual_value: 20790, risk_level: "high" },
+  { member_id: "M2010", member_name: "James Scott", days_since_last_visit: 240, engagement_score: 40, raf_score: 0.95, annual_value: 10450, risk_level: "medium" },
+  { member_id: "M2011", member_name: "Linda Green", days_since_last_visit: 235, engagement_score: 42, raf_score: 1.67, annual_value: 18370, risk_level: "medium" },
+  { member_id: "M2012", member_name: "David Baker", days_since_last_visit: 228, engagement_score: 44, raf_score: 1.23, annual_value: 13530, risk_level: "medium" },
+  { member_id: "M2013", member_name: "Carol Adams", days_since_last_visit: 221, engagement_score: 47, raf_score: 2.01, annual_value: 22110, risk_level: "medium" },
+  { member_id: "M2014", member_name: "Michael Hill", days_since_last_visit: 215, engagement_score: 49, raf_score: 0.88, annual_value: 9680, risk_level: "low" },
+  { member_id: "M2015", member_name: "Jennifer Campbell", days_since_last_visit: 210, engagement_score: 51, raf_score: 1.45, annual_value: 15950, risk_level: "low" },
+];
+
+export const mockAttributionRevenueImpact = {
+  members_lost: 18,
+  revenue_at_risk: 198000,
+  members_gained: 23,
+  revenue_gained: 156000,
+  net_impact: -42000,
+  quarterly_projection: -126000,
+  detail: "Losing 45 members this quarter reduces projected RAF revenue by $198K. New attributions partially offset with $156K, leaving a net gap of $42K/month.",
+};
+
+// ---- Stop-Loss & Risk Corridor ----
+
+export const mockStopLossDashboard = {
+  members_approaching: 6,
+  members_exceeding: 2,
+  total_exposure: 487000,
+  risk_corridor_position: 94,
+  threshold: 150000,
+  total_high_cost_spend: 1842000,
+};
+
+export const mockHighCostMembers = [
+  { member_id: "M3001", member_name: "Harold Patterson", twelve_month_spend: 312000, stoploss_threshold: 150000, pct_of_threshold: 208, projected_year_end: 345000, primary_conditions: ["End-Stage Renal Disease", "CHF", "Diabetes"], exceeds_threshold: true },
+  { member_id: "M3002", member_name: "Evelyn Richardson", twelve_month_spend: 198000, stoploss_threshold: 150000, pct_of_threshold: 132, projected_year_end: 220000, primary_conditions: ["Lung Cancer", "COPD", "Depression"], exceeds_threshold: true },
+  { member_id: "M3003", member_name: "Arthur Brooks", twelve_month_spend: 142000, stoploss_threshold: 150000, pct_of_threshold: 94.7, projected_year_end: 168000, primary_conditions: ["Liver Transplant", "Hepatitis C"], exceeds_threshold: false },
+  { member_id: "M3004", member_name: "Virginia Coleman", twelve_month_spend: 138000, stoploss_threshold: 150000, pct_of_threshold: 92.0, projected_year_end: 155000, primary_conditions: ["Multiple Sclerosis", "Depression"], exceeds_threshold: false },
+  { member_id: "M3005", member_name: "Raymond Simmons", twelve_month_spend: 129000, stoploss_threshold: 150000, pct_of_threshold: 86.0, projected_year_end: 148000, primary_conditions: ["CHF", "CKD Stage 4", "COPD"], exceeds_threshold: false },
+  { member_id: "M3006", member_name: "Florence Jenkins", twelve_month_spend: 118000, stoploss_threshold: 150000, pct_of_threshold: 78.7, projected_year_end: 135000, primary_conditions: ["Hemophilia A", "Joint Disease"], exceeds_threshold: false },
+  { member_id: "M3007", member_name: "Donald Ward", twelve_month_spend: 112000, stoploss_threshold: 150000, pct_of_threshold: 74.7, projected_year_end: 128000, primary_conditions: ["ALS", "Respiratory Failure"], exceeds_threshold: false },
+  { member_id: "M3008", member_name: "Ruth Howard", twelve_month_spend: 105000, stoploss_threshold: 150000, pct_of_threshold: 70.0, projected_year_end: 122000, primary_conditions: ["Rheumatoid Arthritis", "Osteoporosis"], exceeds_threshold: false },
+];
+
+export const mockRiskCorridor = {
+  target_spend: 72000000,
+  actual_spend: 67680000,
+  ratio: 94.0,
+  corridor_band: "Shared Savings",
+  shared_risk_exposure: 2160000,
+  corridor_bands: [
+    { band: "Full Risk (Plan)", range: "< 85%", description: "Plan retains 100% of savings below 85% of target", status: "inactive" },
+    { band: "Shared Savings", range: "85% - 97%", description: "Savings shared 50/50 between plan and CMS", status: "active" },
+    { band: "Neutral Zone", range: "97% - 103%", description: "No shared risk or savings", status: "inactive" },
+    { band: "Shared Losses", range: "103% - 108%", description: "Losses shared 50/50 between plan and CMS", status: "inactive" },
+    { band: "Full Risk (CMS)", range: "> 108%", description: "Plan bears 100% of losses above 108% of target", status: "inactive" },
+  ],
+};
+
+// ---- Provider Education ----
+
+export const mockEducationLibrary = [
+  { id: 1, title: "Diabetes HCC Coding Mastery", description: "Comprehensive guide to accurate diabetes coding: E11.xx specificity, complication capture, and HCC 17/18/19 documentation requirements. Includes case studies on upgrading unspecified codes.", category: "Coding", estimated_minutes: 45, relevance_score: null, completed: false, completed_date: null },
+  { id: 2, title: "Depression Screening & Documentation", description: "PHQ-9 workflows, documentation templates, and coding pathways for depression (HCC 59). Covers initial screening, follow-up protocols, and MEAT evidence requirements.", category: "Quality", estimated_minutes: 30, relevance_score: null, completed: false, completed_date: null },
+  { id: 3, title: "CHF Documentation Excellence", description: "Heart failure staging, EF documentation, medication management documentation, and HCC 85/86 capture optimization. Includes NYHA classification guidance.", category: "Coding", estimated_minutes: 40, relevance_score: null, completed: false, completed_date: null },
+  { id: 4, title: "CKD Staging & Risk Adjustment", description: "GFR-based staging documentation, ACR testing protocols, and HCC 134-138 capture. Covers progression tracking and care plan documentation.", category: "Coding", estimated_minutes: 35, relevance_score: null, completed: false, completed_date: null },
+  { id: 5, title: "HCC Recapture Best Practices", description: "Annual recapture workflows: condition carry-forward, visit planning, documentation templates, and compliance tracking. Focus on high-value conditions.", category: "Revenue", estimated_minutes: 25, relevance_score: null, completed: false, completed_date: null },
+  { id: 6, title: "Annual Wellness Visit Optimization", description: "AWV best practices: HRA completion, care plan updates, preventive service ordering, HCC review during visit, and coding for 99387/99397.", category: "Quality", estimated_minutes: 30, relevance_score: null, completed: false, completed_date: null },
+];
+
+export const mockEducationRecommendations: Record<number, any[]> = {
+  8: [
+    { ...mockEducationLibrary[0], relevance_score: 95, completed: false },
+    { ...mockEducationLibrary[4], relevance_score: 88, completed: false },
+    { ...mockEducationLibrary[2], relevance_score: 82, completed: false },
+  ],
+  9: [
+    { ...mockEducationLibrary[1], relevance_score: 92, completed: false },
+    { ...mockEducationLibrary[4], relevance_score: 85, completed: true, completed_date: "2026-03-10" },
+    { ...mockEducationLibrary[5], relevance_score: 78, completed: false },
+  ],
+  7: [
+    { ...mockEducationLibrary[3], relevance_score: 90, completed: false },
+    { ...mockEducationLibrary[0], relevance_score: 84, completed: true, completed_date: "2026-02-28" },
+    { ...mockEducationLibrary[1], relevance_score: 76, completed: false },
+  ],
+};
+
+// ---- AWV Tracking ----
+
+export const mockAWVDashboard = {
+  total_members: 4832,
+  awv_completed: 2890,
+  awv_overdue: 1942,
+  completion_rate: 59.8,
+  revenue_opportunity: 842000,
+  current_month: "March 2026",
+  by_provider: [
+    { provider_id: 1, provider_name: "Dr. Sarah Patel", panel_size: 342, awv_completed: 248, completion_rate: 72.5, remaining_value: 81400 },
+    { provider_id: 2, provider_name: "Dr. James Rivera", panel_size: 289, awv_completed: 195, completion_rate: 67.5, remaining_value: 81400 },
+    { provider_id: 3, provider_name: "Dr. Lisa Chen", panel_size: 198, awv_completed: 142, completion_rate: 71.7, remaining_value: 48400 },
+    { provider_id: 4, provider_name: "Dr. Michael Torres", panel_size: 267, awv_completed: 164, completion_rate: 61.4, remaining_value: 89100 },
+    { provider_id: 5, provider_name: "Dr. Angela Brooks", panel_size: 312, awv_completed: 178, completion_rate: 57.1, remaining_value: 115900 },
+    { provider_id: 6, provider_name: "Dr. Thomas Lee", panel_size: 156, awv_completed: 72, completion_rate: 46.2, remaining_value: 72600 },
+    { provider_id: 7, provider_name: "Dr. Karen Murphy", panel_size: 291, awv_completed: 148, completion_rate: 50.9, remaining_value: 123700 },
+    { provider_id: 8, provider_name: "Dr. Robert Kim", panel_size: 234, awv_completed: 98, completion_rate: 41.9, remaining_value: 117600 },
+    { provider_id: 9, provider_name: "Dr. David Wilson", panel_size: 178, awv_completed: 68, completion_rate: 38.2, remaining_value: 95200 },
+    { provider_id: 10, provider_name: "Dr. Jennifer Adams", panel_size: 203, awv_completed: 102, completion_rate: 50.2, remaining_value: 87400 },
+  ],
+  by_group: [
+    { group_name: "Brookdale Medical Group", members: 1420, completed: 924, rate: 65.1 },
+    { group_name: "Sunrise Health Partners", members: 1180, completed: 642, rate: 54.4 },
+    { group_name: "Valley Care Associates", members: 980, completed: 612, rate: 62.4 },
+    { group_name: "Coastal Primary Care", members: 752, completed: 412, rate: 54.8 },
+    { group_name: "Metro Health Network", members: 500, completed: 300, rate: 60.0 },
+  ],
+};
+
+export const mockAWVMembersDue = [
+  { member_id: 1001, member_name: "Margaret Chen", date_of_birth: "1948-03-15", current_raf: 1.847, risk_tier: "high", pcp_provider_id: 2, pcp_name: "Dr. James Rivera", estimated_value: 1624, last_awv_date: "2025-02-10" },
+  { member_id: 1003, member_name: "Dorothy Martinez", date_of_birth: "1940-11-22", current_raf: 2.456, risk_tier: "very_high", pcp_provider_id: 1, pcp_name: "Dr. Sarah Patel", estimated_value: 2161, last_awv_date: "2025-01-18" },
+  { member_id: 1005, member_name: "Robert Johnson", date_of_birth: "1952-07-04", current_raf: 2.102, risk_tier: "very_high", pcp_provider_id: 4, pcp_name: "Dr. Michael Torres", estimated_value: 1850, last_awv_date: "2024-11-05" },
+  { member_id: 1006, member_name: "Gerald Foster", date_of_birth: "1945-09-30", current_raf: 1.923, risk_tier: "high", pcp_provider_id: 3, pcp_name: "Dr. Lisa Chen", estimated_value: 1692, last_awv_date: "2025-03-22" },
+  { member_id: 1008, member_name: "Helen Nguyen", date_of_birth: "1950-01-17", current_raf: 1.654, risk_tier: "high", pcp_provider_id: 5, pcp_name: "Dr. Angela Brooks", estimated_value: 1456, last_awv_date: null },
+  { member_id: 1010, member_name: "James Williams", date_of_birth: "1947-06-11", current_raf: 1.589, risk_tier: "high", pcp_provider_id: 7, pcp_name: "Dr. Karen Murphy", estimated_value: 1398, last_awv_date: "2025-04-02" },
+  { member_id: 1012, member_name: "Patricia Brown", date_of_birth: "1955-12-20", current_raf: 1.432, risk_tier: "moderate", pcp_provider_id: 8, pcp_name: "Dr. Robert Kim", estimated_value: 1260, last_awv_date: "2025-05-14" },
+  { member_id: 1014, member_name: "Richard Davis", date_of_birth: "1943-08-09", current_raf: 1.876, risk_tier: "high", pcp_provider_id: 6, pcp_name: "Dr. Thomas Lee", estimated_value: 1651, last_awv_date: "2024-08-20" },
+  { member_id: 1015, member_name: "Barbara Garcia", date_of_birth: "1958-02-28", current_raf: 1.234, risk_tier: "moderate", pcp_provider_id: 9, pcp_name: "Dr. David Wilson", estimated_value: 1086, last_awv_date: "2025-06-01" },
+  { member_id: 1017, member_name: "William Taylor", date_of_birth: "1951-04-14", current_raf: 1.678, risk_tier: "high", pcp_provider_id: 10, pcp_name: "Dr. Jennifer Adams", estimated_value: 1477, last_awv_date: null },
+  { member_id: 1019, member_name: "Mary Anderson", date_of_birth: "1946-10-05", current_raf: 2.312, risk_tier: "very_high", pcp_provider_id: 1, pcp_name: "Dr. Sarah Patel", estimated_value: 2034, last_awv_date: "2024-12-10" },
+  { member_id: 1020, member_name: "Charles Thompson", date_of_birth: "1953-05-19", current_raf: 1.345, risk_tier: "moderate", pcp_provider_id: 2, pcp_name: "Dr. James Rivera", estimated_value: 1184, last_awv_date: "2025-07-22" },
+  { member_id: 1022, member_name: "Susan White", date_of_birth: "1949-11-30", current_raf: 1.567, risk_tier: "high", pcp_provider_id: 3, pcp_name: "Dr. Lisa Chen", estimated_value: 1379, last_awv_date: "2025-01-05" },
+  { member_id: 1024, member_name: "Joseph Harris", date_of_birth: "1944-03-25", current_raf: 1.923, risk_tier: "high", pcp_provider_id: 4, pcp_name: "Dr. Michael Torres", estimated_value: 1692, last_awv_date: "2024-09-15" },
+  { member_id: 1026, member_name: "Karen Martin", date_of_birth: "1956-08-07", current_raf: 1.123, risk_tier: "moderate", pcp_provider_id: 5, pcp_name: "Dr. Angela Brooks", estimated_value: 988, last_awv_date: "2025-02-28" },
+  { member_id: 1028, member_name: "Thomas Jackson", date_of_birth: "1941-12-18", current_raf: 2.087, risk_tier: "very_high", pcp_provider_id: 6, pcp_name: "Dr. Thomas Lee", estimated_value: 1837, last_awv_date: null },
+  { member_id: 1030, member_name: "Nancy Robinson", date_of_birth: "1954-07-22", current_raf: 1.456, risk_tier: "moderate", pcp_provider_id: 7, pcp_name: "Dr. Karen Murphy", estimated_value: 1281, last_awv_date: "2025-04-18" },
+  { member_id: 1032, member_name: "Daniel Clark", date_of_birth: "1948-09-12", current_raf: 1.789, risk_tier: "high", pcp_provider_id: 8, pcp_name: "Dr. Robert Kim", estimated_value: 1574, last_awv_date: "2024-10-30" },
+  { member_id: 1034, member_name: "Betty Lewis", date_of_birth: "1942-01-06", current_raf: 2.234, risk_tier: "very_high", pcp_provider_id: 9, pcp_name: "Dr. David Wilson", estimated_value: 1966, last_awv_date: "2024-07-14" },
+  { member_id: 1036, member_name: "Mark Walker", date_of_birth: "1957-06-28", current_raf: 1.098, risk_tier: "moderate", pcp_provider_id: 10, pcp_name: "Dr. Jennifer Adams", estimated_value: 966, last_awv_date: "2025-08-05" },
+];
+
+export const mockAWVOpportunities = {
+  total_overdue: 1942,
+  total_opportunity: 842000,
+  avg_value_per_awv: 880,
+  hcc_breakdown: [
+    { hcc_category: "Diabetes with Complications (HCC 18)", pct_of_recapture: 22, estimated_value: 185240 },
+    { hcc_category: "CHF / Heart Failure (HCC 85)", pct_of_recapture: 15, estimated_value: 126300 },
+    { hcc_category: "COPD (HCC 111)", pct_of_recapture: 12, estimated_value: 101040 },
+    { hcc_category: "CKD Stage 3-5 (HCC 138)", pct_of_recapture: 10, estimated_value: 84200 },
+    { hcc_category: "Depression / Behavioral (HCC 59)", pct_of_recapture: 9, estimated_value: 75780 },
+    { hcc_category: "Vascular Disease (HCC 107)", pct_of_recapture: 8, estimated_value: 67360 },
+    { hcc_category: "Other conditions", pct_of_recapture: 24, estimated_value: 202080 },
+  ],
+  insight: "If all 1,942 overdue members complete their AWV, estimated RAF recapture value = $842,000. Scheduling AWVs for the top 50 highest-RAF overdue members alone would recapture approximately $187,000 in RAF value.",
+};
+
+// ---- Stars Rating Simulator ----
+
+export const mockStarsProjection = {
+  overall_rating: 3.5,
+  part_c_rating: 3.5,
+  part_d_rating: 4.0,
+  total_weighted_score: 3.482,
+  qualifies_for_bonus: false,
+  quality_bonus_amount: 0,
+  measures: [
+    { code: "CDC-HbA1c", name: "Diabetes Care -- HbA1c Testing", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 892, numerator: 608, current_rate: 68.2, star_level: 3, star_3_cutpoint: 74.0, star_4_cutpoint: 82.0, star_5_cutpoint: 90.0, gaps_to_next_star: 123 },
+    { code: "CDC-Eye", name: "Diabetes Care -- Eye Exam", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 892, numerator: 498, current_rate: 55.8, star_level: 3, star_3_cutpoint: 55.0, star_4_cutpoint: 65.0, star_5_cutpoint: 75.0, gaps_to_next_star: 82 },
+    { code: "BCS", name: "Breast Cancer Screening", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 1240, numerator: 918, current_rate: 74.0, star_level: 4, star_3_cutpoint: 64.0, star_4_cutpoint: 72.0, star_5_cutpoint: 80.0, gaps_to_next_star: 74 },
+    { code: "COL", name: "Colorectal Cancer Screening", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 2100, numerator: 1499, current_rate: 71.4, star_level: 4, star_3_cutpoint: 60.0, star_4_cutpoint: 70.0, star_5_cutpoint: 80.0, gaps_to_next_star: 181 },
+    { code: "CBP", name: "Controlling Blood Pressure", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 1560, numerator: 998, current_rate: 64.0, star_level: 3, star_3_cutpoint: 58.0, star_4_cutpoint: 66.0, star_5_cutpoint: 74.0, gaps_to_next_star: 32 },
+    { code: "COA-MedReview", name: "Care for Older Adults -- Medication Review", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 820, numerator: 574, current_rate: 70.0, star_level: 4, star_3_cutpoint: 60.0, star_4_cutpoint: 70.0, star_5_cutpoint: 80.0, gaps_to_next_star: 82 },
+    { code: "COA-Pain", name: "Care for Older Adults -- Pain Assessment", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 820, numerator: 558, current_rate: 68.0, star_level: 3, star_3_cutpoint: 60.0, star_4_cutpoint: 70.0, star_5_cutpoint: 80.0, gaps_to_next_star: 16 },
+    { code: "COA-Functional", name: "Care for Older Adults -- Functional Status", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 820, numerator: 492, current_rate: 60.0, star_level: 3, star_3_cutpoint: 60.0, star_4_cutpoint: 70.0, star_5_cutpoint: 80.0, gaps_to_next_star: 82 },
+    { code: "MRP", name: "Medication Reconciliation Post-Discharge", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 340, numerator: 187, current_rate: 55.0, star_level: 3, star_3_cutpoint: 48.0, star_4_cutpoint: 56.0, star_5_cutpoint: 65.0, gaps_to_next_star: 4 },
+    { code: "FMC", name: "Follow-Up After ED Visit for Mental Health", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 180, numerator: 81, current_rate: 45.0, star_level: 3, star_3_cutpoint: 40.0, star_4_cutpoint: 50.0, star_5_cutpoint: 60.0, gaps_to_next_star: 9 },
+    { code: "KED", name: "Kidney Health Evaluation for Diabetes", category: "Effectiveness of Care", weight: 1, part: "C", total_eligible: 892, numerator: 368, current_rate: 41.2, star_level: 4, star_3_cutpoint: 28.0, star_4_cutpoint: 36.0, star_5_cutpoint: 44.0, gaps_to_next_star: 25 },
+    { code: "AAP", name: "Adults' Access to Preventive Services", category: "Access to Care", weight: 1, part: "C", total_eligible: 4200, numerator: 3570, current_rate: 85.0, star_level: 3, star_3_cutpoint: 82.0, star_4_cutpoint: 88.0, star_5_cutpoint: 94.0, gaps_to_next_star: 126 },
+    { code: "SPD", name: "Statin Use in Persons with Diabetes", category: "Medication Adherence", weight: 3, part: "D", total_eligible: 780, numerator: 633, current_rate: 81.2, star_level: 4, star_3_cutpoint: 76.0, star_4_cutpoint: 82.0, star_5_cutpoint: 88.0, gaps_to_next_star: 54 },
+  ],
+};
+
+export const mockStarsSimulationResult = {
+  current_overall: 3.5,
+  projected_overall: 4.0,
+  current_part_c: 3.5,
+  projected_part_c: 3.5,
+  current_part_d: 4.0,
+  projected_part_d: 4.5,
+  rating_change: 0.5,
+  qualifies_for_bonus: true,
+  quality_bonus_amount: 14375232,
+  quality_bonus_change: 14375232,
+  measures_changed: [
+    { code: "SPD", name: "Statin Use in Persons with Diabetes", weight: 3, old_star: 4, new_star: 5, old_rate: 81.2, new_rate: 90.8 },
+    { code: "CDC-HbA1c", name: "Diabetes Care -- HbA1c Testing", weight: 1, old_star: 3, new_star: 4, old_rate: 68.2, new_rate: 85.0 },
+  ],
+  simulated_measures: mockStarsProjection.measures.map((m) => {
+    if (m.code === "SPD") return { ...m, current_rate: 90.8, numerator: 708, star_level: 5 };
+    if (m.code === "CDC-HbA1c") return { ...m, current_rate: 85.0, numerator: 758, star_level: 4 };
+    return m;
+  }),
+};
+
+export const mockStarsOpportunities = [
+  {
+    measure_code: "SPD", measure_name: "Statin Use in Persons with Diabetes",
+    current_star: 4, target_star: 5, gaps_to_close: 54, weight: 3,
+    current_rate: 81.2, target_rate: 88.0, roi_score: 55.6,
+    description: "Closing 54 Statin Use in Persons with Diabetes gaps moves SPD from 4-star to 5-star (triple-weighted) = highest ROI",
+    impact_type: "triple_weighted",
+  },
+  {
+    measure_code: "MRP", measure_name: "Medication Reconciliation Post-Discharge",
+    current_star: 3, target_star: 4, gaps_to_close: 4, weight: 1,
+    current_rate: 55.0, target_rate: 56.0, roi_score: 250.0,
+    description: "Closing 4 Medication Reconciliation Post-Discharge gaps moves MRP from 3-star to 4-star (1x)",
+    impact_type: "standard",
+  },
+  {
+    measure_code: "FMC", measure_name: "Follow-Up After ED Visit for Mental Health",
+    current_star: 3, target_star: 4, gaps_to_close: 9, weight: 1,
+    current_rate: 45.0, target_rate: 50.0, roi_score: 111.1,
+    description: "Closing 9 Follow-Up After ED Visit for Mental Health gaps moves FMC from 3-star to 4-star (1x)",
+    impact_type: "standard",
+  },
+  {
+    measure_code: "COA-Pain", measure_name: "Care for Older Adults -- Pain Assessment",
+    current_star: 3, target_star: 4, gaps_to_close: 16, weight: 1,
+    current_rate: 68.0, target_rate: 70.0, roi_score: 62.5,
+    description: "Closing 16 Care for Older Adults -- Pain Assessment gaps moves COA-Pain from 3-star to 4-star (1x)",
+    impact_type: "standard",
+  },
+  {
+    measure_code: "CBP", measure_name: "Controlling Blood Pressure",
+    current_star: 3, target_star: 4, gaps_to_close: 32, weight: 1,
+    current_rate: 64.0, target_rate: 66.0, roi_score: 31.3,
+    description: "Closing 32 Controlling Blood Pressure gaps moves CBP from 3-star to 4-star (1x)",
+    impact_type: "standard",
+  },
+];

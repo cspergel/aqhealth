@@ -36,6 +36,7 @@ const navSections: NavSection[] = [
       { path: "/", label: "Dashboard" },
       { path: "/census", label: "Live Census" },
       { path: "/alerts", label: "Alerts", badge: openAlertCount },
+      { path: "/tcm", label: "TCM Cases" },
       { path: "/watchlist", label: "Watchlist", badge: watchlistChangeCount || undefined },
       { path: "/actions", label: "Actions" },
     ],
@@ -45,6 +46,7 @@ const navSections: NavSection[] = [
     items: [
       { path: "/members", label: "Members" },
       { path: "/cohorts", label: "Cohorts" },
+      { path: "/attribution", label: "Attribution" },
     ],
   },
   {
@@ -60,13 +62,19 @@ const navSections: NavSection[] = [
   },
   {
     title: "Quality",
-    items: [{ path: "/care-gaps", label: "Care Gaps" }],
+    items: [
+      { path: "/care-gaps", label: "Care Gaps" },
+      { path: "/awv", label: "AWV Tracking" },
+      { path: "/stars", label: "Stars Simulator" },
+      { path: "/radv", label: "RADV Readiness" },
+    ],
   },
   {
     title: "Network",
     items: [
       { path: "/providers", label: "Providers" },
       { path: "/groups", label: "Groups" },
+      { path: "/education", label: "Education" },
     ],
   },
   {
@@ -80,6 +88,7 @@ const navSections: NavSection[] = [
     title: "Finance",
     items: [
       { path: "/financial", label: "Financial" },
+      { path: "/stoploss", label: "Stop-Loss" },
       { path: "/reports", label: "Reports" },
     ],
   },
