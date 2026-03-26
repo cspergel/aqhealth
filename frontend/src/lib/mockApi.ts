@@ -98,6 +98,17 @@ import {
   mockBOIDashboard,
   mockInterventions,
   mockBOIRecommendations,
+  mockExchangeDashboard,
+  mockExchangeRequests,
+  mockEvidencePackageExample,
+  mockRiskDashboard,
+  mockCapitationPayments,
+  mockSubcapPayments,
+  mockRiskPools,
+  mockRiskIBNR,
+  mockSurplusDeficitByPlan,
+  mockSurplusDeficitByGroup,
+  mockRiskCorridorAnalysis,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -491,7 +502,45 @@ export function enableDemoMode() {
         };
         mockWatchlistItems.push(newItem);
         mockResponse = newItem;
-      } else if (url.includes("/api/adt/webhook")) {
+      }
+      // Clinical Exchange: auto-respond
+      else if (url.match(/\/api\/exchange\/auto-respond\/\d+/)) {
+        const idMatch = url.match(/\/auto-respond\/(\d+)/);
+        const id = idMatch ? parseInt(idMatch[1]) : 0;
+        const req = mockExchangeRequests.find((r: any) => r.id === id);
+        if (req) {
+          req.status = "auto_responded";
+          req.response_date = new Date().toISOString().split("T")[0];
+          req.auto_generated = true;
+        }
+        mockResponse = { request_id: id, status: "auto_responded", package: mockEvidencePackageExample };
+      }
+      // Clinical Exchange: generate evidence
+      else if (url.includes("/api/exchange/generate-evidence")) {
+        mockResponse = mockEvidencePackageExample;
+      }
+      // Clinical Exchange: create request
+      else if (url.includes("/api/exchange/requests")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newReq = { id: Date.now(), ...body, status: "pending", request_date: new Date().toISOString().split("T")[0], response_date: null, auto_generated: false };
+        mockExchangeRequests.push(newReq);
+        mockResponse = newReq;
+      }
+      // Risk Accounting: enter capitation
+      else if (url.includes("/api/risk/capitation")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newPmt = { id: Date.now(), ...body };
+        mockCapitationPayments.push(newPmt);
+        mockResponse = { id: newPmt.id, status: "recorded", ...body };
+      }
+      // Risk Accounting: enter subcap
+      else if (url.includes("/api/risk/subcap")) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newPmt = { id: Date.now(), ...body };
+        mockSubcapPayments.push(newPmt);
+        mockResponse = { id: newPmt.id, status: "recorded", ...body };
+      }
+      else if (url.includes("/api/adt/webhook")) {
         mockResponse = { status: "processed", event_id: Date.now(), alerts: 1 };
       } else if (url.includes("/api/adt/events")) {
         mockResponse = { id: Date.now(), event_type: "admit", alerts: [] };
@@ -1600,6 +1649,48 @@ export function enableDemoMode() {
       // BOI: dashboard
       else if (url.includes("/api/boi/dashboard")) {
         mockResponse = mockBOIDashboard;
+      }
+
+      // Clinical Exchange: package detail
+      else if (url.match(/\/api\/exchange\/package\/\d+/)) {
+        mockResponse = mockEvidencePackageExample;
+      }
+      // Clinical Exchange: dashboard
+      else if (url.includes("/api/exchange/dashboard")) {
+        mockResponse = mockExchangeDashboard;
+      }
+      // Clinical Exchange: requests
+      else if (url.includes("/api/exchange/requests")) {
+        mockResponse = mockExchangeRequests;
+      }
+
+      // Risk Accounting: dashboard
+      else if (url.includes("/api/risk/dashboard")) {
+        mockResponse = mockRiskDashboard;
+      }
+      // Risk Accounting: capitation
+      else if (url.includes("/api/risk/capitation")) {
+        mockResponse = { period: null, payments: mockCapitationPayments, total: mockCapitationPayments.reduce((s: number, p: any) => s + p.total_payment, 0) };
+      }
+      // Risk Accounting: subcap
+      else if (url.includes("/api/risk/subcap")) {
+        mockResponse = { period: null, payments: mockSubcapPayments, total: mockSubcapPayments.reduce((s: number, p: any) => s + p.total_payment, 0) };
+      }
+      // Risk Accounting: pools
+      else if (url.includes("/api/risk/pools")) {
+        mockResponse = mockRiskPools;
+      }
+      // Risk Accounting: ibnr
+      else if (url.includes("/api/risk/ibnr")) {
+        mockResponse = mockRiskIBNR;
+      }
+      // Risk Accounting: surplus-deficit
+      else if (url.includes("/api/risk/surplus-deficit")) {
+        mockResponse = { by_plan: mockSurplusDeficitByPlan, by_group: mockSurplusDeficitByGroup };
+      }
+      // Risk Accounting: risk-corridor
+      else if (url.includes("/api/risk/risk-corridor")) {
+        mockResponse = mockRiskCorridorAnalysis;
       }
 
       // Generic insights

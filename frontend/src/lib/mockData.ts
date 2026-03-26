@@ -5377,3 +5377,354 @@ export const mockBOIRecommendations = [
     rationale: "Based on similar programs at peer MSOs. Requires NP time allocation and transportation logistics.",
   },
 ];
+
+// ==========================================================================
+// Clinical Data Exchange
+// ==========================================================================
+
+export const mockExchangeDashboard = {
+  total_requests: 8,
+  auto_responded: 3,
+  pending: 3,
+  completed: 2,
+  avg_response_hours: 4.2,
+  auto_respond_rate: 37.5,
+  requests_this_month: 5,
+  requests_last_month: 3,
+};
+
+export const mockExchangeRequests = [
+  {
+    id: 1,
+    request_type: "hcc_evidence",
+    requestor: "Aetna Medicare",
+    member_id: 1042,
+    member_name: "Margaret Sullivan",
+    hcc_code: 19,
+    hcc_label: "Diabetes with Chronic Complications",
+    measure_code: null,
+    status: "auto_responded",
+    request_date: "2026-03-10",
+    response_date: "2026-03-10",
+    auto_generated: true,
+    notes: "Routine chart request for HCC validation",
+  },
+  {
+    id: 2,
+    request_type: "quality_evidence",
+    requestor: "Humana Gold Plus",
+    member_id: 2087,
+    member_name: "Robert Chen",
+    hcc_code: null,
+    hcc_label: null,
+    measure_code: "C01-HbA1c",
+    status: "auto_responded",
+    request_date: "2026-03-08",
+    response_date: "2026-03-08",
+    auto_generated: true,
+    notes: "Stars measure documentation request",
+  },
+  {
+    id: 3,
+    request_type: "radv_audit",
+    requestor: "CMS RADV",
+    member_id: 3156,
+    member_name: "Dorothy Williams",
+    hcc_code: null,
+    hcc_label: null,
+    measure_code: null,
+    status: "auto_responded",
+    request_date: "2026-03-05",
+    response_date: "2026-03-06",
+    auto_generated: true,
+    notes: "RADV audit year 2025",
+  },
+  {
+    id: 4,
+    request_type: "hcc_evidence",
+    requestor: "UnitedHealthcare",
+    member_id: 4201,
+    member_name: "James Patterson",
+    hcc_code: 85,
+    hcc_label: "Congestive Heart Failure",
+    measure_code: null,
+    status: "pending",
+    request_date: "2026-03-18",
+    response_date: null,
+    auto_generated: false,
+    notes: "Requesting supporting documentation for CHF diagnosis",
+  },
+  {
+    id: 5,
+    request_type: "chart_request",
+    requestor: "Anthem Blue Cross",
+    member_id: 5044,
+    member_name: "Patricia Gonzalez",
+    hcc_code: 111,
+    hcc_label: "COPD",
+    measure_code: null,
+    status: "pending",
+    request_date: "2026-03-20",
+    response_date: null,
+    auto_generated: false,
+    notes: "Full chart request for COPD documentation",
+  },
+  {
+    id: 6,
+    request_type: "quality_evidence",
+    requestor: "Humana Gold Plus",
+    member_id: 6078,
+    member_name: "Helen Nakamura",
+    hcc_code: null,
+    hcc_label: null,
+    measure_code: "C09-BPControl",
+    status: "pending",
+    request_date: "2026-03-22",
+    response_date: null,
+    auto_generated: false,
+    notes: "Blood pressure control measure evidence needed",
+  },
+  {
+    id: 7,
+    request_type: "hcc_evidence",
+    requestor: "Aetna Medicare",
+    member_id: 7112,
+    member_name: "Frank Morrison",
+    hcc_code: 18,
+    hcc_label: "Diabetes without Chronic Complications",
+    measure_code: null,
+    status: "completed",
+    request_date: "2026-02-15",
+    response_date: "2026-02-18",
+    auto_generated: false,
+    notes: "Manual review completed - evidence accepted by payer",
+  },
+  {
+    id: 8,
+    request_type: "radv_audit",
+    requestor: "CMS RADV",
+    member_id: 8045,
+    member_name: "Virginia Baker",
+    hcc_code: null,
+    hcc_label: null,
+    measure_code: null,
+    status: "completed",
+    request_date: "2026-02-01",
+    response_date: "2026-02-10",
+    auto_generated: false,
+    notes: "Full RADV audit package submitted and validated",
+  },
+];
+
+export const mockEvidencePackageExample = {
+  request_id: 1,
+  member_id: 1042,
+  member_name: "Margaret Sullivan",
+  hcc_code: 19,
+  hcc_label: "Diabetes with Chronic Complications",
+  package_type: "hcc_evidence",
+  generated_at: "2026-03-10T14:32:00Z",
+  supporting_claims: [
+    { claim_id: "CLM-20260108-001", date_of_service: "2026-01-08", provider: "Dr. James Rivera", diagnosis_codes: ["E11.65", "E11.22"], cpt_codes: ["99214", "83036"], facility: "AQSoft Demo Medical Group" },
+    { claim_id: "CLM-20251012-042", date_of_service: "2025-10-12", provider: "Dr. James Rivera", diagnosis_codes: ["E11.65"], cpt_codes: ["99213", "82947"], facility: "AQSoft Demo Medical Group" },
+    { claim_id: "CLM-20250715-018", date_of_service: "2025-07-15", provider: "Dr. Lisa Park", diagnosis_codes: ["E11.65", "E11.40"], cpt_codes: ["99214", "83036", "81003"], facility: "Sunrise Family Medicine" },
+  ],
+  meat_documentation: {
+    monitored: { status: true, evidence: "HbA1c monitored quarterly - 3 results in past 12 months (8.2%, 7.9%, 7.6%)" },
+    evaluated: { status: true, evidence: "Comprehensive metabolic panel, lipid panel, renal function assessed at each visit" },
+    assessed: { status: true, evidence: "Assessment documented at all 3 visits: 'Diabetes with chronic kidney disease, improving control'" },
+    treated: { status: true, evidence: "Metformin 1000mg BID, Jardiance 25mg daily, insulin glargine 20 units QHS" },
+    overall_score: 95,
+  },
+  medication_support: [
+    { drug: "Metformin 1000mg", start_date: "2024-03-15", prescriber: "Dr. James Rivera", implies: "Type 2 Diabetes management" },
+    { drug: "Jardiance 25mg", start_date: "2025-02-01", prescriber: "Dr. James Rivera", implies: "Diabetes with renal protection" },
+    { drug: "Insulin Glargine 20u", start_date: "2025-07-15", prescriber: "Dr. Lisa Park", implies: "Advanced diabetes requiring insulin" },
+  ],
+  lab_results: [
+    { test: "HbA1c", date: "2026-01-08", result: "7.6%", reference_range: "<7.0%", interpretation: "Above target but improving" },
+    { test: "HbA1c", date: "2025-10-12", result: "7.9%", reference_range: "<7.0%", interpretation: "Above target" },
+    { test: "HbA1c", date: "2025-07-15", result: "8.2%", reference_range: "<7.0%", interpretation: "Poor control" },
+    { test: "eGFR", date: "2026-01-08", result: "52 mL/min", reference_range: ">60 mL/min", interpretation: "Stage 3a CKD" },
+    { test: "Urine Albumin/Creatinine", date: "2026-01-08", result: "145 mg/g", reference_range: "<30 mg/g", interpretation: "Moderate albuminuria" },
+  ],
+  documentation_timeline: [
+    { date: "2025-07-15", event: "Office visit - comprehensive diabetes evaluation", provider: "Dr. Lisa Park" },
+    { date: "2025-10-12", event: "Follow-up visit - medication adjustment", provider: "Dr. James Rivera" },
+    { date: "2025-11-20", event: "Ophthalmology referral - diabetic retinopathy screening", provider: "Dr. James Rivera" },
+    { date: "2026-01-08", event: "Quarterly follow-up - HbA1c improving", provider: "Dr. James Rivera" },
+  ],
+  evidence_strength: "strong",
+  recommendation: "Auto-submit - all MEAT criteria met with strong supporting evidence",
+};
+
+
+// ==========================================================================
+// Risk / Capitation Accounting
+// ==========================================================================
+
+export const mockCapitationPayments = [
+  // Aetna Medicare Advantage - 6 months
+  { id: 1, plan_name: "Aetna Medicare Advantage", product_type: "MA", payment_month: "2025-10-01", member_count: 1842, pmpm_rate: 1150.00, total_payment: 2118300.00, adjustment_amount: null, notes: null },
+  { id: 2, plan_name: "Aetna Medicare Advantage", product_type: "MA", payment_month: "2025-11-01", member_count: 1856, pmpm_rate: 1150.00, total_payment: 2134400.00, adjustment_amount: 12500.00, notes: "Retro adjustment for Q3 enrollment true-up" },
+  { id: 3, plan_name: "Aetna Medicare Advantage", product_type: "MA", payment_month: "2025-12-01", member_count: 1861, pmpm_rate: 1150.00, total_payment: 2140150.00, adjustment_amount: null, notes: null },
+  { id: 4, plan_name: "Aetna Medicare Advantage", product_type: "MA", payment_month: "2026-01-01", member_count: 1878, pmpm_rate: 1185.00, total_payment: 2225430.00, adjustment_amount: null, notes: "New rate effective Jan 2026" },
+  { id: 5, plan_name: "Aetna Medicare Advantage", product_type: "MA", payment_month: "2026-02-01", member_count: 1890, pmpm_rate: 1185.00, total_payment: 2239650.00, adjustment_amount: -8200.00, notes: "Disenrollment adjustment" },
+  { id: 6, plan_name: "Aetna Medicare Advantage", product_type: "MA", payment_month: "2026-03-01", member_count: 1895, pmpm_rate: 1185.00, total_payment: 2245575.00, adjustment_amount: null, notes: null },
+
+  // Humana Gold Plus - 6 months
+  { id: 7, plan_name: "Humana Gold Plus", product_type: "MAPD", payment_month: "2025-10-01", member_count: 1245, pmpm_rate: 1280.00, total_payment: 1593600.00, adjustment_amount: null, notes: null },
+  { id: 8, plan_name: "Humana Gold Plus", product_type: "MAPD", payment_month: "2025-11-01", member_count: 1252, pmpm_rate: 1280.00, total_payment: 1602560.00, adjustment_amount: null, notes: null },
+  { id: 9, plan_name: "Humana Gold Plus", product_type: "MAPD", payment_month: "2025-12-01", member_count: 1260, pmpm_rate: 1280.00, total_payment: 1612800.00, adjustment_amount: 18700.00, notes: "Quality bonus payment" },
+  { id: 10, plan_name: "Humana Gold Plus", product_type: "MAPD", payment_month: "2026-01-01", member_count: 1275, pmpm_rate: 1310.00, total_payment: 1670250.00, adjustment_amount: null, notes: "New rate effective Jan 2026" },
+  { id: 11, plan_name: "Humana Gold Plus", product_type: "MAPD", payment_month: "2026-02-01", member_count: 1282, pmpm_rate: 1310.00, total_payment: 1679420.00, adjustment_amount: null, notes: null },
+  { id: 12, plan_name: "Humana Gold Plus", product_type: "MAPD", payment_month: "2026-03-01", member_count: 1290, pmpm_rate: 1310.00, total_payment: 1689900.00, adjustment_amount: null, notes: null },
+
+  // UnitedHealthcare DSNP - 6 months
+  { id: 13, plan_name: "UHC Dual Complete", product_type: "DSNP", payment_month: "2025-10-01", member_count: 620, pmpm_rate: 1520.00, total_payment: 942400.00, adjustment_amount: null, notes: null },
+  { id: 14, plan_name: "UHC Dual Complete", product_type: "DSNP", payment_month: "2025-11-01", member_count: 628, pmpm_rate: 1520.00, total_payment: 954560.00, adjustment_amount: null, notes: null },
+  { id: 15, plan_name: "UHC Dual Complete", product_type: "DSNP", payment_month: "2025-12-01", member_count: 635, pmpm_rate: 1520.00, total_payment: 965200.00, adjustment_amount: 5400.00, notes: "Retro enrollment true-up" },
+  { id: 16, plan_name: "UHC Dual Complete", product_type: "DSNP", payment_month: "2026-01-01", member_count: 642, pmpm_rate: 1560.00, total_payment: 1001520.00, adjustment_amount: null, notes: null },
+  { id: 17, plan_name: "UHC Dual Complete", product_type: "DSNP", payment_month: "2026-02-01", member_count: 648, pmpm_rate: 1560.00, total_payment: 1010880.00, adjustment_amount: null, notes: null },
+  { id: 18, plan_name: "UHC Dual Complete", product_type: "DSNP", payment_month: "2026-03-01", member_count: 655, pmpm_rate: 1560.00, total_payment: 1021800.00, adjustment_amount: null, notes: null },
+
+  // Anthem Commercial - 6 months
+  { id: 19, plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", payment_month: "2025-10-01", member_count: 425, pmpm_rate: 680.00, total_payment: 289000.00, adjustment_amount: null, notes: null },
+  { id: 20, plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", payment_month: "2025-11-01", member_count: 430, pmpm_rate: 680.00, total_payment: 292400.00, adjustment_amount: null, notes: null },
+  { id: 21, plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", payment_month: "2025-12-01", member_count: 428, pmpm_rate: 680.00, total_payment: 291040.00, adjustment_amount: null, notes: null },
+  { id: 22, plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", payment_month: "2026-01-01", member_count: 435, pmpm_rate: 695.00, total_payment: 302325.00, adjustment_amount: null, notes: null },
+  { id: 23, plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", payment_month: "2026-02-01", member_count: 440, pmpm_rate: 695.00, total_payment: 305800.00, adjustment_amount: null, notes: null },
+  { id: 24, plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", payment_month: "2026-03-01", member_count: 442, pmpm_rate: 695.00, total_payment: 307190.00, adjustment_amount: null, notes: null },
+];
+
+export const mockSubcapPayments = [
+  { id: 1, provider_id: 1, group_name: "Rivera Primary Care", specialty: "Primary Care", payment_month: "2026-03-01", member_count: 980, pmpm_rate: 85.00, total_payment: 83300.00 },
+  { id: 2, provider_id: 2, group_name: "Park Family Medicine", specialty: "Primary Care", payment_month: "2026-03-01", member_count: 720, pmpm_rate: 85.00, total_payment: 61200.00 },
+  { id: 3, provider_id: null, group_name: "Valley Cardiology Associates", specialty: "Cardiology", payment_month: "2026-03-01", member_count: 1450, pmpm_rate: 42.00, total_payment: 60900.00 },
+  { id: 4, provider_id: null, group_name: "Metro Behavioral Health", specialty: "Behavioral Health", payment_month: "2026-03-01", member_count: 2100, pmpm_rate: 28.00, total_payment: 58800.00 },
+  { id: 5, provider_id: null, group_name: "Pacific Imaging Center", specialty: "Radiology", payment_month: "2026-03-01", member_count: 4282, pmpm_rate: 15.50, total_payment: 66371.00 },
+];
+
+export const mockRiskPools = [
+  {
+    id: 1,
+    plan_name: "Aetna Medicare Advantage",
+    pool_year: 2025,
+    withhold_percentage: 10.0,
+    total_withheld: 1280000.00,
+    quality_bonus_earned: 384000.00,
+    surplus_share: 520000.00,
+    deficit_share: null,
+    settlement_date: null,
+    status: "active",
+  },
+  {
+    id: 2,
+    plan_name: "Humana Gold Plus",
+    pool_year: 2025,
+    withhold_percentage: 12.0,
+    total_withheld: 1152000.00,
+    quality_bonus_earned: 288000.00,
+    surplus_share: 195000.00,
+    deficit_share: null,
+    settlement_date: null,
+    status: "active",
+  },
+  {
+    id: 3,
+    plan_name: "UHC Dual Complete",
+    pool_year: 2025,
+    withhold_percentage: 8.0,
+    total_withheld: 475000.00,
+    quality_bonus_earned: 118750.00,
+    surplus_share: null,
+    deficit_share: 62000.00,
+    settlement_date: null,
+    status: "active",
+  },
+  {
+    id: 4,
+    plan_name: "Anthem Blue Cross Commercial",
+    pool_year: 2025,
+    withhold_percentage: 5.0,
+    total_withheld: 87500.00,
+    quality_bonus_earned: null,
+    surplus_share: 42000.00,
+    deficit_share: null,
+    settlement_date: "2026-03-15",
+    status: "settled",
+  },
+];
+
+export const mockRiskIBNR = {
+  total_estimate: 342000,
+  confidence: 89,
+  completion_factor: 0.94,
+  as_of_date: "2026-03-26",
+  by_category: [
+    { category: "Inpatient", estimate: 145000, confidence: 85, avg_lag_days: 42 },
+    { category: "Outpatient", estimate: 82000, confidence: 92, avg_lag_days: 28 },
+    { category: "Professional", estimate: 55000, confidence: 94, avg_lag_days: 21 },
+    { category: "Pharmacy", estimate: 28000, confidence: 96, avg_lag_days: 14 },
+    { category: "Behavioral Health", estimate: 18000, confidence: 88, avg_lag_days: 35 },
+    { category: "Other", estimate: 14000, confidence: 82, avg_lag_days: 45 },
+  ],
+  monthly_trend: [
+    { month: "2025-10", estimate: 380000 },
+    { month: "2025-11", estimate: 365000 },
+    { month: "2025-12", estimate: 358000 },
+    { month: "2026-01", estimate: 352000 },
+    { month: "2026-02", estimate: 348000 },
+    { month: "2026-03", estimate: 342000 },
+  ],
+};
+
+export const mockSurplusDeficitByPlan = [
+  { plan_name: "Aetna Medicare Advantage", cap_revenue: 13103505, medical_spend: 10744874, admin_costs: 655175, surplus_deficit: 1703456, mlr: 82.0 },
+  { plan_name: "Humana Gold Plus", cap_revenue: 9848530, medical_spend: 8370251, admin_costs: 492427, surplus_deficit: 985852, mlr: 85.0 },
+  { plan_name: "UHC Dual Complete", cap_revenue: 5896360, medical_spend: 5424148, admin_costs: 294818, surplus_deficit: 177394, mlr: 92.0 },
+  { plan_name: "Anthem Blue Cross Commercial", cap_revenue: 1787755, medical_spend: 1465558, admin_costs: 89388, surplus_deficit: 232809, mlr: 82.0 },
+];
+
+export const mockSurplusDeficitByGroup = [
+  { group_name: "Rivera Primary Care", members: 980, cap_allocated: 1421000, medical_spend: 1108380, admin_costs: 71050, surplus_deficit: 241570, mlr: 78.0 },
+  { group_name: "Park Family Medicine", members: 720, cap_allocated: 1044000, medical_spend: 856080, admin_costs: 52200, surplus_deficit: 135720, mlr: 82.0 },
+  { group_name: "Valley Cardiology Associates", members: 1450, cap_allocated: 2102500, medical_spend: 1870225, admin_costs: 105125, surplus_deficit: 127150, mlr: 89.0 },
+  { group_name: "Metro Behavioral Health", members: 2100, cap_allocated: 3045000, medical_spend: 2588250, admin_costs: 152250, surplus_deficit: 304500, mlr: 85.0 },
+  { group_name: "Pacific Imaging Center", members: 4282, cap_allocated: 6208900, medical_spend: 5712188, admin_costs: 310445, surplus_deficit: 186267, mlr: 92.0 },
+  { group_name: "Sunrise Endocrinology", members: 380, cap_allocated: 551000, medical_spend: 501410, admin_costs: 27550, surplus_deficit: 22040, mlr: 91.0 },
+  { group_name: "Coastal Nephrology Group", members: 295, cap_allocated: 427750, medical_spend: 414098, admin_costs: 21388, surplus_deficit: -7736, mlr: 96.8 },
+];
+
+export const mockRiskDashboard = {
+  total_cap_revenue: 30636150,
+  total_medical_spend: 26004831,
+  total_admin_costs: 1531808,
+  surplus_deficit: 3099511,
+  mlr: 84.9,
+  ibnr_estimate: 342000,
+  member_months: 24846,
+  pmpm_revenue: 1233,
+  pmpm_spend: 1047,
+  by_plan: [
+    { plan_name: "Aetna Medicare Advantage", product_type: "MA", cap_revenue: 13103505, medical_spend: 10744874, mlr: 82.0, member_count: 1895 },
+    { plan_name: "Humana Gold Plus", product_type: "MAPD", cap_revenue: 9848530, medical_spend: 8370251, mlr: 85.0, member_count: 1290 },
+    { plan_name: "UHC Dual Complete", product_type: "DSNP", cap_revenue: 5896360, medical_spend: 5424148, mlr: 92.0, member_count: 655 },
+    { plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", cap_revenue: 1787755, medical_spend: 1465558, mlr: 82.0, member_count: 442 },
+  ],
+};
+
+export const mockRiskCorridorAnalysis = {
+  target_mlr: 85.0,
+  actual_mlr: 84.9,
+  corridor_position: "within",
+  shared_risk_exposure: 0,
+  stop_loss_threshold: 95.0,
+  bands: [
+    { band: "Full Surplus", range: "< 80%", description: "MSO retains 100% of savings", status: "inactive", mlr_range: [0, 80] },
+    { band: "Shared Surplus", range: "80% - 85%", description: "MSO shares 50% of savings with plan", status: "inactive", mlr_range: [80, 85] },
+    { band: "Target Corridor", range: "85% - 88%", description: "No risk sharing - within target range", status: "active", mlr_range: [85, 88] },
+    { band: "Shared Deficit", range: "88% - 95%", description: "MSO shares 50% of excess with plan", status: "inactive", mlr_range: [88, 95] },
+    { band: "Stop-Loss", range: "> 95%", description: "Plan absorbs 100% of excess above stop-loss", status: "inactive", mlr_range: [95, 100] },
+  ],
+};

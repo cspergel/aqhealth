@@ -90,6 +90,7 @@ const navSections: NavSection[] = [
     title: "Finance",
     items: [
       { path: "/financial", label: "Financial" },
+      { path: "/risk-accounting", label: "Risk Accounting" },
       { path: "/practice-costs", label: "Practice Costs" },
       { path: "/roi-tracker", label: "ROI Tracker" },
       { path: "/stoploss", label: "Stop-Loss" },
@@ -102,6 +103,7 @@ const navSections: NavSection[] = [
       { path: "/ingestion", label: "Data Ingestion" },
       { path: "/adt-sources", label: "ADT Sources" },
       { path: "/data-quality", label: "Data Quality" },
+      { path: "/data-exchange", label: "Data Exchange" },
     ],
   },
 ];

@@ -37,6 +37,8 @@ import { TemporalPage } from "../../pages/TemporalPage";
 import { AlertRulesPage } from "../../pages/AlertRulesPage";
 import { PracticeExpensesPage } from "../../pages/PracticeExpensesPage";
 import { BOIPage } from "../../pages/BOIPage";
+import { ClinicalExchangePage } from "../../pages/ClinicalExchangePage";
+import { RiskAccountingPage } from "../../pages/RiskAccountingPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -120,6 +122,8 @@ export function AppShell() {
             <Route path="/time-machine" element={<TemporalPage />} />
             <Route path="/practice-costs" element={<PracticeExpensesPage />} />
             <Route path="/roi-tracker" element={<BOIPage />} />
+            <Route path="/data-exchange" element={<ClinicalExchangePage />} />
+            <Route path="/risk-accounting" element={<RiskAccountingPage />} />
           </Routes>
         </main>
 
