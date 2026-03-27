@@ -723,16 +723,35 @@ def remove_empty_columns(df: pd.DataFrame, threshold: float = 0.95) -> tuple[pd.
     return df[cols_to_keep].copy(), removed
 
 
-def detect_duplicates(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+def detect_duplicates(df: pd.DataFrame, remove: bool = True) -> tuple[pd.DataFrame, int]:
     """
-    Identify and remove exact duplicate rows, keeping the first occurrence.
+    Identify exact duplicate rows (ALL columns identical).
 
-    Returns (cleaned_df, count_removed).
+    IMPORTANT: This only removes rows where EVERY column is identical —
+    meaning it's a true data entry error or file export bug.
+    It does NOT remove rows that merely share some fields like:
+    - Same member + same date + different procedure (legitimate)
+    - Same diagnosis at multiple encounters (recapture)
+    - Same medication filled twice (early refill, dose change)
+    - Multiple claims for same admission (facility + professional)
+
+    Healthcare data frequently has legitimate "duplicates" by some fields.
+    Only exact full-row duplication is safe to remove.
+
+    Args:
+        df: DataFrame to check
+        remove: If True, removes duplicates. If False, only counts them.
+
+    Returns (cleaned_df, count_found).
     """
     before = len(df)
-    df_deduped = df.drop_duplicates(keep="first").reset_index(drop=True)
-    removed = before - len(df_deduped)
-    return df_deduped, removed
+    duplicated_count = df.duplicated(keep="first").sum()
+
+    if remove and duplicated_count > 0:
+        df_deduped = df.drop_duplicates(keep="first").reset_index(drop=True)
+        return df_deduped, int(duplicated_count)
+
+    return df, int(duplicated_count)
 
 
 # ---------------------------------------------------------------------------
@@ -940,14 +959,18 @@ async def preprocess_file(file_path: str, source_name: str | None = None) -> dic
         })
 
     # ---------------------------------------------------------------
-    # Step 6: Detect and remove duplicate rows
+    # Step 6: Detect exact duplicate rows (ALL columns identical)
+    # NOTE: Only removes rows where EVERY column matches. Does NOT
+    # remove legitimate records that share some fields (same member +
+    # same date + different procedure, etc.). Healthcare data commonly
+    # has "partial duplicates" that are valid separate records.
     # ---------------------------------------------------------------
-    df, dup_count = detect_duplicates(df)
+    df, dup_count = detect_duplicates(df, remove=True)
     if dup_count > 0:
         rows_removed += dup_count
         changes.append({
             "type": "duplicate_removal",
-            "description": f"Removed {dup_count} exact duplicate rows",
+            "description": f"Removed {dup_count} exact duplicate rows (all columns identical — safe to remove)",
             "rows_affected": dup_count,
         })
 
