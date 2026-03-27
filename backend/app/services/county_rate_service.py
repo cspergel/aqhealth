@@ -70,7 +70,10 @@ def load_zip_crosswalk(path: str | Path | None = None) -> int:
     global _zip_to_county, _zip_crosswalk_loaded
 
     if path is None:
-        path = _DATA_DIR / "zip_to_county.json"
+        # Try the generated crosswalk first, then legacy name
+        path = _DATA_DIR / "zip_to_cms_county.json"
+        if not path.exists():
+            path = _DATA_DIR / "zip_to_county.json"
 
     path = Path(path)
     if not path.exists():
@@ -78,7 +81,13 @@ def load_zip_crosswalk(path: str | Path | None = None) -> int:
         return 0
 
     with open(path, encoding="utf-8") as f:
-        _zip_to_county = json.load(f)
+        raw = json.load(f)
+
+    # Support both flat format {"zip": "code"} and nested {"zip_to_cms_county": {"zip": "code"}}
+    if isinstance(raw, dict) and "zip_to_cms_county" in raw:
+        _zip_to_county = raw["zip_to_cms_county"]
+    else:
+        _zip_to_county = raw
 
     _zip_crosswalk_loaded = True
     logger.info("Loaded ZIP-to-county crosswalk: %d ZIP codes", len(_zip_to_county))
@@ -132,9 +141,16 @@ def get_state_average(year: int, state: str) -> float | None:
     return data.get("state_averages", {}).get(state.upper())
 
 
-def get_county_code_for_zip(zip_code: str) -> str | None:
-    """Look up CMS county code from a ZIP code, if crosswalk is loaded."""
+def _ensure_crosswalk_loaded() -> None:
+    """Auto-load the ZIP crosswalk on first access."""
     if not _zip_crosswalk_loaded:
+        load_zip_crosswalk()
+
+
+def get_county_code_for_zip(zip_code: str) -> str | None:
+    """Look up CMS county code from a ZIP code."""
+    _ensure_crosswalk_loaded()
+    if not _zip_to_county:
         return None
     # Normalize to 5-digit ZIP
     zip5 = (zip_code or "").strip()[:5]
