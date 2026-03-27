@@ -115,7 +115,7 @@ def find_csv_files(source_path: str) -> dict[str, str]:
             for name in names:
                 lower = name.lower()
                 # ICD-10 to HCC mapping file (typically F_XXXX_YY_*.csv)
-                if re.search(r'f_\d{4}_\d{2}.*\.csv', lower) or 'icd10' in lower and 'map' in lower:
+                if re.search(r'f_\d{4}_\d{2}.*\.csv', lower) or ('icd10' in lower and 'map' in lower):
                     files['mapping'] = ('zip', source_path, name)
                 # Labels file
                 elif 'label' in lower and lower.endswith('.csv'):

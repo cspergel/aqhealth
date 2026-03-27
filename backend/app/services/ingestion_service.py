@@ -610,6 +610,7 @@ async def _upsert_claims(
     provider_lookup = await _resolve_provider_npis_batch(db, raw_npis)
 
     inserted = 0
+    updated = 0
 
     for batch in _chunks(valid_rows, 500):
         for row_data in batch:
@@ -738,7 +739,7 @@ async def _upsert_claims(
                     )
                 except Exception:
                     pass  # non-blocking audit
-                inserted += 1
+                updated += 1
             else:
                 await db.execute(
                     text(f"INSERT INTO claims ({cols_str}) VALUES ({vals_str})"),
@@ -748,7 +749,7 @@ async def _upsert_claims(
 
         await db.commit()
 
-    return inserted
+    return {"inserted": inserted, "updated": updated}
 
 
 async def _upsert_providers(
@@ -959,8 +960,9 @@ async def process_upload(
                     total_inserted += result_counts["inserted"]
                     total_updated += result_counts["updated"]
                 elif data_type in ("claims", "pharmacy"):
-                    count = await _upsert_claims(db, chunk_valid_rows, all_errors, tenant_schema=tenant_schema)
-                    total_inserted += count
+                    result_counts = await _upsert_claims(db, chunk_valid_rows, all_errors, tenant_schema=tenant_schema)
+                    total_inserted += result_counts["inserted"]
+                    total_updated += result_counts["updated"]
                 elif data_type == "providers":
                     result_counts = await _upsert_providers(db, chunk_valid_rows)
                     total_inserted += result_counts["inserted"]

@@ -33,6 +33,7 @@ def _load_year(year: int) -> dict | None:
     json_path = DATA_DIR / f"cms_cost_sharing_{year}.json"
     if not json_path.exists():
         logger.warning("CMS cost sharing data not found for year %d at %s", year, json_path)
+        _cache[year] = None  # Cache negative result to avoid re-checking filesystem
         return None
 
     try:

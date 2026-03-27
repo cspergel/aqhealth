@@ -168,16 +168,22 @@ def get_member_pmpm(year: int, member: Any, bonus_pct: float = 0) -> float:
     """
     # Try ZIP → county
     zip_code = getattr(member, "zip_code", None)
+    resolved_county_code = None
     if zip_code:
-        county_code = get_county_code_for_zip(zip_code)
-        if county_code:
-            rate = get_county_rate(year, county_code, bonus_pct)
+        resolved_county_code = get_county_code_for_zip(zip_code)
+        if resolved_county_code:
+            rate = get_county_rate(year, resolved_county_code, bonus_pct)
             if rate is not None:
                 return rate
 
-    # Try state average
-    # Check for state attribute on member, or try to extract from address
+    # Try state average — derive state from county data or member attribute
     state = getattr(member, "state", None)
+    if not state and resolved_county_code:
+        # Member model has no state field — derive from county lookup
+        data = _load_year(year)
+        entry = data.get("rates_by_county_code", {}).get(resolved_county_code)
+        if entry:
+            state = entry.get("state")
     if state:
         avg = get_state_average(year, state)
         if avg is not None:

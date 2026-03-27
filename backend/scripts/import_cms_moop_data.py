@@ -56,7 +56,6 @@ def read_csv(filepath: Path) -> list[list[str]]:
             rows = []
             continue
     raise ValueError(f"Could not decode {filepath} with any supported encoding")
-    return rows
 
 
 def find_row_by_prefix(rows: list[list[str]], col: int, prefix: str) -> list[str] | None:
