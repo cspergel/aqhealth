@@ -1,0 +1,181 @@
+{
+  "metadata": {
+    "year": 2026,
+    "source": "CMS CY2026 MOOP and Cost Sharing Calculations",
+    "generated": "2026-03-27",
+    "service_count": 25
+  },
+  "moop_limits": {
+    "lower": {
+      "in_network": 4200.0,
+      "combined_catastrophic": 6300.0
+    },
+    "intermediate": {
+      "in_network": 6750.0,
+      "combined_catastrophic": 10100.0
+    },
+    "mandatory": {
+      "in_network": 9250.0,
+      "combined_catastrophic": 13900.0
+    }
+  },
+  "cost_sharing": {
+    "cardiac_rehab": {
+      "lower": 50.0,
+      "intermediate": 40.0,
+      "mandatory": 30.0
+    },
+    "chiropractic": {
+      "lower": 20.0,
+      "intermediate": 15.0,
+      "mandatory": 15.0
+    },
+    "dialysis": {
+      "lower": 70.0,
+      "intermediate": 70.0,
+      "mandatory": 70.0
+    },
+    "dme_diabetic_shoes": {
+      "lower": 30.0,
+      "intermediate": 30.0,
+      "mandatory": 10.0
+    },
+    "emergency": {
+      "lower": 150.0,
+      "intermediate": 130.0,
+      "mandatory": 115.0
+    },
+    "home_health": {
+      "lower": 45.0,
+      "intermediate": 0,
+      "mandatory": 0,
+      "note": "Only lower MOOP has cost sharing; intermediate/mandatory $0 per original Medicare"
+    },
+    "inpatient_acute": {
+      "mandatory": {
+        "3_day": 2230.0,
+        "6_day": 2445.0,
+        "10_day": 2721.0,
+        "60_day": 6171.0
+      },
+      "lower": {
+        "3_day": 2787.0,
+        "6_day": 3056.0,
+        "10_day": 3401.0,
+        "60_day": 4200.0
+      },
+      "intermediate": {
+        "3_day": 2509.0,
+        "6_day": 2751.0,
+        "10_day": 3061.0,
+        "60_day": 5185.0
+      }
+    },
+    "inpatient_psychiatric": {
+      "mandatory": {
+        "8_day": 2080.0,
+        "15_day": 2255.0,
+        "60_day": 3380.0
+      },
+      "lower": {
+        "8_day": 2600.0,
+        "15_day": 2819.0,
+        "60_day": 4200.0
+      },
+      "intermediate": {
+        "8_day": 2340.0,
+        "15_day": 2537.0,
+        "60_day": 3790.0
+      }
+    },
+    "intensive_cardiac_rehab": {
+      "lower": 65.0,
+      "intermediate": 50.0,
+      "mandatory": 40.0
+    },
+    "intensive_outpatient": {
+      "lower": 180.0,
+      "intermediate": 145.0,
+      "mandatory": 110.0
+    },
+    "mental_health": {
+      "lower": 85.0,
+      "intermediate": 70.0,
+      "mandatory": 50.0
+    },
+    "occupational_therapy": {
+      "lower": 60.0,
+      "intermediate": 50.0,
+      "mandatory": 35.0
+    },
+    "part_b_drugs_insulin": {
+      "lower": 35.0,
+      "intermediate": 35.0,
+      "mandatory": 35.0,
+      "note": "Per month supply per insulin type per beneficiary (Inflation Reduction Act)"
+    },
+    "part_b_drugs_other": {
+      "lower": 340.0,
+      "intermediate": 340.0,
+      "mandatory": 340.0
+    },
+    "part_b_chemo_radiation": {
+      "lower": 395.0,
+      "intermediate": 395.0,
+      "mandatory": 395.0
+    },
+    "partial_hospitalization": {
+      "lower": 175.0,
+      "intermediate": 140.0,
+      "mandatory": 105.0
+    },
+    "specialist": {
+      "lower": 95.0,
+      "intermediate": 75.0,
+      "mandatory": 55.0
+    },
+    "primary_care": {
+      "lower": 70.0,
+      "intermediate": 55.0,
+      "mandatory": 40.0
+    },
+    "psychiatric": {
+      "lower": 90.0,
+      "intermediate": 70.0,
+      "mandatory": 55.0
+    },
+    "pt_speech_therapy": {
+      "lower": 95.0,
+      "intermediate": 75.0,
+      "mandatory": 55.0
+    },
+    "pulmonary_rehab": {
+      "lower": 40.0,
+      "intermediate": 35.0,
+      "mandatory": 25.0
+    },
+    "set_for_pad": {
+      "lower": 30.0,
+      "intermediate": 25.0,
+      "mandatory": 20.0
+    },
+    "snf": {
+      "days_1_20_per_day": {
+        "lower": 20.0,
+        "intermediate": 10.0,
+        "mandatory": 0.0
+      },
+      "days_21_100_per_day": 218.0
+    },
+    "therapeutic_radiology": {
+      "lower": 85.0,
+      "intermediate": 85.0,
+      "mandatory": 85.0
+    },
+    "urgently_needed": {
+      "lower": 65.0,
+      "intermediate": 50.0,
+      "mandatory": 40.0
+    }
+  }
+}

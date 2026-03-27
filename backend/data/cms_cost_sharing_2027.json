@@ -1,0 +1,191 @@
+{
+  "metadata": {
+    "year": 2027,
+    "source": "CMS CY2027 MOOP and Cost Sharing Calculations",
+    "generated": "2026-03-27",
+    "service_count": 27
+  },
+  "moop_limits": {
+    "lower": {
+      "in_network": 4450.0,
+      "combined_catastrophic": 6700.0
+    },
+    "intermediate": {
+      "in_network": 7150.0,
+      "combined_catastrophic": 10750.0
+    },
+    "mandatory": {
+      "in_network": 9850.0,
+      "combined_catastrophic": 14800.0
+    }
+  },
+  "cost_sharing": {
+    "cardiac_rehab": {
+      "lower": 55.0,
+      "intermediate": 40.0,
+      "mandatory": 30.0
+    },
+    "chiropractic": {
+      "lower": 20.0,
+      "intermediate": 15.0,
+      "mandatory": 15.0
+    },
+    "dialysis": {
+      "lower": 70.0,
+      "intermediate": 70.0,
+      "mandatory": 70.0
+    },
+    "dme_diabetic_monitors": {
+      "lower": 75.0,
+      "intermediate": 75.0,
+      "mandatory": 30.0
+    },
+    "dme_diabetic_shoes": {
+      "lower": 30.0,
+      "intermediate": 30.0,
+      "mandatory": 10.0
+    },
+    "dme_diabetic_supplies": {
+      "lower": 50.0,
+      "intermediate": 50.0,
+      "mandatory": 20.0
+    },
+    "emergency": {
+      "lower": 150.0,
+      "intermediate": 130.0,
+      "mandatory": 115.0
+    },
+    "home_health": {
+      "lower": 55.0,
+      "intermediate": 0,
+      "mandatory": 0,
+      "note": "Only lower MOOP has cost sharing; intermediate/mandatory $0 per original Medicare"
+    },
+    "inpatient_acute": {
+      "mandatory": {
+        "3_day": 2241.0,
+        "6_day": 2450.0,
+        "10_day": 2718.0,
+        "60_day": 6068.0
+      },
+      "lower": {
+        "3_day": 2801.0,
+        "6_day": 3062.0,
+        "10_day": 3397.0,
+        "60_day": 4450.0
+      },
+      "intermediate": {
+        "3_day": 2521.0,
+        "6_day": 2756.0,
+        "10_day": 3058.0,
+        "60_day": 5259.0
+      }
+    },
+    "inpatient_psychiatric": {
+      "mandatory": {
+        "8_day": 2091.0,
+        "15_day": 2259.0,
+        "60_day": 3339.0
+      },
+      "lower": {
+        "8_day": 2614.0,
+        "15_day": 2824.0,
+        "60_day": 4174.0
+      },
+      "intermediate": {
+        "8_day": 2352.0,
+        "15_day": 2541.0,
+        "60_day": 3756.0
+      }
+    },
+    "intensive_cardiac_rehab": {
+      "lower": 70.0,
+      "intermediate": 55.0,
+      "mandatory": 40.0
+    },
+    "intensive_outpatient": {
+      "lower": 200.0,
+      "intermediate": 160.0,
+      "mandatory": 120.0
+    },
+    "mental_health": {
+      "lower": 85.0,
+      "intermediate": 65.0,
+      "mandatory": 50.0
+    },
+    "occupational_therapy": {
+      "lower": 60.0,
+      "intermediate": 50.0,
+      "mandatory": 35.0
+    },
+    "part_b_chemo_radiation": {
+      "lower": 450.0,
+      "intermediate": 450.0,
+      "mandatory": 450.0
+    },
+    "part_b_drugs_other": {
+      "lower": 335.0,
+      "intermediate": 335.0,
+      "mandatory": 335.0
+    },
+    "part_b_drugs_insulin": {
+      "lower": 35.0,
+      "intermediate": 35.0,
+      "mandatory": 35.0,
+      "note": "Per month supply per insulin type per beneficiary (Inflation Reduction Act)"
+    },
+    "partial_hospitalization": {
+      "lower": 190.0,
+      "intermediate": 155.0,
+      "mandatory": 115.0
+    },
+    "pt_speech_therapy": {
+      "lower": 90.0,
+      "intermediate": 75.0,
+      "mandatory": 55.0
+    },
+    "specialist": {
+      "lower": 95.0,
+      "intermediate": 75.0,
+      "mandatory": 60.0
+    },
+    "primary_care": {
+      "lower": 70.0,
+      "intermediate": 55.0,
+      "mandatory": 40.0
+    },
+    "psychiatric": {
+      "lower": 90.0,
+      "intermediate": 75.0,
+      "mandatory": 55.0
+    },
+    "pulmonary_rehab": {
+      "lower": 40.0,
+      "intermediate": 35.0,
+      "mandatory": 25.0
+    },
+    "set_for_pad": {
+      "lower": 30.0,
+      "intermediate": 25.0,
+      "mandatory": 20.0
+    },
+    "snf": {
+      "days_1_20_per_day": {
+        "lower": 20.0,
+        "intermediate": 10.0,
+        "mandatory": 0.0
+      },
+      "days_21_100_per_day": 221.0
+    },
+    "therapeutic_radiology": {
+      "lower": 85.0,
+      "intermediate": 85.0,
+      "mandatory": 85.0
+    },
+    "urgently_needed": {
+      "lower": 65.0,
+      "intermediate": 50.0,
+      "mandatory": 40.0
+    }
+  }
+}
