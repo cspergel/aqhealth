@@ -46,6 +46,7 @@ import { UtilizationPage } from "../../pages/UtilizationPage";
 import { AvoidablePage } from "../../pages/AvoidablePage";
 import { InterfacesPage } from "../../pages/InterfacesPage";
 import { AIPipelinePage } from "../../pages/AIPipelinePage";
+import { SkillsPage } from "../../pages/SkillsPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -138,6 +139,7 @@ export function AppShell() {
             <Route path="/avoidable" element={<AvoidablePage />} />
             <Route path="/integrations" element={<InterfacesPage />} />
             <Route path="/ai-pipeline" element={<AIPipelinePage />} />
+            <Route path="/automation" element={<SkillsPage />} />
           </Routes>
         </main>
 

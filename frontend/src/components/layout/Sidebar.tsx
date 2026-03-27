@@ -102,6 +102,7 @@ const navSections: NavSection[] = [
       { path: "/intelligence", label: "Intelligence" },
       { path: "/scenarios", label: "Scenarios" },
       { path: "/time-machine", label: "Time Machine" },
+      { path: "/automation", label: "Automation" },
     ],
   },
   {

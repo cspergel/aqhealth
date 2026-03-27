@@ -137,6 +137,11 @@ import {
   mockPipelineDashboard,
   mockPipelineRules,
   mockPipelineRuns,
+  mockSkills,
+  mockSkillExecutions,
+  mockSkillPresets,
+  mockSkillSuggestions,
+  mockSkillActions,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -292,6 +297,18 @@ export function enableDemoMode() {
 
     // ---------- PATCH endpoints (mutations) ----------
     if (method === "patch") {
+      // Skills: update
+      if (url.match(/\/api\/skills\/\d+$/)) {
+        const skillId = parseInt(url.match(/\/api\/skills\/(\d+)/)![1]);
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const skill = mockSkills.find((s) => s.id === skillId);
+        if (skill) {
+          Object.assign(skill, body, { updated_at: new Date().toISOString() });
+          mockResponse = skill;
+        } else {
+          mockResponse = { error: "Skill not found" };
+        }
+      }
       // HCC suspect capture/dismiss: /api/hcc/suspects/:suspectId
       if (/\/api\/hcc\/suspects\/S\w+/.test(url)) {
         const suspectId = url.match(/\/api\/hcc\/suspects\/(S\w+)/)?.[1] || "";
@@ -470,6 +487,11 @@ export function enableDemoMode() {
         const idx = mockAlertRules.findIndex((r) => r.id === ruleId);
         if (idx !== -1) mockAlertRules.splice(idx, 1);
         mockResponse = { deleted: true };
+      } else if (url.match(/\/api\/skills\/\d+$/)) {
+        const skillId = parseInt(url.match(/\/api\/skills\/(\d+)/)![1]);
+        const idx = mockSkills.findIndex((s) => s.id === skillId);
+        if (idx !== -1) mockSkills.splice(idx, 1);
+        mockResponse = { deleted: true, id: skillId };
       } else if (url.includes("/api/filters/")) {
         mockResponse = { deleted: true };
       } else if (url.match(/\/api\/interfaces\/\d+$/)) {
@@ -918,6 +940,51 @@ export function enableDemoMode() {
       }
       else if (url.match(/\/api\/interfaces\/?$/)) {
         mockResponse = { id: 7, status: "created" };
+      }
+      // Skills — execute
+      else if (url.match(/\/api\/skills\/\d+\/execute/)) {
+        const idMatch = url.match(/\/api\/skills\/(\d+)\/execute/);
+        const skillId = idMatch ? parseInt(idMatch[1]) : 0;
+        const skill = mockSkills.find((s: any) => s.id === skillId);
+        if (skill) {
+          skill.times_executed = (skill.times_executed || 0) + 1;
+          skill.last_executed = new Date().toISOString();
+          const steps = skill.steps || [];
+          mockResponse = {
+            id: mockSkillExecutions.length + 1,
+            skill_id: skillId,
+            triggered_by: "manual",
+            status: "completed",
+            steps_completed: steps.length,
+            steps_total: steps.length,
+            results: steps.map((s: any) => ({ step: s.order, action: s.action, status: "completed", output: { message: `${s.description} completed` } })),
+            error: null,
+            duration_seconds: skill.avg_duration_seconds || 30,
+            executed_by: 1,
+            created_at: new Date().toISOString(),
+          };
+        } else {
+          mockResponse = { error: "Skill not found" };
+        }
+      }
+      // Skills — create
+      else if (url.match(/\/api\/skills\/?$/) && method === "post") {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newSkill = {
+          id: mockSkills.length + 1,
+          ...body,
+          created_by: 1,
+          created_from: body.created_from || "manual",
+          is_active: true,
+          times_executed: 0,
+          last_executed: null,
+          avg_duration_seconds: null,
+          scope: body.scope || "tenant",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        mockSkills.push(newSkill);
+        mockResponse = newSkill;
       }
       else if (url.includes("/api/ingest/hl7v2")) {
         mockResponse = { success: true, format: "hl7v2", records_parsed: 1, records_normalised: 3 };
@@ -1847,6 +1914,33 @@ export function enableDemoMode() {
       }
       else if (url.match(/\/api\/interfaces\/?$/) || url.match(/\/api\/interfaces\?/)) {
         mockResponse = mockDataInterfaces;
+      }
+
+      // Skills / Automation
+      else if (url.match(/\/api\/skills\/\d+\/executions/)) {
+        const idMatch = url.match(/\/api\/skills\/(\d+)\/executions/);
+        const skillId = idMatch ? parseInt(idMatch[1]) : 0;
+        mockResponse = mockSkillExecutions.filter((e: any) => e.skill_id === skillId);
+      }
+      else if (url.includes("/api/skills/presets")) {
+        mockResponse = mockSkillPresets;
+      }
+      else if (url.includes("/api/skills/actions")) {
+        mockResponse = mockSkillActions;
+      }
+      else if (url.includes("/api/skills/suggest")) {
+        mockResponse = mockSkillSuggestions;
+      }
+      else if (url.includes("/api/skills/executions")) {
+        mockResponse = mockSkillExecutions;
+      }
+      else if (url.match(/\/api\/skills\/\d+$/)) {
+        const idMatch = url.match(/\/api\/skills\/(\d+)/);
+        const skillId = idMatch ? parseInt(idMatch[1]) : 0;
+        mockResponse = mockSkills.find((s: any) => s.id === skillId) || null;
+      }
+      else if (url.match(/\/api\/skills\/?$/) || url.match(/\/api\/skills\?/)) {
+        mockResponse = mockSkills;
       }
 
       // AI Pipeline

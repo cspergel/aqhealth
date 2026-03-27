@@ -12,6 +12,7 @@ Better than Rhapsody because:
 - Continuous improvement — accuracy improves with every file
 """
 
+import json
 import logging
 import re
 import time
@@ -39,15 +40,111 @@ FORMAT_SIGNATURES = {
     "json": [r"^\s*[\[{]"],
 }
 
+# Formats that can be ambiguous with each other
+AMBIGUOUS_PAIRS = {
+    frozenset({"csv", "pipe_delimited"}),
+    frozenset({"json", "fhir"}),
+    frozenset({"xml", "cda"}),
+}
 
-def detect_format(raw_data: str) -> str:
-    """Auto-detect the format of incoming raw data."""
-    snippet = raw_data[:2000]
+
+def _regex_detect_format(snippet: str) -> tuple[str, list[str]]:
+    """Run regex detection; return (best_match, all_matches)."""
+    matches = []
     for fmt, patterns in FORMAT_SIGNATURES.items():
         for pat in patterns:
             if re.search(pat, snippet, re.MULTILINE):
-                return fmt
-    return "unknown"
+                matches.append(fmt)
+                break
+    if not matches:
+        return "unknown", []
+    return matches[0], matches
+
+
+def _is_ambiguous(matches: list[str]) -> bool:
+    """Check whether detected formats form an ambiguous pair."""
+    if len(matches) < 2:
+        return False
+    match_set = set(matches)
+    for pair in AMBIGUOUS_PAIRS:
+        if pair.issubset(match_set):
+            return True
+    return False
+
+
+async def detect_format(raw_data: str, tenant_schema: str = "default") -> str:
+    """Auto-detect the format of incoming raw data.
+
+    Uses regex as the fast primary path.  When regex matches are ambiguous
+    (e.g. could be CSV *or* pipe-delimited), calls Claude via
+    ``guarded_llm_call`` for confirmation.
+    """
+    snippet = raw_data[:2000]
+    best, all_matches = _regex_detect_format(snippet)
+
+    if not _is_ambiguous(all_matches):
+        return best
+
+    # AI confirmation — regex was uncertain
+    try:
+        from app.services.llm_guard import guarded_llm_call
+
+        first_lines = "\n".join(raw_data.split("\n")[:10])
+        prompt = (
+            "Here are the first 10 lines of a file. What format is this? "
+            "CSV, HL7v2, X12, FHIR JSON, CDA XML, pipe-delimited, fixed-width, or other?\n\n"
+            f"```\n{first_lines}\n```\n\n"
+            "Return JSON: {\"format\": \"...\", \"confidence\": 0-100, \"reasoning\": \"...\"}"
+        )
+
+        result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=(
+                "You are a healthcare data format detection assistant. "
+                "Return only valid JSON."
+            ),
+            user_prompt=prompt,
+            context_data={"candidate_formats": all_matches},
+            max_tokens=200,
+        )
+
+        response_text = result.get("response", "")
+        # Try to parse the JSON from the response
+        try:
+            # Handle markdown code blocks
+            cleaned = response_text.strip()
+            if cleaned.startswith("```"):
+                cleaned = re.sub(r"^```\w*\n?", "", cleaned)
+                cleaned = re.sub(r"\n?```$", "", cleaned)
+            parsed = json.loads(cleaned)
+            fmt = parsed.get("format", "").lower().replace(" ", "_").replace("-", "_")
+            # Normalise common AI responses to our format keys
+            normalise_map = {
+                "csv": "csv",
+                "pipe_delimited": "pipe_delimited",
+                "hl7v2": "hl7v2",
+                "hl7_v2": "hl7v2",
+                "x12": "x12",
+                "fhir_json": "fhir",
+                "fhir": "fhir",
+                "cda_xml": "cda",
+                "cda": "cda",
+                "json": "json",
+                "xml": "xml",
+                "fixed_width": "fixed_width",
+            }
+            resolved = normalise_map.get(fmt, best)
+            logger.info(
+                "AI format detection resolved ambiguity: %s -> %s (candidates: %s)",
+                all_matches, resolved, all_matches,
+            )
+            return resolved
+        except (json.JSONDecodeError, KeyError):
+            logger.warning("AI format detection returned unparseable response, using regex result")
+            return best
+    except Exception as e:
+        logger.warning("AI format detection failed, falling back to regex: %s", e)
+        return best
 
 
 def detect_data_type(records: list[dict]) -> str:
@@ -148,6 +245,36 @@ def normalize_date(value: str) -> tuple[str | None, str | None]:
         return f"{m.group(1)}-{m.group(2)}-{m.group(3)}", f"Inserted separators into {value}"
 
     return None, None
+
+
+def _is_ambiguous_date(value: str) -> bool:
+    """Check if a date could be MM/DD/YY or DD/MM/YY (both parts <= 12)."""
+    m = re.match(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$", value)
+    if not m:
+        return False
+    a, b = int(m.group(1)), int(m.group(2))
+    return a <= 12 and b <= 12 and a != b
+
+
+# Known ICD-10 prefixes for fuzzy matching
+_ICD10_CATEGORY_PREFIXES = {
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+}
+
+
+def _is_ambiguous_icd10(code: str) -> bool:
+    """Check if an ICD-10 code looks malformed in a way regex can't confidently fix."""
+    if not code:
+        return False
+    c = code.strip().upper()
+    # Starts with valid letter but doesn't match standard ICD-10 pattern
+    if c and c[0] in _ICD10_CATEGORY_PREFIXES:
+        # Standard: letter + 2 digits + optional (dot + 1-4 alphanumerics)
+        if not re.match(r"^[A-Z]\d{2}(\.\d{1,4})?$", c):
+            # Has a dot but wrong structure, or too short/long
+            return True
+    return False
 
 
 def clean_name(value: str) -> dict[str, str]:
@@ -329,47 +456,259 @@ def normalize_zip(value: str) -> tuple[str | None, str | None]:
     return value.strip(), None
 
 
-async def ai_clean_record(db: AsyncSession, record: dict, data_type: str, tenant_schema: str = "public") -> dict:
+# ---------------------------------------------------------------------------
+# Rule checking and learning
+# ---------------------------------------------------------------------------
+
+async def _check_and_apply_rules(
+    db: AsyncSession, source_name: str, field: str, value: str
+) -> dict | None:
+    """Check for existing learned rules. Returns cleaned value dict or None."""
+    from app.models.transformation_rule import TransformationRule
+
+    # Query for matching source + field (source-specific first, then universal)
+    result = await db.execute(
+        select(TransformationRule).where(
+            TransformationRule.field == field,
+            TransformationRule.is_active == True,
+        ).order_by(
+            # Prefer source-specific rules over universal
+            TransformationRule.source_name.is_(None).asc(),
+            TransformationRule.accuracy.desc(),
+        )
+    )
+    rules = result.scalars().all()
+
+    for rule in rules:
+        # Check if rule applies to this source
+        if rule.source_name and rule.source_name != source_name:
+            continue
+
+        # Check accuracy threshold
+        if rule.accuracy is not None and float(rule.accuracy) <= 80:
+            continue
+
+        condition = rule.condition or {}
+        matched = False
+
+        # Value-based match
+        if "value" in condition:
+            if str(value).strip() == str(condition["value"]).strip():
+                matched = True
+            elif str(value).strip().lower() == str(condition["value"]).strip().lower():
+                matched = True
+
+        # Pattern-based match
+        if "pattern" in condition and not matched:
+            try:
+                if re.match(condition["pattern"], str(value)):
+                    matched = True
+            except re.error:
+                pass
+
+        if matched:
+            transformation = rule.transformation or {}
+            cleaned_value = transformation.get("to", value)
+
+            # Increment times_applied
+            rule.times_applied = (rule.times_applied or 0) + 1
+            await db.flush()
+
+            return {
+                "cleaned_value": cleaned_value,
+                "rule_id": rule.id,
+                "rule_type": rule.rule_type,
+                "source": "learned_rule",
+            }
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# AI-powered ambiguity resolution (REAL — calls Claude)
+# ---------------------------------------------------------------------------
+
+async def ai_resolve_ambiguous(
+    db: AsyncSession,
+    record: dict,
+    field: str,
+    value: str,
+    context: dict,
+    tenant_schema: str = "public",
+) -> dict:
+    """
+    Use AI to resolve an ambiguous data value that deterministic rules can't handle.
+
+    Returns: {suggested_value, confidence, reasoning, action}
+    action: "auto_apply" (>85%), "apply_with_flag" (60-85%), "quarantine" (<60%)
+    """
+    from app.services.llm_guard import guarded_llm_call
+
+    prompt = f"""You are a healthcare data quality expert. Resolve this ambiguous value:
+
+Field: {field}
+Value: "{value}"
+Record context: {json.dumps(context, default=str)[:500]}
+
+Determine the correct value for this field. Consider:
+- Common healthcare data entry errors
+- Format variations across EMR systems
+- Abbreviations and shorthand used in medical records
+
+Return JSON: {{"corrected_value": "...", "confidence": 0-100, "reasoning": "..."}}
+"""
+
+    try:
+        result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt="You are a healthcare data cleaning assistant. Return only valid JSON.",
+            user_prompt=prompt,
+            context_data={"field": field, "value": value},
+            max_tokens=200,
+        )
+
+        response_text = result.get("response", "")
+        if not response_text:
+            raise ValueError("Empty LLM response")
+
+        # Parse response — handle markdown code blocks
+        cleaned_resp = response_text.strip()
+        if cleaned_resp.startswith("```"):
+            cleaned_resp = re.sub(r"^```\w*\n?", "", cleaned_resp)
+            cleaned_resp = re.sub(r"\n?```$", "", cleaned_resp)
+
+        parsed = json.loads(cleaned_resp)
+        corrected = parsed.get("corrected_value", value)
+        confidence = parsed.get("confidence", 50) / 100.0
+        reasoning = parsed.get("reasoning", "AI resolution applied")
+
+        action = (
+            "auto_apply" if confidence > 0.85
+            else "apply_with_flag" if confidence > 0.60
+            else "quarantine"
+        )
+
+        return {
+            "field": field,
+            "original_value": value,
+            "suggested_value": corrected,
+            "confidence": confidence,
+            "reasoning": reasoning,
+            "action": action,
+        }
+
+    except Exception as e:
+        logger.warning("AI resolution failed for field=%s value=%s: %s", field, value, e)
+        # Fallback: return the original value with low confidence
+        return {
+            "field": field,
+            "original_value": value,
+            "suggested_value": value,
+            "confidence": 0.5,
+            "reasoning": f"AI resolution unavailable ({e}); value preserved as-is.",
+            "action": "apply_with_flag",
+        }
+
+
+async def ai_clean_record(
+    db: AsyncSession,
+    record: dict,
+    data_type: str,
+    tenant_schema: str = "public",
+    source_name: str = "unknown",
+) -> dict:
     """
     AI-powered cleaning of a single record.
 
     Applies deterministic cleaning rules for common data quality issues,
     then flags ambiguous values for AI resolution.
+    Uses learned rules when available (accuracy > 80%) before AI.
+    Creates new rules from successful AI cleanings.
     """
     cleaned = dict(record)
     changes: list[dict] = []
     confidence = 1.0
+    rules_applied = 0
+    rules_created = 0
+    ai_cleaned = 0
 
+    # --- Date fields ---
     date_fields = [k for k in record if any(d in k.lower() for d in ["date", "dob", "birth", "service", "admit", "discharge"])]
     for field in date_fields:
         val = record.get(field)
         if val and isinstance(val, str):
+            # Step 1: Check learned rules first
+            rule_result = await _check_and_apply_rules(db, source_name, field, val)
+            if rule_result:
+                cleaned[field] = rule_result["cleaned_value"]
+                changes.append({"field": field, "original": val, "cleaned": rule_result["cleaned_value"], "reason": f"Applied learned rule #{rule_result['rule_id']}"})
+                rules_applied += 1
+                continue
+
+            # Step 2: Deterministic cleaning
             normalized, reason = normalize_date(val)
             if normalized and reason:
                 cleaned[field] = normalized
                 changes.append({"field": field, "original": val, "cleaned": normalized, "reason": reason})
 
-    # Name cleaning
+                # Create rule from successful deterministic cleaning
+                await learn_from_correction(db, source_name, field, val, normalized, "format_convert")
+                rules_created += 1
+            elif _is_ambiguous_date(val):
+                # Step 3: AI resolution for ambiguous dates
+                context = {k: v for k, v in record.items() if k != field}
+                ai_result = await ai_resolve_ambiguous(db, record, field, val, context, tenant_schema)
+                if ai_result["action"] in ("auto_apply", "apply_with_flag"):
+                    cleaned[field] = ai_result["suggested_value"]
+                    changes.append({
+                        "field": field, "original": val,
+                        "cleaned": ai_result["suggested_value"],
+                        "reason": f"AI resolved: {ai_result['reasoning']}",
+                    })
+                    ai_cleaned += 1
+                    # Learn from AI correction
+                    await learn_from_correction(db, source_name, field, val, ai_result["suggested_value"], "ai")
+                    rules_created += 1
+                elif ai_result["action"] == "quarantine":
+                    confidence *= 0.5
+
+    # --- Name cleaning ---
     name_fields = [k for k in record if any(n in k.lower() for n in ["name", "patient", "subscriber"])]
     for field in name_fields:
         val = record.get(field)
         if val and isinstance(val, str) and ("," in val or val == val.upper()):
+            rule_result = await _check_and_apply_rules(db, source_name, field, val)
+            if rule_result:
+                cleaned[field] = rule_result["cleaned_value"]
+                changes.append({"field": field, "original": val, "cleaned": rule_result["cleaned_value"], "reason": f"Applied learned rule #{rule_result['rule_id']}"})
+                rules_applied += 1
+                continue
+
             parsed = clean_name(val)
             if parsed:
                 cleaned[field] = parsed
                 changes.append({"field": field, "original": val, "cleaned": parsed, "reason": "Parsed and normalised name"})
 
-    # Gender
+    # --- Gender ---
     gender_fields = [k for k in record if "gender" in k.lower() or "sex" in k.lower()]
     for field in gender_fields:
         val = record.get(field)
         if val and isinstance(val, str):
+            rule_result = await _check_and_apply_rules(db, source_name, field, val)
+            if rule_result:
+                cleaned[field] = rule_result["cleaned_value"]
+                changes.append({"field": field, "original": val, "cleaned": rule_result["cleaned_value"], "reason": f"Applied learned rule #{rule_result['rule_id']}"})
+                rules_applied += 1
+                continue
+
             normalized, reason = normalize_gender(val)
             if normalized and reason:
                 cleaned[field] = normalized
                 changes.append({"field": field, "original": val, "cleaned": normalized, "reason": reason})
+                await learn_from_correction(db, source_name, field, val, normalized, "value_map")
+                rules_created += 1
 
-    # Amount cleaning
+    # --- Amount cleaning ---
     amount_fields = [k for k in record if any(a in k.lower() for a in ["amount", "charge", "paid", "cost", "price", "billed"])]
     for field in amount_fields:
         val = record.get(field)
@@ -379,7 +718,7 @@ async def ai_clean_record(db: AsyncSession, record: dict, data_type: str, tenant
                 cleaned[field] = normalized
                 changes.append({"field": field, "original": val, "cleaned": normalized, "reason": reason})
 
-    # Phone normalization
+    # --- Phone normalization ---
     phone_fields = [k for k in record if "phone" in k.lower() or "tel" in k.lower() or "fax" in k.lower()]
     for field in phone_fields:
         val = record.get(field)
@@ -389,7 +728,7 @@ async def ai_clean_record(db: AsyncSession, record: dict, data_type: str, tenant
                 cleaned[field] = normalized
                 changes.append({"field": field, "original": val, "cleaned": normalized, "reason": reason})
 
-    # NPI validation
+    # --- NPI validation ---
     npi_fields = [k for k in record if "npi" in k.lower()]
     for field in npi_fields:
         val = record.get(field)
@@ -399,17 +738,42 @@ async def ai_clean_record(db: AsyncSession, record: dict, data_type: str, tenant
                 changes.append({"field": field, "original": val, "cleaned": val, "reason": f"FLAGGED: {reason}"})
                 confidence *= 0.7
 
-    # ICD-10 code fixes
+    # --- ICD-10 code fixes ---
     diag_fields = [k for k in record if any(d in k.lower() for d in ["diagnosis", "icd", "dx"])]
     for field in diag_fields:
         val = record.get(field)
         if val and isinstance(val, str):
+            rule_result = await _check_and_apply_rules(db, source_name, field, val)
+            if rule_result:
+                cleaned[field] = rule_result["cleaned_value"]
+                changes.append({"field": field, "original": val, "cleaned": rule_result["cleaned_value"], "reason": f"Applied learned rule #{rule_result['rule_id']}"})
+                rules_applied += 1
+                continue
+
             fixed, reason = fix_icd10_code(val)
             if reason:
                 cleaned[field] = fixed
                 changes.append({"field": field, "original": val, "cleaned": fixed, "reason": reason})
+                await learn_from_correction(db, source_name, field, val, fixed, "code_correction")
+                rules_created += 1
+            elif _is_ambiguous_icd10(val):
+                # AI resolution for malformed ICD-10 codes
+                context = {k: v for k, v in record.items() if k != field}
+                ai_result = await ai_resolve_ambiguous(db, record, field, val, context, tenant_schema)
+                if ai_result["action"] in ("auto_apply", "apply_with_flag"):
+                    cleaned[field] = ai_result["suggested_value"]
+                    changes.append({
+                        "field": field, "original": val,
+                        "cleaned": ai_result["suggested_value"],
+                        "reason": f"AI resolved ICD-10: {ai_result['reasoning']}",
+                    })
+                    ai_cleaned += 1
+                    await learn_from_correction(db, source_name, field, val, ai_result["suggested_value"], "ai")
+                    rules_created += 1
+                else:
+                    confidence *= 0.6
 
-    # State abbreviation
+    # --- State abbreviation ---
     state_fields = [k for k in record if "state" in k.lower()]
     for field in state_fields:
         val = record.get(field)
@@ -419,7 +783,7 @@ async def ai_clean_record(db: AsyncSession, record: dict, data_type: str, tenant
                 cleaned[field] = normalized
                 changes.append({"field": field, "original": val, "cleaned": normalized, "reason": reason})
 
-    # ZIP code formatting
+    # --- ZIP code formatting ---
     zip_fields = [k for k in record if "zip" in k.lower() or "postal" in k.lower()]
     for field in zip_fields:
         val = record.get(field)
@@ -433,40 +797,9 @@ async def ai_clean_record(db: AsyncSession, record: dict, data_type: str, tenant
         "cleaned_record": cleaned,
         "changes_made": changes,
         "confidence": round(confidence, 3),
-    }
-
-
-async def ai_resolve_ambiguous(
-    db: AsyncSession,
-    record: dict,
-    field: str,
-    value: str,
-    context: dict,
-    tenant_schema: str = "public",
-) -> dict:
-    """
-    When the system encounters an ambiguous value it can't clean deterministically,
-    this function would call Claude to suggest a correction.
-
-    Returns: {suggested_value, confidence, reasoning, action}
-    action: "auto_apply" (>85%), "apply_with_flag" (60-85%), "quarantine" (<60%)
-    """
-    # In production, this would call Claude API with the value + context
-    # For now, return a structured placeholder
-    confidence = 0.75  # placeholder
-    action = (
-        "auto_apply" if confidence > 0.85
-        else "apply_with_flag" if confidence > 0.60
-        else "quarantine"
-    )
-
-    return {
-        "field": field,
-        "original_value": value,
-        "suggested_value": value,
-        "confidence": confidence,
-        "reasoning": "AI resolution would evaluate this value against similar records and suggest the most likely correction.",
-        "action": action,
+        "rules_applied": rules_applied,
+        "rules_created": rules_created,
+        "ai_cleaned": ai_cleaned,
     }
 
 
@@ -496,8 +829,8 @@ async def process_incoming_data(
 
     source_name = source_info.get("source_name", "unknown")
 
-    # Step 1: Detect format
-    format_detected = detect_format(raw_data)
+    # Step 1: Detect format (now async with AI fallback)
+    format_detected = await detect_format(raw_data, tenant_schema)
 
     # Step 2: Parse (simplified — in production each format has a dedicated parser)
     records: list[dict] = []
@@ -509,7 +842,6 @@ async def process_incoming_data(
                 vals = [v.strip().strip('"') for v in line.split(",")]
                 records.append(dict(zip(headers, vals)))
     elif format_detected == "json":
-        import json
         try:
             parsed = json.loads(raw_data)
             if isinstance(parsed, list):
@@ -544,10 +876,13 @@ async def process_incoming_data(
     all_changes: list[dict] = []
 
     for record in records:
-        result = await ai_clean_record(db, record, data_type, tenant_schema)
+        result = await ai_clean_record(db, record, data_type, tenant_schema, source_name)
         if result["changes_made"]:
-            ai_cleaned_count += 1
             all_changes.extend(result["changes_made"])
+
+        ai_cleaned_count += result.get("ai_cleaned", 0)
+        rules_applied_count += result.get("rules_applied", 0)
+        rules_created_count += result.get("rules_created", 0)
 
         if result["confidence"] >= 0.6:
             clean_count += 1
@@ -580,10 +915,31 @@ async def learn_from_correction(
     rule_type: str = "value_map",
 ) -> dict:
     """
-    When a human corrects data, create a TransformationRule so the system
+    When a human or AI corrects data, create a TransformationRule so the system
     auto-applies the correction next time.
     """
     from app.models.transformation_rule import TransformationRule
+
+    # Check if a rule for this exact correction already exists
+    existing = await db.execute(
+        select(TransformationRule).where(
+            TransformationRule.field == field,
+            TransformationRule.condition == {"value": original_value},
+            TransformationRule.transformation == {"to": corrected_value},
+            TransformationRule.is_active == True,
+        )
+    )
+    existing_rule = existing.scalar_one_or_none()
+    if existing_rule:
+        # Rule already exists — increment usage
+        existing_rule.times_applied = (existing_rule.times_applied or 0) + 1
+        await db.flush()
+        return {
+            "rule_id": existing_rule.id,
+            "source_name": source_name,
+            "field": field,
+            "action": "incremented_existing",
+        }
 
     rule = TransformationRule(
         source_name=source_name if source_name != "universal" else None,
@@ -591,10 +947,10 @@ async def learn_from_correction(
         rule_type=rule_type,
         condition={"value": original_value},
         transformation={"to": corrected_value},
-        created_from="human",
+        created_from="human" if rule_type not in ("ai",) else "ai",
         times_applied=0,
         times_overridden=0,
-        accuracy=100.0,
+        accuracy=100.0 if rule_type != "ai" else 90.0,
         is_active=True,
     )
     db.add(rule)
@@ -606,7 +962,7 @@ async def learn_from_correction(
         "field": field,
         "condition": rule.condition,
         "transformation": rule.transformation,
-        "created_from": "human",
+        "created_from": rule.created_from,
     }
 
 
