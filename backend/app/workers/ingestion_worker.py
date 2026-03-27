@@ -92,7 +92,47 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
 
         data_type = job["detected_type"] or "unknown"
 
-        # Create a fresh session for the actual processing (needs its own transaction)
+        # 3a. Data protection: detect file anomalies BEFORE processing
+        try:
+            from app.services.data_protection_service import detect_file_anomalies
+            from app.services.ingestion_service import read_file_headers_and_sample
+
+            headers, sample_rows = read_file_headers_and_sample(file_path, max_rows=50)
+            # Convert sample rows to list-of-dicts for anomaly detection
+            sample_dicts = [
+                {headers[i]: row[i] for i in range(min(len(headers), len(row)))}
+                for row in sample_rows
+            ]
+
+            anomaly_session = await _get_tenant_session(tenant_schema)
+            try:
+                anomaly_report = await detect_file_anomalies(
+                    headers=headers,
+                    data=sample_dicts,
+                    source_name=job["filename"],
+                    db=anomaly_session,
+                )
+                if not anomaly_report.get("safe"):
+                    critical_anomalies = [
+                        a for a in anomaly_report.get("anomalies", [])
+                        if a.get("severity") == "critical"
+                    ]
+                    if critical_anomalies:
+                        logger.warning(
+                            f"Job {job_id}: critical anomalies detected: "
+                            f"{[a['detail'] for a in critical_anomalies]}"
+                        )
+                    else:
+                        logger.info(
+                            f"Job {job_id}: anomaly warnings: "
+                            f"{[a['detail'] for a in anomaly_report.get('anomalies', [])]}"
+                        )
+            finally:
+                await anomaly_session.close()
+        except Exception as anomaly_err:
+            logger.warning(f"Data protection anomaly detection failed (non-blocking): {anomaly_err}")
+
+        # 3b. Run the main file processing
         processing_db = await _get_tenant_session(tenant_schema)
         try:
             results = await process_upload(
@@ -103,6 +143,28 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
             )
         finally:
             await processing_db.close()
+
+        # 3c. Create an IngestionBatch record for rollback tracking
+        try:
+            batch_db = await _get_tenant_session(tenant_schema)
+            try:
+                await batch_db.execute(
+                    text("""
+                        INSERT INTO ingestion_batches
+                            (upload_job_id, source_name, record_count, status, created_at)
+                        VALUES (:job_id, :source, :count, 'active', NOW())
+                    """),
+                    {
+                        "job_id": job_id,
+                        "source": job["filename"],
+                        "count": results.get("processed_rows", 0),
+                    },
+                )
+                await batch_db.commit()
+            finally:
+                await batch_db.close()
+        except Exception as batch_err:
+            logger.warning(f"Failed to create IngestionBatch record (non-blocking): {batch_err}")
 
         # 4. Update job with results
         await db.execute(
@@ -126,7 +188,20 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
         )
         await db.commit()
 
-        # 5. Trigger downstream recalculations
+        # 5. Run data quality checks after processing
+        try:
+            from app.services.data_quality_service import run_quality_checks
+
+            quality_db = await _get_tenant_session(tenant_schema)
+            try:
+                quality_report = await run_quality_checks(quality_db, job_id)
+                logger.info(f"Job {job_id} quality score: {quality_report.get('score', 'N/A')}")
+            finally:
+                await quality_db.close()
+        except Exception as quality_err:
+            logger.warning(f"Quality checks failed (non-blocking): {quality_err}")
+
+        # 6. Trigger downstream recalculations
         # After claims ingestion, trigger HCC analysis and expenditure aggregation
         if data_type in ("claims", "pharmacy", "roster", "eligibility"):
             await _trigger_downstream(ctx, tenant_schema, data_type)

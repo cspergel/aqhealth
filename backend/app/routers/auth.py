@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_session
+from jose import JWTError
+
 from app.services.auth_service import (
     authenticate_user, create_access_token, create_refresh_token,
     hash_password, decode_token,
@@ -65,10 +67,10 @@ async def login(body: LoginRequest, session: AsyncSession = Depends(get_session)
 async def refresh(body: RefreshRequest, session: AsyncSession = Depends(get_session)):
     try:
         payload = decode_token(body.refresh_token)
-        if payload.get("type") != "refresh":
-            raise HTTPException(status_code=401, detail="Invalid token type")
-    except Exception:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid token type")
 
     user_id = int(payload["sub"])
     result = await session.execute(select(User).where(User.id == user_id))

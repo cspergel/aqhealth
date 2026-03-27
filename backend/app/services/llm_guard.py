@@ -67,12 +67,12 @@ async def guarded_llm_call(
 
     full_system = safety_prefix + system_prompt
 
-    # 2. Add data provenance header to context
-    context_data["_metadata"] = {
+    # 2. Add data provenance header to context (work on a copy to avoid mutating caller's dict)
+    enriched = {**context_data, "_metadata": {
         "tenant": tenant_schema,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "data_source": "tenant_database",
-    }
+    }}
 
     # 3. Call the LLM -- try Anthropic SDK first, then raw httpx fallback
     response_text = ""
@@ -108,7 +108,7 @@ async def guarded_llm_call(
             }
 
     # 4. Validate output
-    validation = validate_llm_output(response_text, context_data, tenant_schema)
+    validation = validate_llm_output(response_text, enriched, tenant_schema)
 
     # 5. Log the interaction
     logger.info(

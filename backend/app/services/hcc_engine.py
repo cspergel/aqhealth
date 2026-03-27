@@ -62,6 +62,10 @@ def _load_hcc_raf_lookup() -> dict[int, Decimal]:
 # Loaded once at module import — 115 unique HCCs with real CMS V28 RAF weights
 HCC_MAPPINGS = _load_hcc_mappings()
 HCC_RAF_LOOKUP = _load_hcc_raf_lookup()
+
+# Pre-computed stripped (dot-removed) lookup to avoid O(n) scan in lookup_hcc_for_icd10
+_HCC_MAPPINGS_STRIPPED: dict[str, dict] = {k.replace(".", ""): v for k, v in HCC_MAPPINGS.items()}
+
 logger.info("Loaded %d ICD-10→HCC mappings, %d unique HCC RAF weights", len(HCC_MAPPINGS), len(HCC_RAF_LOOKUP))
 
 
@@ -81,12 +85,9 @@ def lookup_hcc_for_icd10(icd10_code: str) -> dict | None:
         entry = HCC_MAPPINGS.get(dotted)
         if entry:
             return entry
-    # Try without dot
+    # Try without dot using pre-computed stripped lookup (O(1) instead of O(n))
     stripped = icd10_code.replace(".", "")
-    for key, val in HCC_MAPPINGS.items():
-        if key.replace(".", "") == stripped:
-            return val
-    return None
+    return _HCC_MAPPINGS_STRIPPED.get(stripped)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -305,6 +306,18 @@ def _local_raf_calculation(
                 seen.add(hcc)
                 details.append({"hcc": hcc, "description": item.get("description", ""), "raf": float(r)})
 
+    # Also resolve HCCs directly from diagnosis codes so the fallback
+    # actually produces a non-zero RAF when SNF is down.
+    for code in diagnosis_codes:
+        entry = lookup_hcc_for_icd10(code)
+        if entry and entry.get("hcc"):
+            hcc = int(entry["hcc"])
+            if hcc not in seen:
+                r = Decimal(str(entry.get("raf", 0.1)))
+                total += r
+                seen.add(hcc)
+                details.append({"hcc": hcc, "description": entry.get("description", ""), "raf": float(r)})
+
     return {
         "total_raf": float(total),
         "demographic_raf": 0.0,
@@ -373,14 +386,17 @@ async def _detect_recapture_gaps(
     prior_suspects = result.scalars().all()
 
     gaps: list[dict[str, Any]] = []
-    current_normalized = {c.upper().replace(".", "") for c in current_year_codes}
+
+    # Build set of current-year HCC codes for HCC-level comparison
+    current_hccs: set[int] = set()
+    for code in current_year_codes:
+        entry = lookup_hcc_for_icd10(code)
+        if entry and entry.get("hcc"):
+            current_hccs.add(int(entry["hcc"]))
 
     for ps in prior_suspects:
-        if ps.icd10_code:
-            icd_root = ps.icd10_code.upper().replace(".", "")[:3]
-            recaptured = any(c.startswith(icd_root) for c in current_normalized)
-        else:
-            recaptured = False
+        # Check recapture at HCC level, not ICD prefix
+        recaptured = ps.hcc_code in current_hccs if ps.hcc_code else False
 
         if not recaptured:
             raf_val = ps.raf_value if ps.raf_value else Decimal("0.100")
@@ -442,16 +458,25 @@ def _detect_historical_dropoffs(
 
         if not any(c.startswith(family) for c in recent_normalized):
             seen_families.add(family)
+
+            # Resolve actual HCC code; only create suspect if valid HCC found
+            entry = lookup_hcc_for_icd10(code)
+            if not entry or not entry.get("hcc"):
+                continue
+            hcc_code = int(entry["hcc"])
+            hcc_label = entry.get("description", f"Historical code family {family}")
+            raf_value = Decimal(str(entry.get("raf", 0.1)))
+
             dropoffs.append({
                 "suspect_type": SuspectType.historical,
-                "hcc_code": 0,  # Unknown without full ICD->HCC crosswalk
-                "hcc_label": f"Historical code family {family}",
+                "hcc_code": hcc_code,
+                "hcc_label": hcc_label,
                 "icd10_code": code,
                 "icd10_label": f"Code {code} last seen in historical claims",
-                "raf_value": Decimal("0.100"),
+                "raf_value": raf_value,
                 "confidence": 40,
                 "evidence_summary": (
-                    f"Diagnosis {code} was coded in prior years but has not "
+                    f"Diagnosis {code} (HCC {hcc_code}) was coded in prior years but has not "
                     f"appeared in {current_year - 1}-{current_year} claims. "
                     "May represent a chronic condition needing recapture."
                 ),
@@ -746,7 +771,8 @@ async def analyze_population(
 
             for mid in batch:
                 try:
-                    summary = await analyze_member(mid, db, snf_client)
+                    async with db.begin_nested():
+                        summary = await analyze_member(mid, db, snf_client)
                     total_suspects += summary["suspects_found"]
                     total_uplift += summary["uplift"]
                     total_raf += summary["raf_current"]

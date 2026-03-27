@@ -22,6 +22,7 @@ from app.dependencies import get_current_user, get_tenant_db
 from app.models.hcc import HccSuspect, RafHistory, SuspectStatus, SuspectType
 from app.models.member import Member, RiskTier
 from app.models.provider import Provider
+from app.services.boi_service import feed_capture_to_boi
 from app.services.export_service import export_to_csv, export_to_excel
 
 logger = logging.getLogger(__name__)
@@ -375,7 +376,8 @@ async def update_suspect(
     # --- Cross-module: feed captured HCC value into BOI tracking ---
     if body.status == "captured":
         try:
-            await _feed_capture_to_boi(db, suspect)
+            await feed_capture_to_boi(db, suspect)
+            await db.commit()
         except Exception as e:
             logger.warning("Cross-module: BOI feed failed (non-fatal): %s", e)
 
@@ -385,47 +387,6 @@ async def update_suspect(
         captured_date=suspect.captured_date,
         dismissed_date=suspect.dismissed_date,
         dismissed_reason=suspect.dismissed_reason,
-    )
-
-
-async def _feed_capture_to_boi(db: AsyncSession, suspect: HccSuspect) -> None:
-    """When a suspect is captured, check if there's an active BOI intervention
-    targeting HCC capture.  If yes, increment its actual_return by the suspect's
-    annual_value and recalculate ROI."""
-    from app.models.boi import Intervention
-
-    # Find active interventions that target HCC capture
-    result = await db.execute(
-        select(Intervention).where(
-            Intervention.status == "active",
-            Intervention.intervention_type.in_(["education", "program"]),
-            Intervention.target.ilike("%capture%"),
-        )
-    )
-    interventions = result.scalars().all()
-
-    if not interventions:
-        return
-
-    capture_value = float(suspect.annual_value) if suspect.annual_value else 0.0
-    if capture_value <= 0:
-        return
-
-    for intervention in interventions:
-        current_return = float(intervention.actual_return) if intervention.actual_return else 0.0
-        intervention.actual_return = current_return + capture_value
-
-        # Recalculate ROI
-        investment = float(intervention.investment_amount) if intervention.investment_amount else 0.0
-        if investment > 0:
-            intervention.roi_percentage = round(
-                (float(intervention.actual_return) - investment) / investment * 100, 2
-            )
-
-    await db.commit()
-    logger.info(
-        "Fed HCC capture (suspect %d, $%.2f) to %d BOI interventions",
-        suspect.id, capture_value, len(interventions),
     )
 
 

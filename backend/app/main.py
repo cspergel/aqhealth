@@ -93,12 +93,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 #   async def lifespan(app): yield
 #   app = FastAPI(lifespan=lifespan)
 @app.on_event("startup")
-async def _warn_default_secrets():
-    if settings.secret_key == "CHANGE-ME-IN-PRODUCTION":
-        logger.warning(
-            "SECRET_KEY is set to the default value. "
-            "This is insecure — set a strong SECRET_KEY environment variable before deploying to production."
-        )
+async def _check_default_secrets():
+    if settings.secret_key.lower() in ("change-me-in-production", "changeme"):
+        import os
+        if os.getenv("ALLOW_DEFAULT_SECRET", "").lower() != "true":
+            raise RuntimeError(
+                "SECRET_KEY must be changed from default. "
+                "Set a real secret in .env, or set ALLOW_DEFAULT_SECRET=true for development."
+            )
 
 
 @app.get("/api/health")

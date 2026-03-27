@@ -25,6 +25,7 @@ from app.models.provider import Provider
 from app.services.hcc_engine import (
     DISEASE_INTERACTIONS,
     LOCAL_HCC_RAF,
+    MED_DX_MAPPINGS,
     _calculate_age,
     _detect_near_miss_interactions,
     _extract_current_year_codes,
@@ -212,9 +213,17 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     medications_raw = _extract_medications(all_claims)
 
     medications = []
+    dx_normalized = {c.upper().replace(".", "")[:3] for c in all_dx}
     for med in medications_raw:
-        # Simple heuristic: check if any dx code family matches the med
-        has_dx = True  # Default: linked unless we detect otherwise
+        # Check if the medication has a matching diagnosis code family
+        # using the MED_DX_MAPPINGS from hcc_engine
+        has_dx = False
+        for med_keyword, _desc, icd10, _hcc, _label, _raf in MED_DX_MAPPINGS:
+            if med_keyword in med:
+                family_prefix = icd10.upper().replace(".", "")[:3]
+                if family_prefix in dx_normalized:
+                    has_dx = True
+                break  # matched the medication keyword, no need to check further
         medications.append({
             "drug_name": med.title(),
             "has_matching_dx": has_dx,
@@ -242,8 +251,9 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     ]
 
     # ---- Risk scores ----
+    HOSP_RISK = {"low": 5.0, "rising": 10.0, "high": 15.0, "complex": 28.0}
     risk_tier = member.risk_tier if member.risk_tier else "low"
-    hospitalization_risk = 15.0 if risk_tier == "high" else (28.0 if risk_tier == "complex" else 8.0)
+    hospitalization_risk = HOSP_RISK.get(risk_tier, 5.0)
 
     # ---- AI visit prep (generated narrative) ----
     visit_prep = _generate_visit_prep(suspects, care_gaps, near_misses, raf_breakdown)
@@ -323,31 +333,51 @@ async def get_provider_worklist(
     """
     Returns the provider's patient list sorted by composite priority score.
     Priority = RAF uplift opportunity x care gap count x recapture urgency x days since last visit.
+
+    Uses a single query with LEFT JOIN and GROUP BY to avoid N+1 queries.
     """
-    members_result = await db.execute(
-        select(Member).where(Member.pcp_provider_id == provider_id)
+    # Subquery for suspect counts per member
+    suspect_sub = (
+        select(
+            HccSuspect.member_id,
+            func.count(HccSuspect.id).label("suspect_count"),
+        )
+        .where(HccSuspect.status == SuspectStatus.open.value)
+        .group_by(HccSuspect.member_id)
+        .subquery()
     )
-    members = members_result.scalars().all()
+
+    # Subquery for gap counts per member
+    gap_sub = (
+        select(
+            MemberGap.member_id,
+            func.count(MemberGap.id).label("gap_count"),
+        )
+        .where(MemberGap.status == GapStatus.open.value)
+        .group_by(MemberGap.member_id)
+        .subquery()
+    )
+
+    # Single query joining members with counts
+    query = (
+        select(
+            Member,
+            func.coalesce(suspect_sub.c.suspect_count, 0).label("suspect_count"),
+            func.coalesce(gap_sub.c.gap_count, 0).label("gap_count"),
+        )
+        .outerjoin(suspect_sub, Member.id == suspect_sub.c.member_id)
+        .outerjoin(gap_sub, Member.id == gap_sub.c.member_id)
+        .where(Member.pcp_provider_id == provider_id)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
 
     worklist = []
-    for m in members:
-        # Count open suspects
-        suspects_result = await db.execute(
-            select(func.count(HccSuspect.id)).where(
-                HccSuspect.member_id == m.id,
-                HccSuspect.status == SuspectStatus.open.value,
-            )
-        )
-        suspect_count = suspects_result.scalar() or 0
-
-        # Count open gaps
-        gaps_result = await db.execute(
-            select(func.count(MemberGap.id)).where(
-                MemberGap.member_id == m.id,
-                MemberGap.status == GapStatus.open.value,
-            )
-        )
-        gap_count = gaps_result.scalar() or 0
+    for row in rows:
+        m = row[0]
+        suspect_count = row.suspect_count
+        gap_count = row.gap_count
 
         # RAF uplift
         current = float(m.current_raf or 0)

@@ -6,15 +6,21 @@ from sqlalchemy import event, text
 from app.config import settings
 
 
+RESERVED_SCHEMAS = {"public", "pg_catalog", "information_schema", "platform"}
+
+
 def validate_schema_name(name: str) -> str:
     """Validate a schema name to prevent SQL injection.
 
     Only allows lowercase letters, digits, and underscores.
     Must start with a letter and be between 2 and 63 characters.
+    Rejects reserved PostgreSQL/platform schema names.
     Raises ValueError if the name is invalid.
     """
     if not re.match(r"^[a-z][a-z0-9_]{1,62}$", name):
         raise ValueError(f"Invalid schema name: {name!r}")
+    if name in RESERVED_SCHEMAS:
+        raise ValueError(f"Cannot use reserved schema name: {name}")
     return name
 
 engine = create_async_engine(settings.database_url, echo=False, pool_size=20, max_overflow=10, pool_pre_ping=True)
@@ -37,7 +43,7 @@ async def get_tenant_session(tenant_schema: str) -> AsyncSession:
     """
     validate_schema_name(tenant_schema)
     async with async_session_factory() as session:
-        await session.execute(text(f"SET search_path TO {tenant_schema}, public"))
+        await session.execute(text(f'SET search_path TO "{tenant_schema}", public'))
         yield session
 
 
@@ -45,7 +51,7 @@ async def create_tenant_schema(schema_name: str):
     """Provision a new tenant schema and run migrations."""
     validate_schema_name(schema_name)
     async with engine.begin() as conn:
-        await conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema_name}"))
+        await conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
 
 
 async def init_db():
