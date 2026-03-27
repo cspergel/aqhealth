@@ -19,7 +19,7 @@ class Member(Base, TimestampMixin):
     __tablename__ = "members"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    member_id: Mapped[str] = mapped_column(String(50), index=True)  # Health plan member ID
+    member_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # Health plan member ID
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
     date_of_birth: Mapped[date] = mapped_column(Date)

@@ -281,7 +281,7 @@ async def upload_file(
                 proposed[h] = {"platform_field": None, "confidence": 0.0}
         data_type = template_data_type or "unknown"
     else:
-        result = await propose_mapping(headers, sample_rows, existing_rules)
+        result = await propose_mapping(headers, sample_rows, existing_rules, tenant_schema=current_user["tenant_schema"])
         data_type = result["data_type"]
         proposed = result["mapping"]
 
@@ -414,7 +414,7 @@ async def confirm_mapping(
     await db.commit()
 
     # Enqueue background processing job via arq
-    tenant_schema = current_user.get("tenant_schema", "public")
+    tenant_schema = current_user["tenant_schema"]
     try:
         from arq.connections import ArqRedis, create_pool, RedisSettings
         from urllib.parse import urlparse

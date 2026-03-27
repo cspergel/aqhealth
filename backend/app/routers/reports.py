@@ -80,6 +80,7 @@ async def generate_report(
             period=body.period,
             generated_by=current_user["user_id"],
             params=body.params,
+            tenant_schema=current_user["tenant_schema"],
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -110,15 +111,18 @@ async def get_report(
 @router.get("/{report_id}/download")
 async def download_report(
     report_id: int,
-    format: str = Query("pdf", description="Download format: pdf or excel"),
+    output_format: str = Query("pdf", alias="format", description="Download format: pdf or excel"),
     db: AsyncSession = Depends(get_tenant_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Download a generated report as PDF or Excel."""
+    valid_formats = {"pdf", "excel"}
+    if output_format not in valid_formats:
+        raise HTTPException(status_code=400, detail=f"Invalid format '{output_format}'. Must be one of: {sorted(valid_formats)}")
     report = await report_service.get_report(db, report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     if report["status"] != "ready":
         raise HTTPException(status_code=400, detail="Report is not ready for download")
     # In production, this would generate and stream the file.
-    return {"message": f"Download for report {report_id} in {format} format", "file_url": report.get("file_url")}
+    return {"message": f"Download for report {report_id} in {output_format} format", "file_url": report.get("file_url")}

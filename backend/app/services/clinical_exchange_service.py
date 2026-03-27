@@ -9,7 +9,7 @@ requests.
 import logging
 from typing import Any
 
-from sqlalchemy import select, func, distinct, text
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -77,13 +77,14 @@ async def generate_hcc_evidence_package(
 
         # 3. Medications that support the diagnosis (pharmacy claims)
         meds_q = await db.execute(
-            select(distinct(Claim.drug_name), Claim.service_date)
+            select(Claim.drug_name, func.max(Claim.service_date).label("service_date"))
             .where(
                 Claim.member_id == member_id,
                 Claim.claim_type == ClaimType.pharmacy,
                 Claim.drug_name.is_not(None),
             )
-            .order_by(Claim.service_date.desc())
+            .group_by(Claim.drug_name)
+            .order_by(func.max(Claim.service_date).desc())
             .limit(20)
         )
         evidence["medications"] = [

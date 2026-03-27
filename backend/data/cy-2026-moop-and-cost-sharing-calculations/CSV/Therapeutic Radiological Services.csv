@@ -1,0 +1,15 @@
+﻿Table 1: Contract Year (CY) 2026 Therapeutic Radiological Services Medicare FFS Data Projections,,
+Row Reference,Measure of Central Tendency,Medicare FFS Allowed Amount (Total Per Session)
+A,Median,$434 
+B,Weighted Average,"$1,327 "
+,,
+,,
+Table 2: Contract Year (CY) 2026 Therapeutic Radiological Services Copayment Limit for all Maximum Out-of-Pocket (MOOP) Types,,
+Row Reference,Description,All MOOP Types
+A,"CY 2026 projected total median Medicare FFS allowed amount (the lesser value comparing row A and B in Table 1, per § 422.100(f)(7))1 ",$434.00 
+B,CY 2026 coinsurance limit per § 422.100(j)(1),20%
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(j)(1) (row A multiplied by row B)2,$86.80 
+D,Final CY 2026 copayment limit per § 422.100(j)(1) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$85.00 
+1 This amount is based on 2023 Medicare FFS data and the Office of the Actuary's (OACT's) cost and utilization projections between 2023 to 2026. This amount represents the CY 2026 projected total median Medicare FFS allowed amount per session (excluding Part B drug costs). The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ,,
+"2 Section 422.100(f)(8)(i) requires use of Medicare FFS data projections based on the coinsurance limits that would apply in 2026, which is necessary for service categories subject to paragraph (f)(6)(iii), where the coinsurance percentages are changing overtime. For purposes of paragraph (j)(1), the applicable coinsurance percentage is the same for CY 2024 through 2026 and thereafter, unless the cost sharing requirements in original Medicare change. ",,
+,,

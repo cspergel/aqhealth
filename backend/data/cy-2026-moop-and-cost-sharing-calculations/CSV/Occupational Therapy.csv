@@ -1,0 +1,13 @@
+﻿Table 1: Contract Year (CY) 2026 Occupational Therapy Medicare FFS Data Projections,,,,
+Provider Specialties,Office Allowed Professional Costs (excluding drugs),Number of Visits,Percent of Total,Weighted Average (Column B x D)
+Occupational Therapist in Private Practice,121.51,"1,445,215",100.00%,$121.51
+Occupational Therapy (Total),," 1,445,215 ",100.00%,$121.51
+,,,,
+,,,,
+Table 2: Contract Year (CY) 2026 Occupational Therapy Copayment Limits by Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,Lower MOOP,Intermediate MOOP,Mandatory MOOP
+A,CY 2026 projected total average Medicare FFS allowed amount*,$121.51 ,,
+B,CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F),50%,40%,30%
+C,Unrounded actuarially equivalent copayment value to CY 2025 coinsurance limit per § 422.100(f)(6)(iii)(F) (row A multiplied by row B)  ,$60.75 ,$48.60 ,$36.45 
+D,Final CY 2026 copayment limit per § 422.100(f)(6)(iii) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$60.00 ,$50.00 ,$35.00 
+*This amount is based on 2024 Medicare FFS cost and utilization data of provider specialties in an office setting and the Office of the Actuary's (OACT's) projections of cost changes between 2024 to 2026. This amount represents the CY 2026 projected total average Medicare FFS allowed amount per visit (excluding drug costs) for the provider specialty type: occupational therapist in private practice. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ,,,,

@@ -63,10 +63,10 @@ GENDER_NORMALIZE: dict[str, str] = {
 
 def _parse_date(value: Any, field_name: str) -> tuple[date | None, str | None]:
     """Try to parse a date from various formats. Returns (date, error)."""
-    if isinstance(value, date):
-        return value, None
     if isinstance(value, datetime):
         return value.date(), None
+    if isinstance(value, date):
+        return value, None
     if not isinstance(value, str) or not value.strip():
         return None, f"{field_name}: missing or empty"
     value = value.strip()
@@ -95,7 +95,7 @@ def _luhn_check(number: str) -> bool:
 # Row-level validation
 # ---------------------------------------------------------------------------
 
-async def validate_roster_row(row: dict) -> dict:
+def validate_roster_row(row: dict) -> dict:
     """Validate and clean a roster (member) row.
 
     Returns: {valid: bool, cleaned_row: dict, errors: list[str], warnings: list[str]}
@@ -160,7 +160,7 @@ async def validate_roster_row(row: dict) -> dict:
     }
 
 
-async def validate_claim_row(row: dict) -> dict:
+def validate_claim_row(row: dict) -> dict:
     """Validate and clean a claims row.
 
     Returns: {valid: bool, cleaned_row: dict, errors: list[str], warnings: list[str]}
@@ -199,7 +199,7 @@ async def validate_claim_row(row: dict) -> dict:
         if val and isinstance(val, str) and val.strip():
             code = val.strip().upper()
             if not ICD10_PATTERN.match(code):
-                errors.append(f"{field}: invalid ICD-10 format '{code}' (expected letter + 2-7 chars)")
+                errors.append(f"{field}: invalid ICD-10 format '{code}' (expected letter + 2 digits + optional .1-4 digits)")
             else:
                 cleaned[field] = code
 
@@ -253,7 +253,7 @@ async def validate_claim_row(row: dict) -> dict:
     }
 
 
-async def validate_pharmacy_row(row: dict) -> dict:
+def validate_pharmacy_row(row: dict) -> dict:
     """Validate and clean a pharmacy row.
 
     Returns: {valid: bool, cleaned_row: dict, errors: list[str], warnings: list[str]}
@@ -346,7 +346,7 @@ async def run_quality_checks(db: AsyncSession, ingestion_job_id: int | None = No
         """))
         row = result.fetchone()
         if row and row.total > 0:
-            completeness_pct = round(100 * (1 - (row.missing_name + row.missing_dob + row.missing_gender) / (row.total * 3)), 1)
+            completeness_pct = round(100 * (1 - (row.missing_name + row.missing_dob + row.missing_gender) / (row.total * 3)), 1) if row.total > 0 else 0.0
             status = "passed" if completeness_pct >= 95 else ("warned" if completeness_pct >= 80 else "failed")
             deduction = max(0, (100 - completeness_pct) * 0.3)
             total_deductions += deduction

@@ -30,7 +30,7 @@ export function ClinicalPage() {
       api
         .get("/api/clinical/worklist", { params: { provider_id: providerId } })
         .then((res) => {
-          setWorklist(res.data);
+          setWorklist(Array.isArray(res.data) ? res.data : []);
           setPatient(null);
           setError(null);
         })

@@ -88,6 +88,13 @@ export function CodeUtilizationTable({ codes }: { codes: CodeUtilization[] }) {
                 </tr>
               );
             })}
+            {codes.length === 0 && (
+              <tr>
+                <td colSpan={7} className="text-center py-12 text-[13px]" style={{ color: tokens.textMuted }}>
+                  No code utilization data available.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

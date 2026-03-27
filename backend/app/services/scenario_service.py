@@ -20,7 +20,7 @@ from app.models.provider import Provider
 
 logger = logging.getLogger(__name__)
 
-from app.constants import CMS_PMPM_BASE as CMS_MONTHLY_BASE
+from app.constants import CMS_PMPM_BASE as CMS_MONTHLY_BASE, CMS_ANNUAL_BASE
 
 
 def _safe_float(v) -> float:
@@ -101,7 +101,7 @@ PREBUILT_SCENARIOS = [
 # Scenario runner
 # ---------------------------------------------------------------------------
 
-async def get_prebuilt_scenarios() -> list[dict]:
+def get_prebuilt_scenarios() -> list[dict]:
     """Return the list of pre-built scenario definitions."""
     return PREBUILT_SCENARIOS
 
@@ -165,14 +165,20 @@ async def _scenario_capture_improvement(db: AsyncSession, params: dict) -> dict:
     total_suspect_raf = _safe_float(s_row[1])
     total_suspect_value = _safe_float(s_row[2])
 
-    # Current state (at from_rate)
-    current_captured_raf = total_suspect_raf * from_rate
-    current_revenue = (current_total_raf + current_captured_raf) * CMS_MONTHLY_BASE * 12
+    # Open suspects represent the uncaptured fraction (1 - from_rate) of the
+    # total suspect universe.  Derive the full universe, then compute the
+    # additional captures that moving to to_rate would produce.
+    uncaptured_fraction = max(1.0 - from_rate, 0.01)
+    total_suspect_universe_raf = total_suspect_raf / uncaptured_fraction
 
-    # Projected state (at to_rate)
-    projected_captured_raf = total_suspect_raf * to_rate
-    additional_raf = projected_captured_raf - current_captured_raf
-    projected_revenue = (current_total_raf + projected_captured_raf) * CMS_MONTHLY_BASE * 12
+    # Current state: current_total_raf already reflects captured HCCs in
+    # Member.current_raf; no need to add captured suspects again.
+    current_revenue = current_total_raf * CMS_ANNUAL_BASE
+
+    # Projected state: additional captures from improving the rate
+    additional_raf = total_suspect_universe_raf * (to_rate - from_rate)
+    additional_raf = max(additional_raf, 0.0)  # guard against to_rate < from_rate
+    projected_revenue = (current_total_raf + additional_raf) * CMS_ANNUAL_BASE
 
     return {
         "scenario_name": "HCC Capture Rate Improvement",
@@ -184,7 +190,7 @@ async def _scenario_capture_improvement(db: AsyncSession, params: dict) -> dict:
         },
         "projected_state": {
             "capture_rate": round(to_rate * 100, 1),
-            "population_raf": round((current_total_raf + projected_captured_raf) / total_lives, 3),
+            "population_raf": round((current_total_raf + additional_raf) / total_lives, 3),
             "annual_revenue": round(projected_revenue, 2),
         },
         "financial_impact": {
@@ -196,7 +202,7 @@ async def _scenario_capture_improvement(db: AsyncSession, params: dict) -> dict:
         "assumptions": [
             f"Current capture rate: {from_rate*100:.0f}%",
             f"Target capture rate: {to_rate*100:.0f}%",
-            f"Total suspect RAF opportunity: {total_suspect_raf:.1f}",
+            f"Total suspect RAF opportunity: {total_suspect_universe_raf:.1f}",
             f"CMS base rate: ${CMS_MONTHLY_BASE}/member/month",
         ],
         "confidence": 78,
@@ -358,12 +364,12 @@ async def _scenario_membership_change(db: AsyncSession, params: dict) -> dict:
     current_avg_raf = _safe_float(pop_row[1])
     current_total_raf = _safe_float(pop_row[2])
 
-    current_revenue = current_total_raf * CMS_MONTHLY_BASE * 12
+    current_revenue = current_total_raf * CMS_ANNUAL_BASE
 
     new_lives = current_lives + member_delta
     new_total_raf = current_total_raf + (member_delta * avg_raf)
     new_avg_raf = new_total_raf / max(new_lives, 1)
-    new_revenue = new_total_raf * CMS_MONTHLY_BASE * 12
+    new_revenue = new_total_raf * CMS_ANNUAL_BASE
 
     return {
         "scenario_name": f"Membership {'Growth' if member_delta > 0 else 'Decline'}",
@@ -382,7 +388,7 @@ async def _scenario_membership_change(db: AsyncSession, params: dict) -> dict:
         "financial_impact": {
             "annual_revenue_change": round(new_revenue - current_revenue, 2),
             "monthly_revenue_change": round((new_revenue - current_revenue) / 12, 2),
-            "revenue_per_new_member": round(avg_raf * CMS_MONTHLY_BASE * 12, 2),
+            "revenue_per_new_member": round(avg_raf * CMS_ANNUAL_BASE, 2),
         },
         "timeline": "Immediate upon membership change",
         "assumptions": [
@@ -509,7 +515,7 @@ async def _scenario_provider_education(db: AsyncSession, params: dict) -> dict:
     avg_suspect_raf = _safe_float(avg_suspect_raf_q.scalar()) or 0.15
 
     additional_raf = total_additional_captures * avg_suspect_raf
-    additional_revenue = additional_raf * CMS_MONTHLY_BASE * 12
+    additional_revenue = additional_raf * CMS_ANNUAL_BASE
 
     return {
         "scenario_name": "Provider Education Initiative",

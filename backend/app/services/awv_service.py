@@ -12,13 +12,13 @@ import logging
 from datetime import date
 from typing import Any
 
-from sqlalchemy import select, func, and_, or_, extract
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.claim import Claim
 from app.models.member import Member
 from app.models.provider import Provider
-from app.constants import CMS_ANNUAL_BASE, CMS_PMPM_BASE
+from app.constants import CMS_ANNUAL_BASE, CMS_PMPM_BASE, RAF_TIER_THRESHOLDS
 
 logger = logging.getLogger(__name__)
 
@@ -69,13 +69,6 @@ async def get_awv_dashboard(db: AsyncSession) -> dict[str, Any]:
 
     # By-group breakdown (top groups)
     group_breakdown = await _get_group_breakdown(db, year_start, year_end)
-
-    # Members due this month
-    month_start = date(today.year, today.month, 1)
-    if today.month == 12:
-        month_end = date(today.year, 12, 31)
-    else:
-        month_end = date(today.year, today.month + 1, 1)
 
     return {
         "total_members": total_members,
@@ -133,7 +126,7 @@ async def _get_provider_breakdown(
             select(Provider).where(Provider.id.in_(provider_ids))
         )
         for p in pq.scalars().all():
-            providers[p.id] = f"{p.first_name} {p.last_name}".strip()
+            providers[p.id] = f"{p.first_name or ''} {p.last_name or ''}".strip()
 
     breakdown = []
     for pid, panel_size in panels.items():
@@ -215,14 +208,14 @@ async def get_members_due_awv(
     items = []
     for m in members:
         raf = float(m.current_raf) if m.current_raf else 0.0
-        estimated_value = round(AVG_RAF_RECAPTURE_PER_AWV * CMS_ANNUAL_BASE * (raf / 1.0))
+        estimated_value = round(AVG_RAF_RECAPTURE_PER_AWV * CMS_ANNUAL_BASE)
         items.append({
             "id": m.id,
             "member_id": m.member_id,
-            "member_name": f"{m.first_name} {m.last_name}".strip(),
+            "member_name": f"{m.first_name or ''} {m.last_name or ''}".strip(),
             "date_of_birth": str(m.date_of_birth) if m.date_of_birth else None,
             "current_raf": round(raf, 3),
-            "risk_tier": _raf_tier(raf),
+            "risk_tier": m.risk_tier or _raf_tier(raf),
             "pcp_provider_id": m.pcp_provider_id,
             "estimated_value": estimated_value,
             "last_awv_date": None,  # Would be populated from historical claims
@@ -232,12 +225,13 @@ async def get_members_due_awv(
 
 
 def _raf_tier(raf: float) -> str:
-    if raf >= 2.0:
-        return "very_high"
-    if raf >= 1.5:
+    """Fallback tier calculation using constants — matches hcc_engine._determine_risk_tier."""
+    if raf >= RAF_TIER_THRESHOLDS["complex"]:
+        return "complex"
+    if raf >= RAF_TIER_THRESHOLDS["high"]:
         return "high"
-    if raf >= 1.0:
-        return "moderate"
+    if raf >= RAF_TIER_THRESHOLDS["rising"]:
+        return "rising"
     return "low"
 
 

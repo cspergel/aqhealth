@@ -7,12 +7,11 @@ All endpoints are tenant-scoped via JWT auth.
 
 import logging
 from datetime import date
-from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select, func, case
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_tenant_db
@@ -78,7 +77,7 @@ def _claim_to_out(c: Claim) -> ClaimOut:
         id=c.id,
         member_id=c.member_id,
         claim_id=c.claim_id,
-        claim_type=c.claim_type if c.claim_type else None,
+        claim_type=c.claim_type or "unknown",
         service_date=str(c.service_date),
         paid_date=str(c.paid_date) if c.paid_date else None,
         diagnosis_codes=c.diagnosis_codes,
@@ -165,8 +164,8 @@ async def list_claims(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     min_amount: Optional[float] = None,
-    sort_by: Optional[str] = Query(None, regex="^(service_date|paid_amount)$"),
-    sort_dir: Optional[str] = Query("desc", regex="^(asc|desc)$"),
+    sort_by: Optional[str] = Query(None, pattern="^(service_date|paid_amount)$"),
+    sort_dir: Optional[str] = Query("desc", pattern="^(asc|desc)$"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
 ):

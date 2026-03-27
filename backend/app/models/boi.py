@@ -7,7 +7,7 @@ metrics, estimated vs actual financial returns.
 
 from datetime import date
 
-from sqlalchemy import Numeric, String, Text
+from sqlalchemy import Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -27,8 +27,8 @@ class Intervention(Base, TimestampMixin):
     # Investment
     investment_amount: Mapped[float] = mapped_column(Numeric(12, 2))
     investment_period: Mapped[str | None] = mapped_column(String(20))  # "one_time", "monthly", "annual"
-    start_date: Mapped[date]
-    end_date: Mapped[date | None]
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Measured outcomes
     baseline_metric: Mapped[float | None] = mapped_column(Numeric(12, 2))
@@ -41,7 +41,7 @@ class Intervention(Base, TimestampMixin):
     roi_percentage: Mapped[float | None] = mapped_column(Numeric(8, 2))
 
     # Scope
-    affected_members: Mapped[int | None]
-    affected_providers: Mapped[int | None]
-    practice_group_id: Mapped[int | None]
+    affected_members: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    affected_providers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    practice_group_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # "planned", "active", "completed", "cancelled"

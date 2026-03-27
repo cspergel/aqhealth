@@ -21,6 +21,7 @@ export function CensusPage() {
   const [summary, setSummary] = useState<CensusSummary | null>(null);
   const [census, setCensus] = useState<CensusItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [facilityFilter, setFacilityFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
@@ -34,10 +35,15 @@ export function CensusPage() {
     ])
       .then(([summaryRes, censusRes]) => {
         setSummary(summaryRes.data);
-        setCensus(censusRes.data.items || censusRes.data);
+        const censusData = censusRes.data;
+        setCensus(Array.isArray(censusData) ? censusData : censusData?.items || []);
         setLastRefresh(new Date());
+        setError(null);
       })
-      .catch((err) => console.error("Failed to load census data:", err))
+      .catch((err) => {
+        console.error("Failed to load census data:", err);
+        setError("Failed to load census data.");
+      })
       .finally(() => setLoading(false));
   };
 
@@ -91,7 +97,11 @@ export function CensusPage() {
       </div>
 
       {/* Top stats */}
-      {loading && !summary ? (
+      {error && !summary ? (
+        <div className="text-sm py-12 text-center" style={{ color: tokens.red }}>
+          {error}
+        </div>
+      ) : loading && !summary ? (
         <div className="text-sm py-12 text-center" style={{ color: tokens.textMuted }}>
           Loading census data...
         </div>

@@ -272,7 +272,7 @@ export function DrillDown({ category, onBack }: DrillDownProps) {
 
       {/* KPI cards with benchmark coloring */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        {data.kpis.map((kpi) => {
+        {(data.kpis ?? []).map((kpi) => {
           let trendText: string | undefined;
           if (kpi.benchmark) {
             trendText = `Benchmark: ${kpi.benchmark}`;

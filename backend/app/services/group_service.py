@@ -9,7 +9,7 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.practice_group import PracticeGroup
@@ -299,7 +299,7 @@ async def get_group_providers(db: AsyncSession, group_id: int) -> list[dict]:
         rows.append({
             "id": p.id,
             "npi": p.npi,
-            "name": f"{p.last_name}, {p.first_name}",
+            "name": f"{p.last_name or ''}, {p.first_name or ''}".strip(", "),
             "specialty": p.specialty,
             "panel_size": p.panel_size or 0,
             "capture_rate": _float(p.capture_rate),

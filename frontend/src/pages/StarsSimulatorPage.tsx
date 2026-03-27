@@ -195,7 +195,7 @@ export function StarsSimulatorPage() {
     ])
       .then(([projRes, oppRes]) => {
         setProjection(projRes.data);
-        setOpportunities(oppRes.data);
+        setOpportunities(Array.isArray(oppRes.data) ? oppRes.data : []);
       })
       .catch((err) => console.error("Stars load error:", err))
       .finally(() => setLoading(false));
@@ -206,7 +206,7 @@ export function StarsSimulatorPage() {
     const measure = projection?.measures.find((m) => m.code === code);
     setInterventions([...interventions, {
       measure_code: code,
-      gaps_to_close: measure?.gaps_to_next_star || 0,
+      gaps_to_close: measure?.gaps_to_next_star ?? 0,
     }]);
   };
 

@@ -5,13 +5,11 @@ and the engine that translates JSON filter conditions into SQLAlchemy queries.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
 
-from sqlalchemy import select, and_, or_, func, delete
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.saved_filter import SavedFilter
-from app.models.member import Member
 
 logger = logging.getLogger(__name__)
 
@@ -153,8 +151,8 @@ async def get_saved_filters(
             SavedFilter.page_context == page_context,
             or_(
                 SavedFilter.created_by == user_id,
-                SavedFilter.is_shared == True,
-                SavedFilter.is_system == True,
+                SavedFilter.is_shared.is_(True),
+                SavedFilter.is_system.is_(True),
             ),
         )
         .order_by(SavedFilter.is_system.desc(), SavedFilter.use_count.desc())
@@ -183,7 +181,7 @@ async def delete_filter(db: AsyncSession, filter_id: int, user_id: int) -> bool:
     stmt = select(SavedFilter).where(
         SavedFilter.id == filter_id,
         SavedFilter.created_by == user_id,
-        SavedFilter.is_system == False,
+        SavedFilter.is_system.is_(False),
     )
     result = await db.execute(stmt)
     sf = result.scalar_one_or_none()

@@ -25,32 +25,30 @@ router = APIRouter(prefix="/api/tcm", tags=["tcm"])
 # ---------------------------------------------------------------------------
 
 class TCMUpdateIn(BaseModel):
-    phone_contact_date: str | None = None
-    visit_date: str | None = None
+    phone_contact: str | None = Field(None, description="'done' to mark phone contact completed")
+    visit: str | None = Field(None, description="'done' to mark visit completed")
     visit_type: str | None = Field(None, description="99495 or 99496")
     billing_status: str | None = None
+    notes: str | None = None
 
 
 class TCMCaseOut(BaseModel):
-    member_id: str
+    member_id: int
     member_name: str
     discharge_date: str
     days_since_discharge: int
-    phone_contact_status: str
-    phone_contact_date: str | None = None
-    visit_status: str
-    visit_date: str | None = None
-    cpt_code: str | None = None
+    phone_contact: str
+    visit: str
     billing_status: str
-    provider_name: str
-    facility: str | None = None
+    pcp_provider_id: int | None = None
+    facility_name: str | None = None
 
 
 class TCMDashboardOut(BaseModel):
     active_cases: int
     compliance_rate: float
-    revenue_captured: float
-    revenue_potential: float
+    revenue_captured: float | int
+    revenue_potential: float | int
     by_provider: list[dict[str, Any]]
 
 
@@ -78,11 +76,14 @@ async def active_tcm_cases(
 
 @router.patch("/{member_id}")
 async def update_tcm(
-    member_id: str,
+    member_id: int,
     body: TCMUpdateIn,
     db: AsyncSession = Depends(get_tenant_db),
     _user: dict = Depends(get_current_user),
 ):
     """Record phone contact, visit completion, or billing status update."""
-    result = await tcm_service.update_tcm_status(db, member_id, body.model_dump(exclude_none=True))
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields provided to update")
+    result = await tcm_service.update_tcm_status(db, member_id, updates)
     return result

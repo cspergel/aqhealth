@@ -220,12 +220,12 @@ function SectionData({ type, data }: { type: string; data: Record<string, any> }
 function FinancialSummaryData({ data }: { data: any }) {
   return (
     <div className="grid grid-cols-3 gap-4">
-      <MiniMetric label="Total Revenue" value={formatCurrency(data.total_revenue)} />
-      <MiniMetric label="Total Expenses" value={formatCurrency(data.total_expenses)} />
-      <MiniMetric label="Surplus" value={formatCurrency(data.surplus)} accent />
-      <MiniMetric label="MLR" value={`${data.mlr}%`} />
-      <MiniMetric label="PMPM Revenue" value={formatCurrency(data.pmpm_revenue)} />
-      <MiniMetric label="PMPM Expense" value={formatCurrency(data.pmpm_expense)} />
+      <MiniMetric label="Total Revenue" value={data.total_revenue != null ? formatCurrency(data.total_revenue) : "--"} />
+      <MiniMetric label="Total Expenses" value={data.total_expenses != null ? formatCurrency(data.total_expenses) : "--"} />
+      <MiniMetric label="Surplus" value={data.surplus != null ? formatCurrency(data.surplus) : "--"} accent />
+      <MiniMetric label="MLR" value={data.mlr != null ? `${(data.mlr * 100).toFixed(1)}%` : "--"} />
+      <MiniMetric label="PMPM Revenue" value={data.pmpm_revenue != null ? formatCurrency(data.pmpm_revenue) : "--"} />
+      <MiniMetric label="PMPM Expense" value={data.pmpm_expense != null ? formatCurrency(data.pmpm_expense) : "--"} />
     </div>
   );
 }
@@ -233,12 +233,12 @@ function FinancialSummaryData({ data }: { data: any }) {
 function RafSummaryData({ data }: { data: any }) {
   return (
     <div className="grid grid-cols-3 gap-4">
-      <MiniMetric label="Total Lives" value={data.total_lives?.toLocaleString()} />
-      <MiniMetric label="Avg RAF" value={data.avg_raf?.toFixed(3)} />
-      <MiniMetric label="Projected RAF" value={data.projected_raf?.toFixed(3)} />
-      <MiniMetric label="Recapture Rate" value={`${data.recapture_rate}%`} />
-      <MiniMetric label="Open Suspects" value={data.open_suspects?.toLocaleString()} />
-      <MiniMetric label="Suspect Value" value={formatCurrency(data.suspect_value)} accent />
+      <MiniMetric label="Total Lives" value={data.total_lives != null ? data.total_lives.toLocaleString() : "--"} />
+      <MiniMetric label="Avg RAF" value={data.avg_raf != null ? data.avg_raf.toFixed(3) : "--"} />
+      <MiniMetric label="Projected RAF" value={data.projected_raf != null ? data.projected_raf.toFixed(3) : "--"} />
+      <MiniMetric label="Recapture Rate" value={data.recapture_rate != null ? `${data.recapture_rate}%` : "--"} />
+      <MiniMetric label="Open Suspects" value={data.open_suspects != null ? data.open_suspects.toLocaleString() : "--"} />
+      <MiniMetric label="Suspect Value" value={data.suspect_value != null ? formatCurrency(data.suspect_value) : "--"} accent />
     </div>
   );
 }
@@ -259,7 +259,7 @@ function QualityMetricsData({ data }: { data: any }) {
           </span>
         </div>
       )}
-      {data.measures && (
+      {Array.isArray(data.measures) && data.measures.length > 0 && (
         <table className="w-full text-xs">
           <thead>
             <tr style={{ color: tokens.textMuted }}>
@@ -301,10 +301,10 @@ function ExpenditureData({ data }: { data: any }) {
   return (
     <div>
       <div className="grid grid-cols-2 gap-4 mb-3">
-        <MiniMetric label="Total Spend" value={formatCurrency(data.total_spend)} />
-        <MiniMetric label="PMPM" value={`$${data.pmpm?.toLocaleString()}`} />
+        <MiniMetric label="Total Spend" value={data.total_spend != null ? formatCurrency(data.total_spend) : "--"} />
+        <MiniMetric label="PMPM" value={data.pmpm != null ? `$${data.pmpm.toLocaleString()}` : "--"} />
       </div>
-      {data.categories && (
+      {Array.isArray(data.categories) && data.categories.length > 0 && (
         <table className="w-full text-xs">
           <thead>
             <tr style={{ color: tokens.textMuted }}>
@@ -347,9 +347,9 @@ function ProviderPerformanceData({ data }: { data: any }) {
   return (
     <div>
       <div className="grid grid-cols-3 gap-4 mb-3">
-        <MiniMetric label="Total Providers" value={String(data.total_providers)} />
-        <MiniMetric label="Avg Capture Rate" value={`${data.avg_capture_rate}%`} />
-        <MiniMetric label="Avg Gap Closure" value={`${data.avg_gap_closure}%`} />
+        <MiniMetric label="Total Providers" value={data.total_providers != null ? String(data.total_providers) : "--"} />
+        <MiniMetric label="Avg Capture Rate" value={data.avg_capture_rate != null ? `${data.avg_capture_rate}%` : "--"} />
+        <MiniMetric label="Avg Gap Closure" value={data.avg_gap_closure != null ? `${data.avg_gap_closure}%` : "--"} />
       </div>
       <div className="grid grid-cols-2 gap-4">
         {/* Top performers */}
@@ -357,7 +357,7 @@ function ProviderPerformanceData({ data }: { data: any }) {
           <div className="text-xs font-medium mb-2" style={{ color: tokens.accentText }}>
             Top Performers
           </div>
-          {data.top_performers?.map((p: any) => (
+          {(Array.isArray(data.top_performers) ? data.top_performers : []).map((p: any) => (
             <div key={p.name} className="flex items-center justify-between py-1" style={{ borderTop: `1px solid ${tokens.borderSoft}` }}>
               <span className="text-xs" style={{ color: tokens.text }}>{p.name}</span>
               <span className="text-xs font-medium" style={{ color: tokens.accentText, fontFamily: fonts.code }}>
@@ -371,7 +371,7 @@ function ProviderPerformanceData({ data }: { data: any }) {
           <div className="text-xs font-medium mb-2" style={{ color: tokens.red }}>
             Needs Improvement
           </div>
-          {data.bottom_performers?.map((p: any) => (
+          {(Array.isArray(data.bottom_performers) ? data.bottom_performers : []).map((p: any) => (
             <div key={p.name} className="flex items-center justify-between py-1" style={{ borderTop: `1px solid ${tokens.borderSoft}` }}>
               <span className="text-xs" style={{ color: tokens.text }}>{p.name}</span>
               <span className="text-xs font-medium" style={{ color: tokens.red, fontFamily: fonts.code }}>

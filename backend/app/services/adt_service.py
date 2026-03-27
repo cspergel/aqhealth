@@ -466,8 +466,8 @@ async def get_live_census(db: AsyncSession) -> dict:
             "estimated_daily_cost": daily_cost,
             "total_accrued_cost": daily_cost * max(los, 1),
             "typical_los": typical_los,
-            "projected_discharge": str(
-                (r["admit_date"] + timedelta(days=typical_los)) if r["admit_date"] else None
+            "projected_discharge": (
+                str(r["admit_date"] + timedelta(days=typical_los)) if r["admit_date"] else None
             ),
             "los_status": (
                 "normal" if los <= typical_los
@@ -636,8 +636,8 @@ async def get_alerts(
 
 async def acknowledge_alert(
     db: AsyncSession, alert_id: int, user_id: int
-) -> dict:
-    """Mark an alert as acknowledged."""
+) -> dict | None:
+    """Mark an alert as acknowledged. Returns None if alert not found."""
     await db.execute(
         text("""
             UPDATE care_alerts
@@ -650,13 +650,14 @@ async def acknowledge_alert(
     result = await db.execute(
         text("SELECT * FROM care_alerts WHERE id = :aid"), {"aid": alert_id}
     )
-    return dict(result.mappings().first())
+    row = result.mappings().first()
+    return dict(row) if row else None
 
 
 async def resolve_alert(
     db: AsyncSession, alert_id: int, user_id: int, notes: str | None = None
-) -> dict:
-    """Mark an alert as resolved with optional notes."""
+) -> dict | None:
+    """Mark an alert as resolved with optional notes. Returns None if alert not found."""
     await db.execute(
         text("""
             UPDATE care_alerts
@@ -670,13 +671,14 @@ async def resolve_alert(
     result = await db.execute(
         text("SELECT * FROM care_alerts WHERE id = :aid"), {"aid": alert_id}
     )
-    return dict(result.mappings().first())
+    row = result.mappings().first()
+    return dict(row) if row else None
 
 
 async def assign_alert(
     db: AsyncSession, alert_id: int, assigned_to: int
-) -> dict:
-    """Assign an alert to a care manager."""
+) -> dict | None:
+    """Assign an alert to a care manager. Returns None if alert not found."""
     await db.execute(
         text("""
             UPDATE care_alerts
@@ -689,7 +691,8 @@ async def assign_alert(
     result = await db.execute(
         text("SELECT * FROM care_alerts WHERE id = :aid"), {"aid": alert_id}
     )
-    return dict(result.mappings().first())
+    row = result.mappings().first()
+    return dict(row) if row else None
 
 
 # ---------------------------------------------------------------------------
@@ -1073,29 +1076,32 @@ def _hl7_event_to_type(code: str) -> str:
 
 
 def _parse_hl7_datetime(val: str | None) -> datetime | None:
-    """Parse HL7 datetime format (YYYYMMDDHHmmss)."""
+    """Parse HL7 datetime format (YYYYMMDDHHmmss). Always returns timezone-aware (UTC)."""
     if not val:
         return None
     try:
         if len(val) >= 14:
-            return datetime.strptime(val[:14], "%Y%m%d%H%M%S")
+            return datetime.strptime(val[:14], "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
         elif len(val) >= 8:
-            return datetime.strptime(val[:8], "%Y%m%d")
+            return datetime.strptime(val[:8], "%Y%m%d").replace(tzinfo=timezone.utc)
     except ValueError:
         pass
     return None
 
 
 def _parse_datetime(val: Any) -> datetime | None:
-    """Try to parse a datetime from various formats."""
+    """Try to parse a datetime from various formats. Always returns timezone-aware (UTC)."""
     if val is None:
         return None
     if isinstance(val, datetime):
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc)
         return val
     if isinstance(val, str):
         for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y"):
             try:
-                return datetime.strptime(val, fmt)
+                dt = datetime.strptime(val, fmt)
+                return dt.replace(tzinfo=timezone.utc)
             except ValueError:
                 continue
     return None

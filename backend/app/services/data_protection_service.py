@@ -185,7 +185,7 @@ def _detect_value_patterns(headers: list[str], sample_rows: list) -> dict:
 # 2. Field Confidence Scoring
 # ---------------------------------------------------------------------------
 
-async def score_field_confidence(field: str, value: str, context: dict | None = None) -> int:
+def score_field_confidence(field: str, value: str, context: dict | None = None) -> int:
     """Score confidence 0-100 for a single field value.
 
     Scoring rules:
@@ -636,7 +636,7 @@ async def update_golden_record(
                 continue
 
             new_value_str = str(new_value).strip()
-            confidence = await score_field_confidence(field_name, new_value_str)
+            confidence = score_field_confidence(field_name, new_value_str)
 
             # Check existing golden record for this field
             result = await db.execute(
@@ -715,7 +715,7 @@ async def update_golden_record(
 # 7. Batch Rollback
 # ---------------------------------------------------------------------------
 
-async def rollback_batch(db: AsyncSession, batch_id: int) -> dict:
+async def rollback_batch(db: AsyncSession, batch_id: int, *, rolled_back_by: int | None = None, reason: str | None = None) -> dict:
     """Undo an entire ingestion batch.
 
     Finds all records tagged with this batch_id (via data_lineage),
@@ -799,10 +799,11 @@ async def rollback_batch(db: AsyncSession, batch_id: int) -> dict:
         await db.execute(
             text("""
                 UPDATE ingestion_batches
-                SET status = 'rolled_back', rolled_back_at = NOW()
+                SET status = 'rolled_back', rolled_back_at = NOW(),
+                    rolled_back_by = :rbb, rollback_reason = :reason
                 WHERE id = :bid
             """),
-            {"bid": batch_id},
+            {"bid": batch_id, "rbb": rolled_back_by, "reason": reason},
         )
 
         await db.commit()
@@ -834,7 +835,7 @@ def _entity_type_to_table(entity_type: str) -> str:
 # 8. Data Contract Testing
 # ---------------------------------------------------------------------------
 
-async def test_contract(
+def test_contract(
     headers: list[str],
     sample_rows: list,
     contract: dict,

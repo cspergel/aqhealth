@@ -187,7 +187,7 @@ export function Scorecard() {
 
       {/* Metric cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {scorecard.metrics.map((m) => {
+        {(scorecard.metrics ?? []).map((m) => {
           const mc = tierColors[m.tier] || tierColors.gray;
           return (
             <div
@@ -253,7 +253,7 @@ export function Scorecard() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(comparison.comparisons).map(([key, cm]) => (
+                {Object.entries(comparison.comparisons ?? {}).map(([key, cm]) => (
                   <tr key={key} style={{ borderBottom: `1px solid ${tokens.borderSoft}` }}>
                     <td className="px-4 py-2.5">{METRIC_LABELS[key] || key}</td>
                     <td className="px-4 py-2.5 text-right" style={{ fontFamily: fonts.code }}>

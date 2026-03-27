@@ -132,9 +132,9 @@ export function AlertRulesPage() {
       api.get("/api/alert-rules/presets"),
     ])
       .then(([rulesRes, triggersRes, presetsRes]) => {
-        setRules(rulesRes.data || []);
-        setTriggers(triggersRes.data || []);
-        setPresets(presetsRes.data || []);
+        setRules(Array.isArray(rulesRes.data) ? rulesRes.data : rulesRes.data?.items || []);
+        setTriggers(Array.isArray(triggersRes.data) ? triggersRes.data : triggersRes.data?.items || []);
+        setPresets(Array.isArray(presetsRes.data) ? presetsRes.data : presetsRes.data?.items || []);
       })
       .catch((err) => console.error("Failed to load alert rules:", err))
       .finally(() => setLoading(false));
@@ -144,46 +144,55 @@ export function AlertRulesPage() {
 
   const handleToggleRule = (ruleId: number, isActive: boolean) => {
     api.patch(`/api/alert-rules/${ruleId}`, { is_active: !isActive })
-      .then(() => loadData());
+      .then(() => loadData())
+      .catch((err) => console.error("Failed to toggle rule:", err));
   };
 
   const handleDeleteRule = (ruleId: number) => {
     if (!confirm("Delete this rule?")) return;
-    api.delete(`/api/alert-rules/${ruleId}`).then(() => loadData());
+    api.delete(`/api/alert-rules/${ruleId}`)
+      .then(() => loadData())
+      .catch((err) => console.error("Failed to delete rule:", err));
   };
 
   const handleAcknowledge = (triggerId: number) => {
     api.patch(`/api/alert-rules/triggers/${triggerId}/acknowledge`)
-      .then(() => loadData());
+      .then(() => loadData())
+      .catch((err) => console.error("Failed to acknowledge trigger:", err));
   };
 
   const handleEvaluate = () => {
-    api.post("/api/alert-rules/evaluate").then(() => loadData());
+    api.post("/api/alert-rules/evaluate")
+      .then(() => loadData())
+      .catch((err) => console.error("Failed to evaluate rules:", err));
   };
 
   const handleCreateRule = () => {
     if (!formName || !formThreshold) return;
+    const threshold = parseFloat(formThreshold);
+    if (isNaN(threshold)) return;
     api.post("/api/alert-rules", {
       name: formName,
       description: formDescription || null,
       entity_type: formEntity,
       metric: formMetric,
       operator: formOperator,
-      threshold: parseFloat(formThreshold),
+      threshold,
       severity: formSeverity,
       notify_channels: { in_app: true },
     }).then(() => {
       setFormName(""); setFormDescription(""); setFormThreshold("");
       setTab("rules");
       loadData();
-    });
+    }).catch((err) => console.error("Failed to create rule:", err));
   };
 
   const handleAddPreset = (preset: PresetRule) => {
     api.post("/api/alert-rules", {
       ...preset,
       notify_channels: { in_app: true },
-    }).then(() => loadData());
+    }).then(() => loadData())
+      .catch((err) => console.error("Failed to add preset:", err));
   };
 
   const unacknowledgedCount = triggers.filter((t) => !t.acknowledged).length;

@@ -1,0 +1,36 @@
+Table 1: Contract Year (CY) 2027 Inpatient Hospital Psychiatric Medicare FFS Data Projections,,,,
+Row Reference,Description,Medicare FFS Amount,,
+A,Projected Part A Deductible1,"$1,768.00",,
+B,"Projected Part B Professional Psychiatric Day 1 Cost Sharing1,2",$102.00,,
+C,"Projected Part B Professional Psychiatric Day 2 Cost Sharing1,2",$65.00,,
+D,"Projected Part B Professional Psychiatric Day 3 Cost Sharing1,2",$31.00,,
+E,"Projected Part B Professional Psychiatric Day 4 Cost Sharing1,2",$28.00,,
+F,"Projected Part B Professional Psychiatric Day 5 Cost Sharing1,2",$25.00,,
+G,"Projected Part B Professional Psychiatric Day 6+ Cost Sharing1,2",$24.00,,
+1These amounts are based on 2025 Medicare FFS data and the Office of the Actuary's (OACT's) projections for 2027. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ,,,,
+2These amounts contain 100% of ESRD Cost Differential per § 422.100(f)(4)(vi)(B) and (f)(6)(iv)(C)).,,,,
+,,,,
+Table 2: Contract Year (CY) 2027 Inpatient Hospital Psychiatric Cost Sharing Limits for the Mandatory Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,8 Days,15 Days,60 Days
+A,Projected Part A deductible (value from row A in Table 1),"$1,768.00",,
+B,Projected Part B professional psychiatric day cost sharing (sum of values from rows B through G in Table 1 based on the number of days in the length of stay scenario established at § 422.100(f)(6)(iv)(B)),$323.00,$491.00,"$1,571.00"
+C,100% of estimated Medicare FFS cost sharing per § 422.100(f)(6)(iv)(D)(1) (sum of row A and B),"$2,091.00","$2,259.00","$3,339.00"
+D,"Final CY 2027 in-network mandatory MOOP limit (value in row E, mandatory MOOP column in Table 1 from ""MOOP Limits"" tab)","$9,850.00",,
+E,Unrounded CY 2027 inpatient hospital psychiatric cost sharing limits for the mandatory MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row C and D),"$2,091.00","$2,259.00","$3,339.00"
+F,Final CY 2027 inpatient hospital psychiatric cost sharing limits for the mandatory MOOP type per § 422.100(f)(6)(iv) (row E rounded per § 422.100(f)(6)(ii)),"$2,091.00","$2,259.00","$3,339.00"
+,,,,
+Table 3: Contract Year (CY) 2027 Inpatient Hospital Psychiatric Cost Sharing Limits for the Lower Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,8 Days,15 Days,60 Days
+A,125% of estimated Medicare FFS cost sharing per § 422.100(f)(6)(iv)(D)(3) (value from row C in Table 2 multiplied by 1.25),"$2,613.75","$2,823.75","$4,173.75"
+B,"Final CY 2027 in-network lower MOOP limit (value in row E, lower MOOP column in Table 1 from ""MOOP Limits"" tab)","$4,450.00",,
+C,Unrounded CY 2027 inpatient hospital psychiatric cost sharing limits for the lower MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row A and B),"$2,613.75","$2,823.75","$4,173.75"
+D,Final CY 2027 inpatient hospital psychiatric cost sharing limits for the lower MOOP type per § 422.100(f)(6)(iv) (row C rounded per § 422.100(f)(6)(ii)),"$2,614.00 ","$2,824.00 ","$4,174.00 "
+,,,,
+Table 4: Contract Year (CY) 2027 Inpatient Hospital Psychiatric Cost Sharing Limits for the Intermediate Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,8 Days,15 Days,60 Days
+A,Unrounded CY 2027 inpatient hospital psychiatric cost sharing limits for the mandatory MOOP type (values in row E from Table 2) ,"$2,091.00","$2,259.00","$3,339.00"
+B,Unrounded CY 2027 inpatient hospital psychiatric cost sharing limits for the lower MOOP type (values in row C from Table 3),"$2,613.75","$2,823.75","$4,173.75"
+C,Numeric midpoint between inpatient hospital psychiatric cost sharing limits for the mandatory and lower MOOP types per § 422.100(f)(6)(iv)(D)(2) (numeric midpoint between row A and row B),"$2,352.38","$2,541.38","$3,756.38"
+D,"Final CY 2027 in-network intermediate MOOP limit (value in row D in Table 2 from ""MOOP Limits"" tab)","$7,150.00",,
+E,Unrounded CY 2027 inpatient hospital psychiatric cost sharing limits for the intermediate MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row C and row D),"$2,352.38","$2,541.38","$3,756.38"
+F,Final CY 2027 inpatient hospital psychiatric cost sharing limits for the intermediate MOOP type per § 422.100(f)(6)(iv) (row E rounded per § 422.100(f)(6)(ii)),"$2,352.00 ","$2,541.00 ","$3,756.00 "

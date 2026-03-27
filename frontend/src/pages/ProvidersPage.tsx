@@ -25,7 +25,7 @@ function ProviderListView() {
       if (specialtyFilter) params.specialty = specialtyFilter;
       if (tierFilter) params.tier = tierFilter;
       const res = await api.get("/api/providers", { params });
-      setProviders(res.data);
+      setProviders(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Failed to load providers", err);
     } finally {

@@ -353,7 +353,11 @@ async def rollback_ingestion_batch(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Rollback an entire ingestion batch."""
-    result = await rollback_batch(db, batch_id)
+    result = await rollback_batch(
+        db, batch_id,
+        rolled_back_by=current_user.get("user_id"),
+        reason=body.reason,
+    )
     if result.get("error"):
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -398,4 +402,4 @@ async def validate_against_contract(
     if not contract_rules:
         raise HTTPException(status_code=400, detail="No contract provided")
 
-    return await test_contract(body.headers, body.sample_rows, contract_rules)
+    return test_contract(body.headers, body.sample_rows, contract_rules)

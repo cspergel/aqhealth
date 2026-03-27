@@ -1,0 +1,16 @@
+Table 1: Contract Year (CY) 2027 Physician Specialist Medicare FFS Data Projections,,,,
+Provider Specialties,Office Allowed Professional Costs (excluding drugs),Number of Visits,Percent of Total,Weighted Average (Column B x D)
+Cardiology ,213.00,"7,393,335",60.24%,$128.31
+Gastroenterology,136.00,"1,400,754",11.41%,$15.52
+Nephrology ,148.00,"1,368,727",11.15%,$16.51
+ENT (Otolaryngology),190.00,"2,110,503",17.20%,$32.67
+Physician Specialist (Total),,"12,273,319",100.00%,$193.01
+,,,,
+,,,,
+Table 2: Contract Year (CY) 2027 Physician Specialist Copayment Limits by Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,Lower MOOP,Intermediate MOOP,Mandatory MOOP
+A,CY 2027 projected total average Medicare FFS allowed amount*,$193.01 ,,
+B,CY 2027 coinsurance limit per § 422.100(f)(6)(iii)(F),50%,40%,30%
+C,Unrounded actuarially equivalent copayment value to CY 2027 coinsurance limit per § 422.100(f)(6)(iii)(F) (row A multiplied by row B)  ,$96.50 ,$77.20 ,$57.90 
+D,Final CY 2027 copayment limit per § 422.100(f)(6)(iii) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$95.00 ,$75.00 ,$60.00 
+"*This amount is based on 2025 Medicare FFS cost and utilization data of provider specialties in an office setting and the Office of the Actuary's (OACT's) projections of cost changes between 2025 to 2027. This amount represents the CY 2027 projected total average Medicare FFS allowed amount per physician specialist visit (excluding drug costs), weighted by utilization of the following provider specialty types: cardiology, gastroenterology, nephrology, and ENT (otolaryngology). The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ",,,,

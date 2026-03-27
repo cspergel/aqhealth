@@ -293,7 +293,7 @@ def _pivot_two_digit_year(year_2d: int) -> int:
     return 1900 + year_2d
 
 
-def normalize_dates(values: list[str], detected_format: str) -> list[str]:
+def normalize_dates(values: list[str], detected_format: str) -> list[str | None]:
     """
     Convert all dates in a list to ISO format (YYYY-MM-DD).
 
@@ -845,7 +845,8 @@ def preprocess_file(file_path: str, source_name: str | None = None) -> dict[str,
             else:
                 df_head = pd.read_excel(file_path, nrows=0, dtype=str)
             cleaned_hdrs = clean_headers(list(df_head.columns))
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to read headers from large file %s: %s", file_path, e)
             cleaned_hdrs = []
 
         warnings.append(

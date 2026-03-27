@@ -33,7 +33,7 @@ class Insight(Base, TimestampMixin):
     dollar_impact: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     recommended_action: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
-    status: Mapped[str] = mapped_column(String(20), default="active")
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True)
 
     # What this insight is about
     affected_members: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

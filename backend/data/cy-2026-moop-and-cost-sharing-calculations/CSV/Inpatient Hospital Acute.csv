@@ -1,0 +1,47 @@
+﻿Table 1: Contract Year (CY) 2026 Inpatient Hospital Acute Medicare FFS Data Projections,,,,,
+Row Reference,Description,Medicare FFS Amount,,,
+A,Projected Part A Deductible1,"$1,748.00",,,
+B,"Projected Part B Professional Acute Day 1 Cost Sharing1,2",$287.00,,,
+C,"Projected Part B Professional Acute Day 2 Cost Sharing1,2",$117.00,,,
+D,"Projected Part B Professional Acute Day 3 Cost Sharing1,2",$78.00,,,
+E,"Projected Part B Professional Acute Day 4 Cost Sharing1,2",$76.00,,,
+F,"Projected Part B Professional Acute Day 5 Cost Sharing1,2",$70.00,,,
+G,"Projected Part B Professional Acute Day 6+ Cost Sharing1,2",$69.00,,,
+1These amounts are based on 2024 Medicare FFS data and the Office of the Actuary's (OACT's) projections for 2026. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ,,,,,
+2These amounts contain 100% of ESRD Cost Differential per § 422.100(f)(4)(vi)(B) and (f)(6)(iv)(C)).,,,,,
+,,,,,
+Table 2: Contract Year (CY) 2026 Inpatient Hospital Acute Cost Sharing Limits for the Mandatory Maximum Out-of-Pocket (MOOP) Type,,,,,
+Row Reference,Description,3 Days,6 Days,10 Days,60 Days
+A,Projected Part A deductible (value from row A in Table 1),"$1,748.00",,,
+B,Projected Part B professional acute day cost sharing (sum of values from rows B through G in Table 1 based on the number of days in the length of stay scenario established at § 422.100(f)(6)(iv)(B)),$482.00,$697.00,$973.00,"$4,423.00"
+C,100% of estimated Medicare FFS cost sharing per § 422.100(f)(6)(iv)(D)(1) (sum of row A and B),"$2,230.00","$2,445.00","$2,721.00","$6,171.00"
+D,"Final CY 2026 in-network mandatory MOOP limit (value in row E, mandatory MOOP column in Table 1 from ""MOOP Limits"" tab)","$9,250.00 ",,,
+E,Unrounded CY 2026 inpatient hospital acute cost sharing limits for the mandatory MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row C and D),"$2,230.00","$2,445.00","$2,721.00","$6,171.00"
+F,Final CY 2026 inpatient hospital acute cost sharing limits for the mandatory MOOP type per § 422.100(f)(6)(iv) (row E rounded per § 422.100(f)(6)(ii)),"$2,230.00 ","$2,445.00 ","$2,721.00 ","$6,171.00 "
+,,,,,
+Table 3: Contract Year (CY) 2026 Inpatient Hospital Acute Cost Sharing Limits for the Lower Maximum Out-of-Pocket (MOOP) Type,,,,,
+Row Reference,Description,3 Days,6 Days,10 Days,60 Days
+A,125% of estimated Medicare FFS cost sharing per § 422.100(f)(6)(iv)(D)(3) (value from row C in Table 2 multiplied by 1.25),"$2,787.50","$3,056.25","$3,401.25","$7,713.75"
+B,"Final CY 2026 in-network lower MOOP limit  (value in row E, lower MOOP column in Table 1 from ""MOOP Limits"" tab)","$4,200.00",,,
+C,Unrounded CY 2026 inpatient hospital acute cost sharing limits for the lower MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row A and B; except for 60-days which equals the final CY 2026 in-network lower MOOP limit from row B per § 422.100(f)(6)(iv)(D)(3)),"$2,787.50","$3,056.25","$3,401.25","$4,200.00"
+D,Final CY 2026 inpatient hospital acute cost sharing limits for the lower MOOP type per § 422.100(f)(6)(iv) (row C rounded per § 422.100(f)(6)(ii)),"$2,787.00","$3,056.00","$3,401.00","$4,200.00"
+,,,,,
+Table 4: Contract Year (CY) 2026 Inpatient Hospital Acute Cost Sharing Limits for the Intermediate Maximum Out-of-Pocket (MOOP) Type,,,,,
+Row Reference,Description,3 Days,6 Days,10 Days,60 Days
+A,Unrounded CY 2026 inpatient hospital acute cost sharing limits for the mandatory MOOP type (values in row E from Table 2) ,"$2,230.00","$2,445.00","$2,721.00","$6,171.00"
+B,Unrounded CY 2026 inpatient hospital acute cost sharing limits for the lower MOOP type (values in row C from Table 3),"$2,787.50","$3,056.25","$3,401.25","$4,200.00"
+C,Numeric midpoint between the unrounded inpatient hospital acute cost sharing limits for the mandatory and lower MOOP types per § 422.100(f)(6)(iv)(D)(2) (numeric midpoint between row A and row B),"$2,508.75","$2,750.63","$3,061.13","$5,185.50"
+D,"Final CY 2026 in-network intermediate MOOP limit (value in row D in Table 2 from ""MOOP Limits"" tab)","$6,750.00",,,
+E,Unrounded CY 2026 inpatient hospital acute cost sharing limits for the intermediate MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row C and row D),"$2,508.75","$2,750.63","$3,061.13","$5,185.50"
+F,Final CY 2026 inpatient hospital acute cost sharing limits for the intermediate MOOP type per § 422.100(f)(6)(iv) (row E rounded per § 422.100(f)(6)(ii)),"$2,509.00","$2,751.00","$3,061.00","$5,185.00"
+,,,,,
+Table 5: Contract Year (CY) 2026 Inpatient Hospital Acute Medicare FFS Data Projections - Excluding Beneficiaries with End-Stage Renal Disease (ESRD),,,,,
+Row Reference,Description,Medicare FFS Amount,,,
+A,Projected Part A Deductible1,"$1,748.00",,,
+B,Projected Part B Professional Acute Day 1 Cost Sharing1,$269.00,,,
+C,Projected Part B Professional Acute Day 2 Cost Sharing1,$106.00,,,
+D,Projected Part B Professional Acute Day 3 Cost Sharing1,$70.00,,,
+E,Projected Part B Professional Acute Day 4 Cost Sharing1,$67.00,,,
+F,Projected Part B Professional Acute Day 5 Cost Sharing1,$62.00,,,
+G,Projected Part B Professional Acute Day 6+ Cost Sharing1,$60.00,,,
+1These amounts are based on 2024 Medicare FFS data and the Office of the Actuary's (OACT's) projections for 2026. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ,,,,,

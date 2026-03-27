@@ -37,8 +37,9 @@ export function TCMPage() {
   const [dashboard, setDashboard] = useState<TCMDashboard | null>(null);
   const [cases, setCases] = useState<TCMCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = () => {
     setLoading(true);
     Promise.all([
       api.get("/api/tcm/dashboard"),
@@ -46,23 +47,31 @@ export function TCMPage() {
     ])
       .then(([dashRes, casesRes]) => {
         setDashboard(dashRes.data);
-        setCases(casesRes.data);
+        setCases(Array.isArray(casesRes.data) ? casesRes.data : casesRes.data?.items || []);
+        setError(null);
       })
-      .catch((err) => console.error("Failed to load TCM data:", err))
+      .catch((err) => {
+        console.error("Failed to load TCM data:", err);
+        setError("Failed to load TCM data.");
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   const handleRecordPhone = (memberId: string) => {
     api
       .patch(`/api/tcm/${memberId}`, { phone_contact_date: new Date().toISOString().split("T")[0] })
-      .then(() => api.get("/api/tcm/active").then((res) => setCases(res.data)))
+      .then(() => loadData())
       .catch((err) => console.error("Failed to update:", err));
   };
 
   const handleRecordVisit = (memberId: string) => {
     api
       .patch(`/api/tcm/${memberId}`, { visit_date: new Date().toISOString().split("T")[0] })
-      .then(() => api.get("/api/tcm/active").then((res) => setCases(res.data)))
+      .then(() => loadData())
       .catch((err) => console.error("Failed to update:", err));
   };
 
@@ -93,6 +102,10 @@ export function TCMPage() {
 
   if (loading) {
     return <div style={{ padding: 32, color: tokens.textMuted }}>Loading TCM data...</div>;
+  }
+
+  if (error && !dashboard) {
+    return <div style={{ padding: 32, color: tokens.red }}>{error}</div>;
   }
 
   return (

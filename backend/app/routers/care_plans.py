@@ -168,7 +168,10 @@ async def create_goal(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Add a goal to a care plan."""
-    return await add_goal(db, plan_id, body.model_dump())
+    result = await add_goal(db, plan_id, body.model_dump())
+    if not result:
+        raise HTTPException(status_code=404, detail="Care plan not found")
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +186,10 @@ async def create_intervention(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Add an intervention to a goal."""
-    return await add_intervention(db, goal_id, body.model_dump())
+    result = await add_intervention(db, goal_id, body.model_dump())
+    if not result:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return result
 
 
 # ---------------------------------------------------------------------------

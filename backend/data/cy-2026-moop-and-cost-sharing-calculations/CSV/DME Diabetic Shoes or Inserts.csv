@@ -1,0 +1,33 @@
+﻿Table 1: Contract Year (CY) 2026 DME Diabetic Shoes and Inserts Medicare FFS Data Projections1,,,,,,
+HCPCS Code,DME Diabetic Shoes and Inserts HCPCS Description,Projected Medicare FFS Allowed Amount2,Projected Medicare FFS Allowed Service Unit2,Projected Medicare FFS Allowed Service Units as Percent of Total,Average Projected Price (Column C / Column D),Projected Weighted Average Price (Column E x Column F)
+A5500,Diab shoe for density insert,"$30,262,228","$331,293",25.81%,$91.35,$23.58
+A5501,Diabetic custom molded shoe,"$774,522","$2,859",0.22%,$270.91,$0.60
+A55031,Diabetic shoe with roller/rockr,"$20,940",$450,0.04%,$46.53,$0.02
+A55041,Diabetic shoe with wedge,"$13,477",$291,0.02%,$46.31,$0.01
+A55051,Diabetic shoe with metatarsal bar,"$7,959",$180,0.01%,$44.22,$0.01
+A55061,Diabetic shoe with off set heel,"$3,963",$87,0.01%,$45.55,$0.00
+A5507,Modification diabetic shoe  ,"$11,528",$246,0.02%,$46.86,$0.01
+A5512,Multi den insert direct form,"$16,569,302","$445,140",34.68%,$37.22,$12.91
+A5513,Multi den insert custom mold,"$11,566,501","$208,371",16.24%,$55.51,$9.01
+A5514,Multi den insert dir carv/cam,"$16,418,428","$294,513",22.95%,$55.75,$12.79
+Total,,"$75,648,848","$1,283,430",100.00%,$740.21,$58.94
+"1 These HCPCS codes were added to calculate the projected weighted average price for diabetic shoes and inserts compared to the calculation for the prior contract year, 2025. ",,,,,,
+2These amounts are based on data from the first three quarters of 2024 Medicare FFS published prices and utilization.,,,,,,
+,,,,,,
+Table 2: Contract Year (CY) 2026 Durable Medical Equipment (DME) Diabetic Shoes or Inserts Copayment Limit for Lower and Intermediate Maximum Out-of-Pocket (MOOP) Types,,,,,,
+Row Reference,Description,Lower and Intermediate MOOP Types,,,,
+A,CY 2026 projected total average Medicare FFS allowed amount*,$58.94 ,,,,
+B,CY 2026 coinsurance limit per § 422.100(f)(6)(i),50%,,,,
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(f)(6)(i) (row A multiplied by row B)2,$29.47 ,,,,
+D,Final CY 2026 copayment limit per § 422.100(f)(6)(i) and (j)(1) (row C rounded per § 422.100(f)(6)(ii))  ,$30.00 ,,,,
+"* This amount is based on the first three quarters of 2024 Medicare FFS published prices and utilization and then to project to CY 2026, the Office of the Actuary (OACT) applied the increase between 2024 to 2026 to that data. This amount represents the CY 2026 projected total average Medicare FFS allowed amount for diabetic shoes or inserts (without Part B deductible adjustment), weighted by utilization of the DME shoes, inserts, and shoe modifications HCPCS codes in Table 1. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ",,,, ,,
+,,,,,,
+,,,,,,
+Table 3: CY 2026 DME Diabetic Shoes or Inserts Copayment Limit for Mandatory Maximum Out-of-Pocket (MOOP) Type,,,,,,
+Row Reference,Description,Mandatory MOOP Type1,,,,
+A,CY 2026 projected total average Medicare FFS allowed amount1,$58.94 ,,,,
+B,CY 2026 coinsurance limit per § 422.100(j)(1),20%,,,,
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(j)(1) (row A multiplied by row B)2,$11.79 ,,,,
+D,Final CY 2026 copayment limit per § 422.100(j)(1) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$10.00 ,,,,
+"1 This amount is based on the first three quarters of 2024 Medicare FFS published prices and utilization and then to project to CY 2026, the Office of the Actuary (OACT) applied the increase between 2024 to 2026 to that data. This amount represents the CY 2026 projected total average Medicare FFS allowed amount for diabetic shoes or inserts (without a Part B deductible adjustment), weighted by utilization of the DME shoes, inserts, and shoe modifications HCPCS codes in Table 1. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (as finalized in § 422.100(f)(7)). ",,,,,,
+"2 Section 422.100(f)(8)(i) requires use of Medicare FFS data projections based on the coinsurance limits that would apply in 2026, which is necessary for service categories subject to paragraph (f)(6)(iii), where the coinsurance percentages are changing overtime. For purposes of paragraph (j)(1), the applicable coinsurance percentage is the same for CY 2024 through 2026 and thereafter, unless the cost sharing requirements in original Medicare change. ",,,,,,

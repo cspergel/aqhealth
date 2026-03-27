@@ -103,14 +103,15 @@ type PnlView = "confirmed" | "projected";
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmt(n: number): string {
-  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
+function fmt(n: number | null | undefined): string {
+  const v = n ?? 0;
+  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(v) >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
 }
 
-function pct(n: number): string {
-  return `${(n * 100).toFixed(1)}%`;
+function pct(n: number | null | undefined): string {
+  return `${((n ?? 0) * 100).toFixed(1)}%`;
 }
 
 // ---------------------------------------------------------------------------

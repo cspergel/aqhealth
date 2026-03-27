@@ -103,7 +103,7 @@ export function CohortsPage() {
   useEffect(() => {
     api
       .get("/api/cohorts")
-      .then((res) => setSavedCohorts(res.data))
+      .then((res) => setSavedCohorts(Array.isArray(res.data) ? res.data : []))
       .catch(() => {});
   }, []);
 

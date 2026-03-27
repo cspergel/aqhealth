@@ -141,6 +141,13 @@ export function RiskTable({ members }: RiskTableProps) {
               </tr>
             );
           })}
+          {members.length === 0 && (
+            <tr>
+              <td colSpan={7} className="py-12 text-center text-[13px]" style={{ color: tokens.textMuted }}>
+                No risk predictions available.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

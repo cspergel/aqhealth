@@ -154,8 +154,11 @@ async def update_care_plan(db: AsyncSession, plan_id: int, data: dict) -> dict |
     return {"id": plan.id, "status": "updated"}
 
 
-async def add_goal(db: AsyncSession, plan_id: int, data: dict) -> dict:
-    """Add a goal to a care plan."""
+async def add_goal(db: AsyncSession, plan_id: int, data: dict) -> dict | None:
+    """Add a goal to a care plan. Returns None if plan not found."""
+    plan_result = await db.execute(select(CarePlan.id).where(CarePlan.id == plan_id))
+    if not plan_result.scalar_one_or_none():
+        return None
     goal = CarePlanGoal(care_plan_id=plan_id, **data)
     db.add(goal)
     await db.flush()
@@ -163,8 +166,11 @@ async def add_goal(db: AsyncSession, plan_id: int, data: dict) -> dict:
     return {"id": goal.id, "status": "created"}
 
 
-async def add_intervention(db: AsyncSession, goal_id: int, data: dict) -> dict:
-    """Add an intervention to a goal."""
+async def add_intervention(db: AsyncSession, goal_id: int, data: dict) -> dict | None:
+    """Add an intervention to a goal. Returns None if goal not found."""
+    goal_result = await db.execute(select(CarePlanGoal.id).where(CarePlanGoal.id == goal_id))
+    if not goal_result.scalar_one_or_none():
+        return None
     intervention = CarePlanIntervention(goal_id=goal_id, **data)
     db.add(intervention)
     await db.flush()

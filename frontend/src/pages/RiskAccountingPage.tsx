@@ -86,7 +86,7 @@ interface CapPayment {
 
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const fmtDollar = (n: number) => "$" + fmt(n);
-const fmtPct = (n: number) => n.toFixed(1) + "%";
+const fmtPct = (n: number) => (n * 100).toFixed(1) + "%";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -119,12 +119,12 @@ export function RiskAccountingPage() {
     ])
       .then(([dashRes, sdRes, poolRes, ibnrRes, corrRes, capRes]) => {
         setDashboard(dashRes.data);
-        setByPlan(sdRes.data.by_plan);
-        setByGroup(sdRes.data.by_group);
-        setPools(poolRes.data);
+        setByPlan(Array.isArray(sdRes.data?.by_plan) ? sdRes.data.by_plan : []);
+        setByGroup(Array.isArray(sdRes.data?.by_group) ? sdRes.data.by_group : []);
+        setPools(Array.isArray(poolRes.data) ? poolRes.data : []);
         setIbnr(ibnrRes.data);
         setCorridor(corrRes.data);
-        setCapPayments(capRes.data.payments || []);
+        setCapPayments(Array.isArray(capRes.data?.payments) ? capRes.data.payments : []);
       })
       .catch((err) => console.error("Failed to load risk data:", err))
       .finally(() => setLoading(false));
@@ -177,7 +177,7 @@ export function RiskAccountingPage() {
           {metricCard("Total Cap Revenue", fmtDollar(dashboard.total_cap_revenue), tokens.accent)}
           {metricCard("Total Medical Spend", fmtDollar(dashboard.total_medical_spend), tokens.red)}
           {metricCard("Surplus / Deficit", fmtDollar(dashboard.surplus_deficit), dashboard.surplus_deficit >= 0 ? tokens.accent : tokens.red)}
-          {metricCard("MLR", fmtPct(dashboard.mlr), dashboard.mlr <= 85 ? tokens.accent : dashboard.mlr <= 90 ? tokens.amber : tokens.red)}
+          {metricCard("MLR", fmtPct(dashboard.mlr), dashboard.mlr <= 0.85 ? tokens.accent : dashboard.mlr <= 0.90 ? tokens.amber : tokens.red)}
           {metricCard("IBNR Estimate", fmtDollar(dashboard.ibnr_estimate), tokens.amber)}
         </div>
       )}
@@ -434,7 +434,7 @@ export function RiskAccountingPage() {
                     {p.surplus_deficit >= 0 ? "+" : ""}{fmtDollar(p.surplus_deficit)}
                   </td>
                   <td style={{ padding: "10px 14px" }}>
-                    <span style={{ fontWeight: 600, color: p.mlr <= 85 ? tokens.accent : p.mlr <= 90 ? tokens.amber : tokens.red }}>
+                    <span style={{ fontWeight: 600, color: p.mlr <= 0.85 ? tokens.accent : p.mlr <= 0.90 ? tokens.amber : tokens.red }}>
                       {fmtPct(p.mlr)}
                     </span>
                   </td>
@@ -481,7 +481,7 @@ export function RiskAccountingPage() {
                     {g.surplus_deficit >= 0 ? "+" : ""}{fmtDollar(g.surplus_deficit)}
                   </td>
                   <td style={{ padding: "10px 14px" }}>
-                    <span style={{ fontWeight: 600, color: g.mlr <= 85 ? tokens.accent : g.mlr <= 90 ? tokens.amber : tokens.red }}>
+                    <span style={{ fontWeight: 600, color: g.mlr <= 0.85 ? tokens.accent : g.mlr <= 0.90 ? tokens.amber : tokens.red }}>
                       {fmtPct(g.mlr)}
                     </span>
                   </td>

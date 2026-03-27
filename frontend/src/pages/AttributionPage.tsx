@@ -57,8 +57,8 @@ export function AttributionPage() {
     ])
       .then(([dashRes, changesRes, churnRes]) => {
         setDashboard(dashRes.data);
-        setChanges(changesRes.data);
-        setChurnRisk(churnRes.data);
+        setChanges(Array.isArray(changesRes.data) ? changesRes.data : []);
+        setChurnRisk(Array.isArray(churnRes.data) ? churnRes.data : []);
       })
       .catch((err) => console.error("Failed to load attribution data:", err))
       .finally(() => setLoading(false));

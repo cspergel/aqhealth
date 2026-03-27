@@ -68,17 +68,25 @@ async def list_insights(
     query = select(Insight)
 
     # Default to active status
+    valid_statuses = {s.value for s in InsightStatus}
     if status:
-        valid_statuses = {s.value for s in InsightStatus}
-        if status in valid_statuses:
-            query = query.where(Insight.status == status)
+        if status not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status '{status}'. Must be one of: {sorted(valid_statuses)}",
+            )
+        query = query.where(Insight.status == status)
     else:
         query = query.where(Insight.status == InsightStatus.active.value)
 
     if category:
         valid_categories = {c.value for c in InsightCategory}
-        if category in valid_categories:
-            query = query.where(Insight.category == category)
+        if category not in valid_categories:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid category '{category}'. Must be one of: {sorted(valid_categories)}",
+            )
+        query = query.where(Insight.category == category)
 
     if surface_on:
         # JSONB array contains check

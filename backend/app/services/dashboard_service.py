@@ -23,6 +23,7 @@ from app.models.case_management import CaseAssignment
 from app.models.prior_auth import PriorAuth
 from app.models.adt import CareAlert
 from app.models.alert_rule import AlertRuleTrigger
+from app.constants import PMPM_BENCHMARKS
 
 
 async def get_dashboard_metrics(db: AsyncSession) -> dict:
@@ -108,11 +109,11 @@ async def get_dashboard_metrics(db: AsyncSession) -> dict:
         total_pmpm = 0
         months = 1
 
-    # MLR: medical spend / premium estimate (premium ~ RAF * base rate * lives * months / 12)
+    # MLR: medical spend / premium estimate (premium ~ RAF * monthly_base * lives * months)
     # Using CMS average base rate of ~$1,100/month as a rough estimate
     from app.constants import CMS_PMPM_BASE; base_rate_monthly = CMS_PMPM_BASE
-    premium_estimate = avg_raf * base_rate_monthly * total_lives * (months / 12) if avg_raf > 0 else 0
-    mlr = (total_paid / premium_estimate * 100) if premium_estimate > 0 else 0
+    premium_estimate = avg_raf * base_rate_monthly * total_lives * months if avg_raf > 0 else 0
+    mlr = round(total_paid / premium_estimate, 4) if premium_estimate > 0 else 0
 
     return {
         "total_lives": total_lives,
@@ -120,7 +121,7 @@ async def get_dashboard_metrics(db: AsyncSession) -> dict:
         "recapture_rate": round(recapture_rate, 1),
         "suspect_inventory": suspect_inventory,
         "total_pmpm": round(total_pmpm, 2),
-        "mlr": round(mlr, 1),
+        "mlr": round(mlr, 4),
     }
 
 
@@ -183,8 +184,8 @@ async def get_revenue_opportunities(db: AsyncSession) -> list[dict]:
             "hcc_code": row.hcc_code,
             "hcc_label": row.hcc_label or f"HCC {row.hcc_code}",
             "member_count": row.member_count,
-            "total_raf": float(row.total_raf),
-            "total_value": float(row.total_value),
+            "total_raf": float(row.total_raf or 0),
+            "total_value": float(row.total_value or 0),
         }
         for row in result.all()
     ]
@@ -193,17 +194,7 @@ async def get_revenue_opportunities(db: AsyncSession) -> list[dict]:
 async def get_cost_hotspots(db: AsyncSession) -> list[dict]:
     """Return service categories with spend totals, sorted descending."""
 
-    # Benchmark PMPM by category (rough industry benchmarks for MA)
-    benchmarks = {
-        "inpatient": 450,
-        "ed_observation": 85,
-        "professional": 200,
-        "snf_postacute": 120,
-        "pharmacy": 350,
-        "home_health": 60,
-        "dme": 40,
-        "other": 50,
-    }
+    benchmarks = PMPM_BENCHMARKS
 
     today = date.today()
     # Count active lives for PMPM calc
@@ -282,14 +273,21 @@ async def get_provider_leaderboard(db: AsyncSession) -> dict:
     def format_provider(row):
         return {
             "id": row.id,
-            "name": f"{row.first_name} {row.last_name}".strip(),
+            "name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
             "specialty": row.specialty,
             "panel_size": row.panel_size,
             "capture_rate": float(row.capture_rate) if row.capture_rate is not None else 0,
         }
 
     top_5 = [format_provider(p) for p in all_providers[:5]]
-    bottom_5 = [format_provider(p) for p in all_providers[-5:]] if len(all_providers) > 5 else []
+    # Show bottom 5 only when there are enough providers that the lists don't overlap
+    if len(all_providers) > 5:
+        bottom_5 = [format_provider(p) for p in all_providers[-5:]]
+    elif len(all_providers) > 1:
+        # With 2-5 providers, show all except the top performer as the bottom list
+        bottom_5 = [format_provider(p) for p in all_providers[1:]]
+    else:
+        bottom_5 = []
 
     return {"top": top_5, "bottom": bottom_5}
 

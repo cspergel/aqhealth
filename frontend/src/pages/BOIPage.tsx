@@ -280,7 +280,7 @@ export function BOIPage() {
     ])
       .then(([dashRes, recRes]) => {
         setDashboard(dashRes.data);
-        setRecommendations(recRes.data);
+        setRecommendations(Array.isArray(recRes.data) ? recRes.data : []);
       })
       .catch((err) => console.error("Failed to load BOI data:", err))
       .finally(() => setLoading(false));

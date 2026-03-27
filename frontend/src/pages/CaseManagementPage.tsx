@@ -116,8 +116,8 @@ export function CaseManagementPage() {
         api.get("/api/cases/workload"),
       ]);
       setDashboard(dashRes.data);
-      setCases(casesRes.data);
-      setWorkload(workloadRes.data);
+      setCases(Array.isArray(casesRes.data) ? casesRes.data : casesRes.data?.items || []);
+      setWorkload(Array.isArray(workloadRes.data) ? workloadRes.data : workloadRes.data?.items || []);
       setError(null);
     } catch {
       setError("Failed to load case management data.");

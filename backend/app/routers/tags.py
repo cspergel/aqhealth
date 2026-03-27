@@ -113,8 +113,8 @@ async def apply_tag(
 
 @router.get("/entity", response_model=list[EntityTagOut])
 async def get_entity_tags(
-    type: str = Query(..., description="Entity type, e.g. member, provider"),
-    id: int = Query(..., description="Entity ID"),
+    entity_type: str = Query(..., alias="type", description="Entity type, e.g. member, provider"),
+    entity_id: int = Query(..., alias="id", description="Entity ID"),
     db: AsyncSession = Depends(get_tenant_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -122,7 +122,7 @@ async def get_entity_tags(
     result = await db.execute(
         select(EntityTag, Tag)
         .join(Tag, EntityTag.tag_id == Tag.id)
-        .where(EntityTag.entity_type == type, EntityTag.entity_id == id)
+        .where(EntityTag.entity_type == entity_type, EntityTag.entity_id == entity_id)
     )
     rows = result.all()
     return [

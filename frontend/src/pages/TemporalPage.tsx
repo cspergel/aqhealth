@@ -262,8 +262,8 @@ export function TemporalPage() {
     ])
       .then(([compRes, timeRes, changeRes]) => {
         setComparison(compRes.data);
-        setTimeline(timeRes.data);
-        setChangeLog(changeRes.data);
+        setTimeline(Array.isArray(timeRes.data) ? timeRes.data : []);
+        setChangeLog(Array.isArray(changeRes.data) ? changeRes.data : []);
       })
       .catch((err) => console.error("Temporal load error:", err))
       .finally(() => setLoading(false));
@@ -273,7 +273,7 @@ export function TemporalPage() {
   useEffect(() => {
     api
       .get("/api/temporal/timeline", { params: { metric: selectedMetric, months: 12 } })
-      .then((res) => setTimeline(res.data))
+      .then((res) => setTimeline(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error("Timeline load error:", err));
   }, [selectedMetric]);
 

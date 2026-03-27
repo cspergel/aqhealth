@@ -34,24 +34,23 @@ class AttributionDashboardOut(BaseModel):
 
 
 class AttributionChangeOut(BaseModel):
+    id: int
     member_id: str
     member_name: str
     change_type: str
-    previous_plan: str | None = None
-    new_plan: str | None = None
-    effective_date: str
-    reason: str | None = None
-    raf_score: float | None = None
+    effective_date: str | None = None
+    plan: str | None = None
 
 
 class ChurnRiskOut(BaseModel):
+    id: int
     member_id: str
     member_name: str
-    days_since_last_visit: int
-    engagement_score: float
-    raf_score: float
-    annual_value: float
-    risk_level: str
+    plan: str | None = None
+    current_raf: float = 0.0
+    last_claim_date: str | None = None
+    days_inactive: int | None = None
+    revenue_at_risk: float = 0.0
 
 
 # ---------------------------------------------------------------------------

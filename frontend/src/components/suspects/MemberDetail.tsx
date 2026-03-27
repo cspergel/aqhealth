@@ -3,25 +3,29 @@ import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
 
+/**
+ * A single suspect as returned by the backend SuspectOut schema.
+ * Field names match GET /api/hcc/suspects/{member_id} response.
+ */
 interface Suspect {
-  id: string;
-  condition_name: string;
-  icd10_code: string;
-  hcc_code: string;
+  id: number;
+  hcc_code: number;
+  hcc_label: string | null;
+  icd10_code: string | null;
+  icd10_label: string | null;
   raf_value: number;
-  annual_value: number;
-  evidence_summary: string;
-  confidence_score: number;
+  annual_value: number | null;
+  evidence_summary: string | null;
+  confidence: number | null;
   suspect_type: string;
   status: string;
-  dismiss_reason?: string;
+  dismissed_reason?: string | null;
 }
 
 interface MemberDetailProps {
-  memberId: string;
+  memberId: number;
   suspects: Suspect[];
-  medications?: { name: string; dx_linked: boolean }[];
-  onSuspectUpdated: (suspectId: string, status: string) => void;
+  onSuspectUpdated: (suspectId: number, status: string) => void;
 }
 
 const typeVariant = (t: string) => {
@@ -44,23 +48,23 @@ const typeLabel = (t: string) => {
   }
 };
 
-export function MemberDetail({ memberId, suspects, medications, onSuspectUpdated }: MemberDetailProps) {
-  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
-  const [dismissingId, setDismissingId] = useState<string | null>(null);
+export function MemberDetail({ memberId, suspects, onSuspectUpdated }: MemberDetailProps) {
+  const [actionLoading, setActionLoading] = useState<Record<number, boolean>>({});
+  const [dismissingId, setDismissingId] = useState<number | null>(null);
   const [dismissReason, setDismissReason] = useState("");
-  const [localStatuses, setLocalStatuses] = useState<Record<string, string>>({});
+  const [localStatuses, setLocalStatuses] = useState<Record<number, string>>({});
 
-  const trackInteraction = (type: string, suspectId: string, extra?: Record<string, unknown>) => {
+  const trackInteraction = (type: string, suspectId: number, extra?: Record<string, unknown>) => {
     api.post("/api/learning/track", {
       interaction_type: type,
       target_type: "suspect",
-      target_id: parseInt(suspectId) || null,
+      target_id: suspectId,
       page_context: window.location.pathname,
       metadata: { member_id: memberId, ...extra },
     }).catch(() => {});
   };
 
-  const handleCapture = async (suspectId: string) => {
+  const handleCapture = async (suspectId: number) => {
     setActionLoading((prev) => ({ ...prev, [suspectId]: true }));
     try {
       await api.patch(`/api/hcc/suspects/${suspectId}`, { status: "captured" });
@@ -68,19 +72,19 @@ export function MemberDetail({ memberId, suspects, medications, onSuspectUpdated
       onSuspectUpdated(suspectId, "captured");
       trackInteraction("capture", suspectId);
     } catch {
-      // silently fail — user will see no change
+      // silently fail -- user will see no change
     } finally {
       setActionLoading((prev) => ({ ...prev, [suspectId]: false }));
     }
   };
 
-  const handleDismiss = async (suspectId: string) => {
+  const handleDismiss = async (suspectId: number) => {
     if (!dismissReason.trim()) return;
     setActionLoading((prev) => ({ ...prev, [suspectId]: true }));
     try {
       await api.patch(`/api/hcc/suspects/${suspectId}`, {
         status: "dismissed",
-        dismiss_reason: dismissReason.trim(),
+        dismissed_reason: dismissReason.trim(),
       });
       setLocalStatuses((prev) => ({ ...prev, [suspectId]: "dismissed" }));
       onSuspectUpdated(suspectId, "dismissed");
@@ -120,7 +124,7 @@ export function MemberDetail({ memberId, suspects, medications, onSuspectUpdated
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-semibold" style={{ color: tokens.text }}>
-                      {s.condition_name}
+                      {s.hcc_label ?? `HCC ${s.hcc_code}`}
                     </span>
                     <Tag variant={typeVariant(s.suspect_type)}>{typeLabel(s.suspect_type)}</Tag>
                     {isCaptured && (
@@ -137,7 +141,7 @@ export function MemberDetail({ memberId, suspects, medications, onSuspectUpdated
 
                   <div className="flex items-center gap-4 text-xs mb-2" style={{ color: tokens.textSecondary }}>
                     <span>
-                      ICD-10: <span style={{ fontFamily: fonts.code }}>{s.icd10_code}</span>
+                      ICD-10: <span style={{ fontFamily: fonts.code }}>{s.icd10_code ?? "--"}</span>
                     </span>
                     <span>
                       HCC: <span style={{ fontFamily: fonts.code }}>{s.hcc_code}</span>
@@ -146,16 +150,20 @@ export function MemberDetail({ memberId, suspects, medications, onSuspectUpdated
                       RAF: <span style={{ fontFamily: fonts.code }}>{s.raf_value.toFixed(3)}</span>
                     </span>
                     <span>
-                      Annual: <span style={{ fontFamily: fonts.code }}>${s.annual_value.toLocaleString()}</span>
+                      Annual: <span style={{ fontFamily: fonts.code }}>${(s.annual_value ?? 0).toLocaleString()}</span>
                     </span>
-                    <span>
-                      Confidence: <span style={{ fontFamily: fonts.code }}>{Math.round(s.confidence_score * 100)}%</span>
-                    </span>
+                    {s.confidence != null && (
+                      <span>
+                        Confidence: <span style={{ fontFamily: fonts.code }}>{s.confidence}%</span>
+                      </span>
+                    )}
                   </div>
 
-                  <div className="text-xs leading-relaxed" style={{ color: tokens.textSecondary }}>
-                    {s.evidence_summary}
-                  </div>
+                  {s.evidence_summary && (
+                    <div className="text-xs leading-relaxed" style={{ color: tokens.textSecondary }}>
+                      {s.evidence_summary}
+                    </div>
+                  )}
                 </div>
 
                 {/* Action buttons */}
@@ -213,35 +221,6 @@ export function MemberDetail({ memberId, suspects, medications, onSuspectUpdated
           );
         })}
       </div>
-
-      {/* Medication list */}
-      {medications && medications.length > 0 && (
-        <div className="mt-5">
-          <div className="text-xs font-semibold mb-2" style={{ color: tokens.textSecondary }}>
-            Medication List
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {medications.map((med, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border"
-                style={{
-                  borderColor: med.dx_linked ? "#bbf7d0" : tokens.border,
-                  background: med.dx_linked ? tokens.accentSoft : tokens.surface,
-                  color: tokens.textSecondary,
-                }}
-              >
-                <span>{med.name}</span>
-                {med.dx_linked ? (
-                  <span style={{ color: tokens.accentText, fontSize: 10 }}>Dx-Linked</span>
-                ) : (
-                  <span style={{ color: tokens.textMuted, fontSize: 10 }}>No Dx</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

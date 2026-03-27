@@ -6,14 +6,13 @@ across the MSO network and generates actionable playbooks to replicate success.
 import logging
 from typing import Any
 
-from sqlalchemy import select, func, and_, case, desc
+from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.claim import Claim
 from app.models.provider import Provider
 from app.models.practice_group import PracticeGroup
-from app.models.hcc import HccSuspect, RafHistory, SuspectStatus
-from app.models.insight import Insight
+from app.models.hcc import HccSuspect, SuspectStatus
 
 logger = logging.getLogger(__name__)
 
@@ -409,19 +408,152 @@ async def track_intervention_outcomes(db: AsyncSession) -> list[dict[str, Any]]:
         outcomes_by_type[stype]["total_raf_lift"] += float(row.raf_value or 0)
         outcomes_by_type[stype]["total_value"] += float(row.annual_value or 0)
 
+    TYPE_LABELS = {
+        "recapture": "Recapture",
+        "med_dx_gap": "Medication-Dx Gap",
+        "specificity": "Specificity Upgrade",
+        "near_miss": "Near Miss",
+        "historical": "Historical Pattern",
+    }
+
     results = []
     for stype, data in outcomes_by_type.items():
         member_count = len(data["members"])
+        avg_raf = round(data["total_raf_lift"] / member_count, 3) if member_count else 0
+        total_value = round(data["total_value"], 2)
+        label = TYPE_LABELS.get(stype, stype.replace("_", " ").title())
         results.append({
-            "intervention_type": stype,
+            "id": f"outcome_{stype}",
+            "title": f"{label} Captures Driving Value",
+            "description": (
+                f"{member_count} members had {label.lower()} suspects captured, "
+                f"generating +{round(data['total_raf_lift'], 2):.2f} total RAF lift "
+                f"(avg +{avg_raf:.3f} per member)."
+            ),
+            "metric_label": "RAF Lift per Member",
+            "before_value": "0.000",
+            "after_value": f"+{avg_raf:.3f}",
+            "improvement": f"+{avg_raf:.3f} avg RAF per member",
+            "provider_name": "Multiple providers",
+            "office_name": "Network-wide",
+            "intervention": f"{label} suspect identification and capture",
+            "timeline": "Current payment year",
             "member_count": member_count,
-            "avg_raf_lift": round(data["total_raf_lift"] / member_count, 3) if member_count else 0,
-            "total_raf_lift": round(data["total_raf_lift"], 3),
-            "total_value": round(data["total_value"], 2),
+            "total_value": total_value,
         })
 
     results.sort(key=lambda x: x["total_value"], reverse=True)
     return results
+
+
+async def get_improvement_areas(db: AsyncSession) -> list[dict[str, Any]]:
+    """
+    Identify areas where the network is underperforming and could improve.
+    Derived from bottom-performing providers and groups.
+    """
+    areas: list[dict[str, Any]] = []
+
+    providers = (await db.execute(
+        select(Provider).where(Provider.capture_rate.isnot(None)).order_by(Provider.capture_rate.asc())
+    )).scalars().all()
+
+    if len(providers) < 4:
+        return areas
+
+    # Network averages
+    avg_capture = sum(float(p.capture_rate or 0) for p in providers) / len(providers)
+    avg_recapture = sum(float(p.recapture_rate or 0) for p in providers if p.recapture_rate is not None) / max(1, sum(1 for p in providers if p.recapture_rate is not None))
+    avg_gap_closure = sum(float(p.gap_closure_rate or 0) for p in providers if p.gap_closure_rate is not None) / max(1, sum(1 for p in providers if p.gap_closure_rate is not None))
+
+    bottom_n = max(1, len(providers) // 4)
+    bottom_providers = providers[:bottom_n]
+
+    # Capture rate improvement area
+    bottom_avg_capture = sum(float(p.capture_rate or 0) for p in bottom_providers) / len(bottom_providers)
+    if bottom_avg_capture < avg_capture * 0.7:
+        gap_pct = round(avg_capture - bottom_avg_capture, 1)
+        est_value = int(gap_pct * len(bottom_providers) * 500)  # rough estimate
+        areas.append({
+            "id": "low_capture_rate",
+            "title": "Low HCC Capture Rates",
+            "priority": "critical" if gap_pct > 20 else "high",
+            "current_metric": f"{bottom_avg_capture:.1f}%",
+            "target_metric": f"{avg_capture:.1f}%",
+            "trend": f"-{gap_pct}pp below average",
+            "root_cause": (
+                f"{len(bottom_providers)} providers in the bottom quartile average "
+                f"{bottom_avg_capture:.1f}% capture rate, {gap_pct}pp below the network "
+                f"average of {avg_capture:.1f}%. This suggests insufficient use of suspect "
+                "lists and coding opportunities during encounters."
+            ),
+            "recommended_fix": (
+                "Implement HCC coding education, integrate suspect list review into "
+                "pre-visit workflows, and schedule dedicated annual comprehensive "
+                "visits for complex patients."
+            ),
+            "expected_impact": f"${est_value:,} annually",
+            "expected_impact_value": est_value,
+            "category": "coding",
+        })
+
+    # Recapture improvement
+    bottom_recapture = [float(p.recapture_rate or 0) for p in bottom_providers if p.recapture_rate is not None]
+    if bottom_recapture:
+        avg_bottom_recapture = sum(bottom_recapture) / len(bottom_recapture)
+        if avg_bottom_recapture < avg_recapture * 0.7:
+            gap_pct = round(avg_recapture - avg_bottom_recapture, 1)
+            est_value = int(gap_pct * len(bottom_recapture) * 400)
+            areas.append({
+                "id": "low_recapture",
+                "title": "Low Recapture Rates",
+                "priority": "high" if gap_pct > 15 else "medium",
+                "current_metric": f"{avg_bottom_recapture:.1f}%",
+                "target_metric": f"{avg_recapture:.1f}%",
+                "trend": f"-{gap_pct}pp below average",
+                "root_cause": (
+                    f"Bottom quartile averages {avg_bottom_recapture:.1f}% recapture vs "
+                    f"{avg_recapture:.1f}% network average. Prior-year HCC conditions are "
+                    "not being re-documented at annual visits."
+                ),
+                "recommended_fix": (
+                    "Ensure prior-year HCCs are reviewed and documented at every visit "
+                    "using the suspect chase list. Schedule dedicated recapture visits "
+                    "for patients with lapsing HCCs."
+                ),
+                "expected_impact": f"${est_value:,} annually",
+                "expected_impact_value": est_value,
+                "category": "recapture",
+            })
+
+    # Gap closure improvement
+    bottom_gap = [float(p.gap_closure_rate or 0) for p in bottom_providers if p.gap_closure_rate is not None]
+    if bottom_gap:
+        avg_bottom_gap = sum(bottom_gap) / len(bottom_gap)
+        if avg_bottom_gap < avg_gap_closure * 0.7:
+            gap_pct = round(avg_gap_closure - avg_bottom_gap, 1)
+            est_value = int(gap_pct * len(bottom_gap) * 300)
+            areas.append({
+                "id": "low_gap_closure",
+                "title": "Low Care Gap Closure",
+                "priority": "high" if gap_pct > 15 else "medium",
+                "current_metric": f"{avg_bottom_gap:.1f}%",
+                "target_metric": f"{avg_gap_closure:.1f}%",
+                "trend": f"-{gap_pct}pp below average",
+                "root_cause": (
+                    f"Bottom quartile closes {avg_bottom_gap:.1f}% of care gaps vs "
+                    f"{avg_gap_closure:.1f}% network average. Quality measures are not "
+                    "being addressed during routine visits."
+                ),
+                "recommended_fix": (
+                    "Implement pre-visit planning with care gap alerts and point-of-care "
+                    "reminders. Assign care coordinators to high-gap patients."
+                ),
+                "expected_impact": f"${est_value:,} annually",
+                "expected_impact_value": est_value,
+                "category": "quality",
+            })
+
+    return areas
 
 
 async def get_network_benchmarks(db: AsyncSession) -> dict[str, Any]:

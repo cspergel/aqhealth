@@ -117,7 +117,7 @@ async def expenditure_by_part(
 
 @router.get("/by-period")
 async def expenditure_by_period(
-    group_by: str = Query("month", regex="^(month|quarter|year)$"),
+    group_by: str = Query("month", pattern="^(month|quarter|year)$"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
 ):

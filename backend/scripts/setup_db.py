@@ -363,7 +363,7 @@ def seed_base_data():
         ]
         for s in suspects_data:
             mid = random.choice(member_ids)
-            annual = round(float(s["raf"]) * 12000, 2)
+            annual = round(float(s["raf"]) * 13200, 2)  # CMS_ANNUAL_BASE = $1,100 PMPM * 12
             session.execute(text(
                 "INSERT INTO hcc_suspects (member_id, payment_year, hcc_code, hcc_label, icd10_code, "
                 "icd10_label, raf_value, annual_value, suspect_type, status, confidence, "

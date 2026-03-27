@@ -7,12 +7,11 @@ RAF trajectory, pharmacy fills, and AI-generated narrative.
 """
 
 from datetime import date, timedelta
-from decimal import Decimal
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member
-from app.models.claim import Claim, ClaimType
+from app.models.claim import Claim
 from app.models.hcc import HccSuspect, SuspectStatus, RafHistory
 from app.models.care_gap import MemberGap, GapStatus, GapMeasure
 from app.models.provider import Provider
@@ -124,16 +123,16 @@ async def get_member_journey(
         )
         pcp_row = pcp_q.first()
         if pcp_row:
-            pcp_name = f"Dr. {pcp_row.first_name} {pcp_row.last_name}"
+            pcp_name = f"Dr. {pcp_row.first_name or ''} {pcp_row.last_name or ''}".strip()
 
     member_summary = {
         "id": member.id,
         "member_id": member.member_id,
-        "name": f"{member.first_name} {member.last_name}",
-        "dob": member.date_of_birth.isoformat(),
-        "age": date.today().year - member.date_of_birth.year - (
+        "name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
+        "dob": member.date_of_birth.isoformat() if member.date_of_birth else None,
+        "age": (date.today().year - member.date_of_birth.year - (
             (date.today().month, date.today().day) < (member.date_of_birth.month, member.date_of_birth.day)
-        ),
+        )) if member.date_of_birth else None,
         "gender": member.gender,
         "health_plan": member.health_plan,
         "pcp": pcp_name,
@@ -193,7 +192,7 @@ async def get_member_journey(
                 "description": s.evidence_summary or "",
                 "flags": [{
                     "type": "success",
-                    "message": f"+{float(s.raf_value):.3f} RAF captured"
+                    "message": f"+{float(s.raf_value or 0):.3f} RAF captured"
                 }],
             })
         elif s.status == SuspectStatus.open.value:
@@ -265,11 +264,11 @@ async def get_member_risk_trajectory(
     trajectory = []
     for r in rows:
         trajectory.append({
-            "date": r.calculation_date.isoformat(),
-            "raf": float(r.total_raf),
-            "disease_raf": float(r.disease_raf),
-            "demographic_raf": float(r.demographic_raf),
-            "hcc_count": r.hcc_count,
+            "date": r.calculation_date.isoformat() if r.calculation_date else None,
+            "raf": float(r.total_raf or 0),
+            "disease_raf": float(r.disease_raf or 0),
+            "demographic_raf": float(r.demographic_raf or 0),
+            "hcc_count": r.hcc_count or 0,
         })
 
     return trajectory
@@ -308,6 +307,6 @@ def _generate_narrative(summary: dict, events: list[dict]) -> str:
         parts.append("limited recent activity.")
 
     if missed:
-        parts.append(f" There {'is' if missed == 1 else 'are'} {missed} missed opportunity{'ies' if missed != 1 else 'y'} flagged for review.")
+        parts.append(f" There {'is' if missed == 1 else 'are'} {missed} missed {'opportunity' if missed == 1 else 'opportunities'} flagged for review.")
 
     return " ".join(parts)

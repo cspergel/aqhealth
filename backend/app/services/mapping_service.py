@@ -38,6 +38,7 @@ PLATFORM_FIELDS = {
         "pos_code", "drug_name", "drug_class", "quantity", "days_supply",
         "modifier_1", "modifier_2", "revenue_code", "admission_date", "discharge_date",
         "discharge_status", "admit_type", "admit_source",
+        "los", "status",
     ],
     "eligibility": [
         "member_id", "first_name", "last_name", "date_of_birth", "gender",
@@ -204,6 +205,10 @@ _HEURISTIC_MAP: dict[str, list[str]] = {
                           "patient_status", "patient_disposition"],
     "admit_type": ["admit_type", "admission_type", "type_of_admission"],
     "admit_source": ["admit_source", "admission_source", "source_of_admission"],
+    "los": ["los", "length_of_stay", "length of stay", "days_stay", "days_in_facility",
+            "inpatient_days", "covered_days"],
+    "status": ["status", "claim_status", "adjudication_status", "line_status",
+               "claim_disposition", "processing_status"],
     "rendering_provider_name": ["rendering_provider_name", "rendering_provider", "servicing_provider",
                                  "provider_name", "attending_physician"],
     "prescriber_npi": ["prescriber_npi", "prescriber_id", "ordering_provider_npi"],
@@ -470,6 +475,7 @@ async def propose_mapping(
     headers: list[str],
     sample_rows: list[list[str]],
     existing_rules: list[dict] | None = None,
+    tenant_schema: str = "default",
 ) -> dict[str, Any]:
     """
     Propose a column mapping for an uploaded file.
@@ -488,7 +494,7 @@ async def propose_mapping(
 
     # Try AI mapping first if API key is available
     if settings.anthropic_api_key:
-        ai_result = await _ai_mapping(headers, sample_rows)
+        ai_result = await _ai_mapping(headers, sample_rows, tenant_schema=tenant_schema)
 
     if ai_result and "mapping" in ai_result:
         data_type = ai_result.get("data_type", "unknown")

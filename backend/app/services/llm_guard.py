@@ -196,8 +196,9 @@ _HEDGING_PATTERNS = [
     r"\bapproximately\b",
     r"\broughly\b",
     r"\bprobably\b",
-    r"\bestimated\b",
     r"\bI assume\b",
+    # Note: "estimated" is intentionally excluded — our prompts ask the LLM
+    # for "estimated annual dollar impact", so its presence is expected.
 ]
 
 def validate_llm_output(

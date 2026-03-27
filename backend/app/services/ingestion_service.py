@@ -7,7 +7,9 @@ and bulk-inserts records into tenant schema tables (members, claims, providers).
 
 import asyncio
 import io
+import json
 import logging
+import os
 import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -167,8 +169,10 @@ def _parse_date(value: Any) -> date | None:
     """Try to parse a date from various string formats."""
     if value is None or (isinstance(value, str) and value.strip() == ""):
         return None
-    if isinstance(value, (date, datetime)):
-        return value if isinstance(value, date) else value.date()
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
 
     s = str(value).strip()
     formats = [
@@ -361,10 +365,14 @@ def _process_claim_row(
     # Parse diagnosis codes — may come from multiple columns
     dx_codes = _parse_diagnosis_codes(row, column_mapping)
 
+    # Extract rendering provider NPI for FK resolution during upsert
+    rendering_npi = _clean_str(_get_val(row, reverse_map, "rendering_npi"), 15)
+
     claim_data = {
         "_member_id_raw": member_id_raw,  # will be resolved to FK later
+        "_rendering_npi": rendering_npi,  # will be resolved to FK later
         "claim_id": _clean_str(_get_val(row, reverse_map, "claim_id"), 50),
-        "claim_type": claim_type,
+        "claim_type": claim_type.value if hasattr(claim_type, 'value') else str(claim_type),
         "service_date": service_date,
         "paid_date": _parse_date(_get_val(row, reverse_map, "paid_date")),
         "diagnosis_codes": dx_codes if dx_codes else None,
@@ -380,9 +388,15 @@ def _process_claim_row(
         "pos_code": _clean_str(_get_val(row, reverse_map, "pos_code"), 5),
         "drug_name": _clean_str(_get_val(row, reverse_map, "drug_name"), 200),
         "drug_class": _clean_str(_get_val(row, reverse_map, "drug_class"), 100),
-        "quantity": float(_parse_decimal(_get_val(row, reverse_map, "quantity"))) if _parse_decimal(_get_val(row, reverse_map, "quantity")) is not None else None,
+        "quantity": (lambda q: float(q) if q is not None else None)(_parse_decimal(_get_val(row, reverse_map, "quantity"))),
         "days_supply": _parse_int(_get_val(row, reverse_map, "days_supply")),
+        "los": _parse_int(_get_val(row, reverse_map, "los")),
+        "status": _clean_str(_get_val(row, reverse_map, "status"), 20) or "paid",
     }
+
+    # Derive primary_diagnosis from first diagnosis code
+    if dx_codes:
+        claim_data["primary_diagnosis"] = dx_codes[0]
 
     # Classify service category
     claim_data["service_category"] = classify_service_category(claim_data)
@@ -407,14 +421,20 @@ def _process_provider_row(
         errors.append({"row": row_idx, "field": "name", "error": "Provider name required"})
         return None, errors
 
-    return {
+    record = {
         "npi": npi,
         "first_name": first_name,
         "last_name": last_name,
         "specialty": _clean_str(_get_val(row, reverse_map, "specialty"), 100),
         "practice_name": _clean_str(_get_val(row, reverse_map, "practice_name"), 200),
         "tin": _clean_str(_get_val(row, reverse_map, "tin"), 15),
-    }, errors
+    }
+
+    practice_group_id = _parse_int(_get_val(row, reverse_map, "practice_group_id"))
+    if practice_group_id is not None:
+        record["practice_group_id"] = practice_group_id
+
+    return record, errors
 
 
 # ---------------------------------------------------------------------------
@@ -436,11 +456,15 @@ ALLOWED_CLAIM_COLUMNS = {
     "billed_amount", "allowed_amount", "paid_amount", "member_liability",
     "service_category", "pos_code", "drug_name", "drug_class",
     "quantity", "days_supply", "extra", "data_tier", "is_estimated",
+    "primary_diagnosis", "los", "status",
+    # Dual data tier fields (written by ADT/reconciliation flows)
+    "estimated_amount", "signal_source", "signal_event_id",
+    "reconciled", "reconciled_claim_id",
 }
 
 ALLOWED_PROVIDER_COLUMNS = {
-    "npi", "first_name", "last_name", "specialty", "practice_name",
-    "tin", "extra",
+    "npi", "practice_group_id", "first_name", "last_name", "specialty",
+    "practice_name", "tin", "extra",
 }
 
 
@@ -518,6 +542,28 @@ async def _upsert_members(
     return {"inserted": inserted, "updated": 0}
 
 
+async def _resolve_provider_npis_batch(
+    db: AsyncSession, npis: list[str]
+) -> dict[str, int]:
+    """Batch-resolve provider NPI strings to internal provider PKs."""
+    if not npis:
+        return {}
+    unique_npis = list(set(n for n in npis if n))
+    lookup: dict[str, int] = {}
+    chunk_size = 500
+    for i in range(0, len(unique_npis), chunk_size):
+        chunk = unique_npis[i : i + chunk_size]
+        params = {f"npi_{j}": npi for j, npi in enumerate(chunk)}
+        placeholders = ", ".join(f":npi_{j}" for j in range(len(chunk)))
+        result = await db.execute(
+            text(f"SELECT id, npi FROM providers WHERE npi IN ({placeholders})"),
+            params,
+        )
+        for row in result.fetchall():
+            lookup[row.npi] = row.id
+    return lookup
+
+
 async def _resolve_member_ids_batch(
     db: AsyncSession, raw_member_ids: list[str]
 ) -> dict[str, int]:
@@ -542,7 +588,8 @@ async def _resolve_member_ids_batch(
 
 
 async def _upsert_claims(
-    db: AsyncSession, valid_rows: list[dict], all_errors: list[dict] | None = None
+    db: AsyncSession, valid_rows: list[dict], all_errors: list[dict] | None = None,
+    tenant_schema: str = "default",
 ) -> int:
     """Bulk insert claims in batches. Returns count of inserted rows.
 
@@ -558,10 +605,21 @@ async def _upsert_claims(
     raw_mids = [r.get("_member_id_raw") for r in valid_rows if r.get("_member_id_raw")]
     member_lookup = await _resolve_member_ids_batch(db, raw_mids)
 
+    # Batch-resolve rendering provider NPIs to PKs
+    raw_npis = [r.get("_rendering_npi") for r in valid_rows if r.get("_rendering_npi")]
+    provider_lookup = await _resolve_provider_npis_batch(db, raw_npis)
+
     inserted = 0
 
     for batch in _chunks(valid_rows, 500):
         for row_data in batch:
+            # Resolve rendering provider NPI → FK
+            rendering_npi = row_data.pop("_rendering_npi", None)
+            if rendering_npi:
+                provider_pk = provider_lookup.get(rendering_npi)
+                if provider_pk:
+                    row_data["rendering_provider_id"] = provider_pk
+
             raw_mid = row_data.get("_member_id_raw")
             row_data.pop("_member_id_raw", None)
             if raw_mid:
@@ -578,7 +636,7 @@ async def _upsert_claims(
                         for fld in ("first_name", "last_name", "date_of_birth"):
                             if row_data.get(f"_er_{fld}"):
                                 er_incoming[fld] = row_data.pop(f"_er_{fld}")
-                        er_result = await match_member(db, er_incoming)
+                        er_result = await match_member(db, er_incoming, tenant_schema=tenant_schema)
                         if er_result.get("matched") and er_result.get("member_id"):
                             member_pk = er_result["member_id"]
                             # Cache so subsequent rows with the same raw id
@@ -627,11 +685,66 @@ async def _upsert_claims(
             cols_str = ", ".join(cols)
             vals_str = ", ".join(vals_parts)
 
-            await db.execute(
-                text(f"INSERT INTO claims ({cols_str}) VALUES ({vals_str})"),
-                safe_data,
-            )
-            inserted += 1
+            # Upsert: if claim_id + member_id already exists, UPDATE
+            # (handles re-sends, corrections, adjudicated replacements)
+            claim_id_val = safe_data.get("claim_id")
+            member_id_val = safe_data.get("member_id")
+            existing_claim_pk = None
+            if claim_id_val and member_id_val:
+                dup_check = await db.execute(
+                    text("SELECT id FROM claims WHERE claim_id = :cid AND member_id = :mid LIMIT 1"),
+                    {"cid": claim_id_val, "mid": member_id_val},
+                )
+                existing_claim_pk = dup_check.scalar()
+
+            if existing_claim_pk:
+                # Fetch old values to track what changed
+                old_row = await db.execute(
+                    text("SELECT paid_amount, diagnosis_codes, status FROM claims WHERE id = :pk"),
+                    {"pk": existing_claim_pk},
+                )
+                old_vals = old_row.mappings().first()
+
+                # Update existing claim with newer data
+                update_parts = [f"{k} = :{k}" for k in safe_data.keys()
+                                if k not in ("claim_id", "member_id")]
+                if dx_codes:
+                    update_parts.append(f"diagnosis_codes = ARRAY[{', '.join(dx_params)}]::varchar[]")
+                if update_parts:
+                    await db.execute(
+                        text(f"UPDATE claims SET {', '.join(update_parts)} WHERE id = :_pk"),
+                        {**safe_data, "_pk": existing_claim_pk},
+                    )
+
+                # Track the correction in data_lineage for audit trail
+                try:
+                    changes = {}
+                    if old_vals:
+                        old_paid = float(old_vals["paid_amount"]) if old_vals["paid_amount"] else None
+                        new_paid = float(safe_data.get("paid_amount", 0)) if safe_data.get("paid_amount") else None
+                        if old_paid != new_paid:
+                            changes["paid_amount"] = {"old": old_paid, "new": new_paid}
+                    await db.execute(
+                        text("""INSERT INTO data_lineage
+                                (entity_type, entity_id, source_system, source_file,
+                                 field_changes, created_at, updated_at)
+                            VALUES ('claim_correction', :eid, 'file_upload', :src,
+                                    :changes::jsonb, NOW(), NOW())"""),
+                        {
+                            "eid": existing_claim_pk,
+                            "src": "claim_upsert",
+                            "changes": json.dumps(changes) if changes else "{}",
+                        },
+                    )
+                except Exception:
+                    pass  # non-blocking audit
+                inserted += 1
+            else:
+                await db.execute(
+                    text(f"INSERT INTO claims ({cols_str}) VALUES ({vals_str})"),
+                    safe_data,
+                )
+                inserted += 1
 
         await db.commit()
 
@@ -694,6 +807,7 @@ async def process_upload(
     column_mapping: dict[str, Any],
     data_type: str,
     db: AsyncSession,
+    tenant_schema: str = "default",
 ) -> dict[str, Any]:
     """
     Main ingestion entry point.
@@ -719,17 +833,21 @@ async def process_upload(
     logger.info(f"Processing upload: {file_path} as {data_type}")
 
     # Step 0: Pre-process the raw file to fix common data messiness
-    try:
-        prep_result = await asyncio.to_thread(preprocess_file, file_path)
-        if prep_result["cleaned_path"]:
-            file_path = prep_result["cleaned_path"]  # use cleaned version
-        # Log what was cleaned
-        for change in prep_result["changes_made"]:
-            logger.info(f"Pre-processed: {change['description']}")
-        for warning in prep_result.get("warnings", []):
-            logger.warning(f"Pre-processor warning: {warning}")
-    except Exception as prep_err:
-        logger.warning(f"Pre-processing failed (continuing with original file): {prep_err}")
+    # Skip if file was already preprocessed (cleaned_file_path from upload step)
+    is_already_cleaned = "_cleaned_" in os.path.basename(file_path)
+    if not is_already_cleaned:
+        try:
+            prep_result = await asyncio.to_thread(preprocess_file, file_path)
+            if prep_result["cleaned_path"]:
+                file_path = prep_result["cleaned_path"]  # use cleaned version
+            for change in prep_result["changes_made"]:
+                logger.info(f"Pre-processed: {change['description']}")
+            for warning in prep_result.get("warnings", []):
+                logger.warning(f"Pre-processor warning: {warning}")
+        except Exception as prep_err:
+            logger.warning(f"Pre-processing failed (continuing with original file): {prep_err}")
+    else:
+        logger.info("File already preprocessed, skipping re-preprocessing")
 
     reverse_map = _build_reverse_mapping(column_mapping)
     all_errors: list[dict] = []
@@ -821,7 +939,7 @@ async def process_upload(
                 try:
                     if data_type in ("claims", "pharmacy"):
                         from app.services.data_quality_service import validate_claim_row
-                        dq_result = await validate_claim_row(record)
+                        dq_result = validate_claim_row(record)
                         if not dq_result.get("valid"):
                             for dq_err in dq_result.get("errors", []):
                                 all_errors.append({"row": row_num, "field": "data_quality", "error": dq_err})
@@ -841,7 +959,7 @@ async def process_upload(
                     total_inserted += result_counts["inserted"]
                     total_updated += result_counts["updated"]
                 elif data_type in ("claims", "pharmacy"):
-                    count = await _upsert_claims(db, chunk_valid_rows, all_errors)
+                    count = await _upsert_claims(db, chunk_valid_rows, all_errors, tenant_schema=tenant_schema)
                     total_inserted += count
                 elif data_type == "providers":
                     result_counts = await _upsert_providers(db, chunk_valid_rows)
@@ -862,13 +980,15 @@ async def process_upload(
                     await db.execute(
                         text("""
                             INSERT INTO data_lineage
-                                (entity_type, record_count, source_name, created_at)
-                            VALUES (:etype, :cnt, :src, NOW())
+                                (entity_type, entity_id, source_system, source_file,
+                                 ingestion_job_id, created_at, updated_at)
+                            VALUES (:etype, 0, 'file_upload', :src,
+                                    :job_id, NOW(), NOW())
                         """),
                         {
                             "etype": entity_type,
-                            "cnt": len(chunk_valid_rows),
                             "src": file_path,
+                            "job_id": None,
                         },
                     )
                     await db.commit()

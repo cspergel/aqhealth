@@ -11,7 +11,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import select, func, case, and_, or_, text
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member
@@ -91,7 +91,7 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
             func.count(Claim.id).label("er_visits_12mo"),
         )
         .where(
-            Claim.service_category.in_(["ed_observation"]),
+            Claim.service_category == "ed_observation",
             Claim.service_date >= twelve_months_ago,
         )
         .group_by(Claim.member_id)
@@ -126,8 +126,11 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
     # Build main query
     suspect_count_col = func.coalesce(suspect_sq.c.suspect_count, 0).label("suspect_count")
     gap_count_col = func.coalesce(gap_sq.c.gap_count, 0).label("gap_count")
+    # Use epoch division to get total days from an interval.
+    # extract('day', interval) returns only the "days" component, not total days.
+    # extract('epoch', interval) / 86400 gives the correct total number of days.
     days_since_visit_col = func.coalesce(
-        func.extract("day", func.current_date() - last_visit_sq.c.last_visit_date),
+        func.floor(func.extract("epoch", func.current_date() - last_visit_sq.c.last_visit_date) / 86400),
         9999
     ).label("days_since_visit")
     total_spend_col = func.coalesce(spend_sq.c.total_spend_12mo, 0).label("total_spend_12mo")
@@ -270,7 +273,7 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
 
         items.append({
             "member_id": row.member_id,
-            "name": f"{row.first_name} {row.last_name}",
+            "name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
             "dob": str(row.date_of_birth) if row.date_of_birth else None,
             "pcp": pcp_name,
             "pcp_id": row.pcp_provider_id,
@@ -321,7 +324,7 @@ async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
         )
         pcp = pcp_result.scalar_one_or_none()
         if pcp:
-            pcp_name = f"Dr. {pcp.first_name} {pcp.last_name}"
+            pcp_name = f"Dr. {pcp.first_name or ''} {pcp.last_name or ''}".strip()
 
     # Get recent claims
     claims_result = await db.execute(
@@ -384,8 +387,8 @@ async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
 
     return {
         "member_id": member.member_id,
-        "name": f"{member.first_name} {member.last_name}",
-        "dob": str(member.date_of_birth),
+        "name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
+        "dob": str(member.date_of_birth) if member.date_of_birth else None,
         "pcp": pcp_name,
         "pcp_id": member.pcp_provider_id,
         "current_raf": float(member.current_raf) if member.current_raf else 0.0,

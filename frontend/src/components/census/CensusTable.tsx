@@ -176,7 +176,7 @@ export function CensusTable({
                 </td>
                 <td className="px-3 py-2.5" style={{ color: tokens.textSecondary, fontSize: 11, fontFamily: fonts.code }}>
                   {(item.diagnosis_codes || []).slice(0, 3).join(", ")}
-                  {(item.diagnosis_codes || []).length > 3 && ` +${item.diagnosis_codes.length - 3}`}
+                  {(item.diagnosis_codes || []).length > 3 && ` +${(item.diagnosis_codes || []).length - 3}`}
                 </td>
                 <td className="px-3 py-2.5" style={{ fontFamily: fonts.code, fontSize: 12, color: tokens.text }}>
                   ${item.estimated_daily_cost.toLocaleString()}

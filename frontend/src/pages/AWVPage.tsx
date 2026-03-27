@@ -131,6 +131,7 @@ export function AWVPage() {
   const [membersDue, setMembersDue] = useState<MemberDue[]>([]);
   const [opportunities, setOpportunities] = useState<AWVOpportunities | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filterProvider, setFilterProvider] = useState<string>("");
   const [filterTier, setFilterTier] = useState<string>("");
 
@@ -143,10 +144,14 @@ export function AWVPage() {
     ])
       .then(([dashRes, dueRes, oppRes]) => {
         setDashboard(dashRes.data);
-        setMembersDue(dueRes.data);
+        setMembersDue(Array.isArray(dueRes.data) ? dueRes.data : dueRes.data?.items || []);
         setOpportunities(oppRes.data);
+        setError(null);
       })
-      .catch((err) => console.error("AWV load error:", err))
+      .catch((err) => {
+        console.error("AWV load error:", err);
+        setError("Failed to load AWV data.");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -179,6 +184,14 @@ export function AWVPage() {
     return (
       <div className="px-7 py-6">
         <p style={{ color: tokens.textMuted, fontSize: 13 }}>Loading AWV data...</p>
+      </div>
+    );
+  }
+
+  if (error && !dashboard) {
+    return (
+      <div className="px-7 py-6">
+        <p style={{ color: tokens.red, fontSize: 13 }}>{error}</p>
       </div>
     );
   }

@@ -23,8 +23,15 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
   const [closedGapIds, setClosedGapIds] = useState<Set<number>>(new Set());
   const [rafDelta, setRafDelta] = useState(0);
 
-  const totalRAF = patient.raf.projected_raf + rafDelta;
-  const interactionTotal = patient.interactions.reduce((s, i) => s + i.bonus_raf, 0);
+  const totalRAF = (patient.raf?.projected_raf ?? 0) + rafDelta;
+  const interactions = patient.interactions ?? [];
+  const suspects = patient.suspects ?? [];
+  const medications = patient.medications ?? [];
+  const confirmedHccs = patient.confirmed_hccs ?? [];
+  const careGaps = patient.care_gaps ?? [];
+  const encounters = patient.encounters ?? [];
+  const nearMisses = patient.near_misses ?? [];
+  const interactionTotal = interactions.reduce((s, i) => s + (i.bonus_raf ?? 0), 0);
 
   const handleCaptured = useCallback((suspectId: number, rafValue: number) => {
     setCapturedIds((prev) => new Set(prev).add(suspectId));
@@ -43,7 +50,8 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
     }
   }, [patient.demographics.id]);
 
-  const { demographics: demo, raf } = patient;
+  const { demographics: demo } = patient;
+  const raf = patient.raf ?? { total_raf: 0, projected_raf: 0, delta: 0 };
 
   return (
     <div style={{ fontFamily: fonts.body, color: tokens.text }}>
@@ -86,8 +94,8 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
               >
                 {demo.name}
               </h1>
-              <Tag variant={tierColors[patient.risk.tier] || "default"}>
-                {patient.risk.tier} risk
+              <Tag variant={tierColors[patient.risk?.tier] || "default"}>
+                {patient.risk?.tier ?? "unknown"} risk
               </Tag>
             </div>
             <div
@@ -163,7 +171,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
                   letterSpacing: "-0.02em",
                 }}
               >
-                ${Math.round(totalRAF * 11000).toLocaleString()}
+                ${Math.round(totalRAF * 13200).toLocaleString()}
               </div>
             </div>
           </div>
@@ -185,7 +193,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
           <VisitPrepCard narrative={patient.visit_prep} />
 
           {/* Suspect HCC Panel */}
-          {patient.suspects.length > 0 && (
+          {suspects.length > 0 && (
             <div
               style={{
                 padding: 16,
@@ -205,7 +213,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
               >
                 Conditions supported by clinical evidence &mdash; review for documentation
               </div>
-              {patient.suspects.map((s: ClinicalSuspect, i: number) => {
+              {suspects.map((s: ClinicalSuspect, i: number) => {
                 const isCaptured = capturedIds.has(s.id) || s.captured;
                 return (
                   <div
@@ -289,7 +297,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
             <div style={{ fontSize: 12, fontWeight: 500, color: tokens.textMuted, marginBottom: 12 }}>
               Medication Review
             </div>
-            {patient.medications.map((med, i) => (
+            {medications.map((med, i) => (
               <div
                 key={i}
                 style={{
@@ -298,7 +306,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
                   alignItems: "center",
                   padding: "8px 0",
                   borderBottom:
-                    i < patient.medications.length - 1
+                    i < medications.length - 1
                       ? `1px solid ${tokens.borderSoft}`
                       : "none",
                 }}
@@ -318,7 +326,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
                 )}
               </div>
             ))}
-            {patient.medications.every((m) => m.has_matching_dx) && (
+            {medications.length > 0 && medications.every((m) => m.has_matching_dx) && (
               <div style={{ marginTop: 8, fontSize: 12, color: tokens.textMuted }}>
                 All medications have corresponding diagnoses documented.
               </div>
@@ -356,7 +364,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
               </div>
             </div>
             <div style={{ borderTop: `1px solid ${tokens.border}`, marginTop: 12, paddingTop: 12 }}>
-              {patient.interactions.map((ix, i) => (
+              {interactions.map((ix, i) => (
                 <div
                   key={i}
                   style={{
@@ -398,10 +406,10 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
                 Documented HCCs
               </span>
               <span style={{ fontFamily: fonts.code, fontSize: 12, color: tokens.accentText }}>
-                {patient.confirmed_hccs.length} conditions
+                {confirmedHccs.length} conditions
               </span>
             </div>
-            {patient.confirmed_hccs.map((hcc, i) => (
+            {confirmedHccs.map((hcc, i) => (
               <div
                 key={i}
                 style={{
@@ -458,10 +466,10 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
                 Open care gaps
               </span>
               <span style={{ fontSize: 12, fontWeight: 600, color: tokens.amber }}>
-                {patient.care_gaps.filter((g) => !closedGapIds.has(g.id) && !g.closed).length}
+                {careGaps.filter((g) => !closedGapIds.has(g.id) && !g.closed).length}
               </span>
             </div>
-            {patient.care_gaps.map((gap: ClinicalCareGap, i: number) => {
+            {careGaps.map((gap: ClinicalCareGap, i: number) => {
               const isClosed = closedGapIds.has(gap.id) || gap.closed;
               if (isClosed) return null;
               return (
@@ -531,7 +539,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
             <div style={{ fontSize: 12, fontWeight: 500, color: tokens.textMuted, marginBottom: 12 }}>
               Recent Encounters
             </div>
-            {patient.encounters.slice(0, 5).map((enc, i) => (
+            {encounters.slice(0, 5).map((enc, i) => (
               <div
                 key={i}
                 style={{
@@ -561,7 +569,7 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
           </div>
 
           {/* Near-miss interactions */}
-          {patient.near_misses.length > 0 && (
+          {nearMisses.length > 0 && (
             <div
               style={{
                 background: tokens.surface,
@@ -573,10 +581,10 @@ export function PatientContext({ patient, onBack }: PatientContextProps) {
               <div style={{ fontSize: 12, fontWeight: 500, color: tokens.textMuted, marginBottom: 8 }}>
                 Nearby interaction opportunity
               </div>
-              {patient.near_misses.map((nm, i) => (
+              {nearMisses.map((nm, i) => (
                 <div
                   key={i}
-                  style={{ fontSize: 13, color: tokens.textSecondary, lineHeight: 1.6, marginBottom: i < patient.near_misses.length - 1 ? 8 : 0 }}
+                  style={{ fontSize: 13, color: tokens.textSecondary, lineHeight: 1.6, marginBottom: i < nearMisses.length - 1 ? 8 : 0 }}
                 >
                   Documenting conditions for{" "}
                   <span style={{ fontWeight: 500, color: tokens.text }}>{nm.name}</span> would

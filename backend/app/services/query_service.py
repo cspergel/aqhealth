@@ -7,7 +7,6 @@ with data points, related members, recommended actions, and follow-up questions.
 
 import json
 import logging
-import os
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,7 +81,7 @@ def _resolve_context(page_context: Optional[str]) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def suggest_questions(
+def suggest_questions(
     db: AsyncSession, page_context: str
 ) -> list[str]:
     """Return 3-5 suggested questions for the given page context."""
@@ -183,9 +182,25 @@ async def answer_question(
         if guard_result["warnings"]:
             logger.warning("Query LLM output warnings: %s", guard_result["warnings"])
 
-        text = guard_result["response"]
+        text = guard_result["response"].strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3].strip()
         # Parse JSON from response
-        parsed = json.loads(text)
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            # LLM returned plain text instead of JSON — use it as the answer
+            logger.warning("Query LLM returned non-JSON response, using as plain text")
+            return {
+                "answer": text,
+                "data_points": [],
+                "related_members": [],
+                "recommended_actions": [],
+                "follow_up_questions": [],
+            }
         return {
             "answer": parsed.get("answer", text),
             "data_points": parsed.get("data_points", []),
@@ -197,7 +212,7 @@ async def answer_question(
     except Exception as exc:
         logger.exception("AI query failed: %s", exc)
         return {
-            "answer": f"Sorry, I wasn't able to process that question. Error: {exc}",
+            "answer": "Sorry, I wasn't able to process that question. Please try rephrasing.",
             "data_points": [],
             "related_members": [],
             "recommended_actions": [],

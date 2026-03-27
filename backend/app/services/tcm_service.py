@@ -193,7 +193,7 @@ async def get_active_tcm_cases(db: AsyncSession) -> list[dict[str, Any]]:
 
         cases.append({
             "member_id": member.id,
-            "member_name": f"{member.first_name} {member.last_name}".strip(),
+            "member_name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
             "discharge_date": str(discharge_date),
             "facility_name": adt_event.facility_name,
             "days_since_discharge": days_since,

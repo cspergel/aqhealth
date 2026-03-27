@@ -90,7 +90,7 @@ FACILITY_STRIP_WORDS = [
 ]
 
 
-async def normalize_facility(name: str) -> str:
+def normalize_facility(name: str) -> str:
     """Normalize a facility name to a canonical form.
 
     - Expand abbreviations
@@ -680,7 +680,7 @@ def _deterministic_fallback(
 # Member matching — two-tier pipeline
 # ---------------------------------------------------------------------------
 
-async def match_member(db: AsyncSession, incoming: dict) -> dict:
+async def match_member(db: AsyncSession, incoming: dict, tenant_schema: str = "default") -> dict:
     """Match an incoming member record to existing members.
 
     Pipeline:
@@ -813,7 +813,7 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
 
     # ---- AI path: send candidates to Claude --------------------------------
     if candidates:
-        ai_result = await ai_match_member(db, incoming, candidates[:5])
+        ai_result = await ai_match_member(db, incoming, candidates[:5], tenant_schema=tenant_schema)
         return ai_result
 
     # No candidates at all
@@ -832,7 +832,7 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
 # Provider matching
 # ---------------------------------------------------------------------------
 
-async def match_provider(db: AsyncSession, incoming: dict) -> dict:
+async def match_provider(db: AsyncSession, incoming: dict, tenant_schema: str = "default") -> dict:
     """Match an incoming provider record by NPI or name+specialty.
 
     Returns: {matched: bool, provider_id: int | None, confidence: int, ...}
@@ -920,7 +920,7 @@ async def match_provider(db: AsyncSession, incoming: dict) -> dict:
     candidates.sort(key=lambda c: c["confidence"], reverse=True)
 
     if candidates:
-        return await ai_match_provider(db, incoming, candidates[:5])
+        return await ai_match_provider(db, incoming, candidates[:5], tenant_schema=tenant_schema)
 
     return {
         "matched": False,

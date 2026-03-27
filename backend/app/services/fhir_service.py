@@ -301,14 +301,14 @@ async def _ingest_medication(db: AsyncSession, resource: dict) -> None:
 
 async def _ingest_encounter(db: AsyncSession, resource: dict) -> None:
     """Map FHIR Encounter to visit / claim records — not yet implemented."""
-    return {"status": "not_implemented", "resource_type": "Encounter"}
+    logger.debug("FHIR Encounter ingestion not yet implemented (resource id=%s)", resource.get("id"))
 
 
 async def _ingest_observation(db: AsyncSession, resource: dict) -> None:
     """Map FHIR Observation to lab results — not yet implemented."""
-    return {"status": "not_implemented", "resource_type": "Observation"}
+    logger.debug("FHIR Observation ingestion not yet implemented (resource id=%s)", resource.get("id"))
 
 
 async def _ingest_procedure(db: AsyncSession, resource: dict) -> None:
     """Map FHIR Procedure to procedure codes — not yet implemented."""
-    return {"status": "not_implemented", "resource_type": "Procedure"}
+    logger.debug("FHIR Procedure ingestion not yet implemented (resource id=%s)", resource.get("id"))

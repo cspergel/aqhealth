@@ -617,7 +617,7 @@ def _calculate_pdc(
             intervals.append((start, end))
 
     total_days_covered = sum((end - start).days + 1 for start, end in intervals)
-    return total_days_covered / period_days
+    return total_days_covered / period_days if period_days else 0.0
 
 
 async def _detect_followup_gaps(
@@ -1026,11 +1026,11 @@ async def _auto_create_actions_for_critical_gaps(
 
     created = 0
     for gap, measure, member in rows:
-        member_name = f"{member.first_name} {member.last_name}".strip()
+        member_name = f"{member.first_name or ''} {member.last_name or ''}".strip()
 
         # Check if an action item already exists for this member + measure
         has_existing = any(
-            mid == member.id and measure.code.lower() in title.lower()
+            mid == member.id and (measure.code or "").lower() in (title or "").lower()
             for mid, title in existing_action_keys
         )
         if has_existing:

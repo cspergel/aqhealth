@@ -14,6 +14,7 @@ from sqlalchemy import select
 from app.models.claim import Claim
 from app.models.member import Member
 from app.models.insight import Insight, InsightCategory, InsightStatus
+from app.constants import EXPENDITURE_BENCHMARKS
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
     total_result = await db.execute(select(func.sum(Claim.paid_amount)))
     total_spend = _safe_float(total_result.scalar())
 
-    pmpm = round(total_spend / member_months, 2)
+    pmpm = round(total_spend / member_months, 2) if member_months > 0 else 0.0
 
     # MLR = medical spend / capitation revenue
     mlr = None
@@ -140,9 +141,9 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
         cap_revenue = float(cap_result.scalar() or 0)
         if cap_revenue > 0:
             mlr = round(total_spend / cap_revenue, 4)
-    except Exception:
+    except Exception as e:
         # capitation_payments table may not exist; leave mlr as None
-        pass
+        logger.debug("MLR calculation skipped (capitation_payments may not exist): %s", e)
 
     # Per-category aggregation
     cat_query = (
@@ -197,7 +198,7 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
             "key": row.service_category,
             "label": CATEGORY_LABELS.get(row.service_category, row.service_category),
             "total_spend": cat_spend,
-            "pmpm": round(cat_spend / member_months, 2),
+            "pmpm": round(cat_spend / member_months, 2) if member_months > 0 else 0.0,
             "pct_of_total": _pct(cat_spend, total_spend),
             "claim_count": _safe_int(row.claim_count),
             "trend_vs_prior": trend_by_cat.get(row.service_category, 0.0),
@@ -267,7 +268,7 @@ async def get_category_drilldown(db: AsyncSession, category: str) -> dict:
         "category": category,
         "label": CATEGORY_LABELS.get(category, category),
         "total_spend": total_spend,
-        "pmpm": round(total_spend / member_months, 2),
+        "pmpm": round(total_spend / member_months, 2) if member_months > 0 else 0.0,
         "claim_count": claim_count,
         "unique_members": unique_members,
         "kpis": [],
@@ -394,13 +395,13 @@ async def _drilldown_inpatient(db: AsyncSession, base_filter, member_count: int,
         select(func.count(distinct(Claim.claim_id))).where(base_filter)
     )
     total_admits = max(_safe_int(total_admits_result.scalar()), 1)
-    admits_per_1k = round(total_admits / member_count * 1000, 1)
+    admits_per_1k = round(total_admits / member_count * 1000, 1) if member_count > 0 else 0.0
     cost_per_admit = round(total_spend / total_admits, 0)
 
     return {
         "kpis": [
-            {"label": "Admits / 1K", "value": str(admits_per_1k), "benchmark": "72.0", "status": "over" if admits_per_1k > 72 else None},
-            {"label": "Cost / Admit", "value": _fmt_dollar(cost_per_admit), "benchmark": "$12,800", "status": "over" if cost_per_admit > 12800 else None},
+            {"label": "Admits / 1K", "value": str(admits_per_1k), "benchmark": str(EXPENDITURE_BENCHMARKS["inpatient_admits_per_1k"]), "status": "over" if admits_per_1k > EXPENDITURE_BENCHMARKS["inpatient_admits_per_1k"] else None},
+            {"label": "Cost / Admit", "value": _fmt_dollar(cost_per_admit), "benchmark": f"${EXPENDITURE_BENCHMARKS['inpatient_cost_per_admit']:,}", "status": "over" if cost_per_admit > EXPENDITURE_BENCHMARKS["inpatient_cost_per_admit"] else None},
             {"label": "ALOS", "value": "-- days"},
             {"label": "Readmit Rate (30d)", "value": "--%"},
             {"label": "HCC Capture During Admit", "value": "--%"},
@@ -494,7 +495,7 @@ async def _drilldown_ed(db: AsyncSession, base_filter, member_count: int, total_
     row = visits_result.one()
     visits = max(_safe_int(row.visits), 1)
     cost_per_visit = round(total_spend / visits, 0)
-    visits_per_1k = round(visits / member_count * 1000, 1)
+    visits_per_1k = round(visits / member_count * 1000, 1) if member_count > 0 else 0.0
 
     # Frequent utilizers (3+ visits)
     freq_query = (
@@ -525,8 +526,8 @@ async def _drilldown_ed(db: AsyncSession, base_filter, member_count: int, total_
 
     return {
         "kpis": [
-            {"label": "ED Visits / 1K", "value": str(visits_per_1k), "benchmark": "310.0", "status": "over" if visits_per_1k > 310 else None},
-            {"label": "Cost / Visit", "value": _fmt_dollar(cost_per_visit), "benchmark": "$1,280", "status": "over" if cost_per_visit > 1280 else None},
+            {"label": "ED Visits / 1K", "value": str(visits_per_1k), "benchmark": str(EXPENDITURE_BENCHMARKS["ed_visits_per_1k"]), "status": "over" if visits_per_1k > EXPENDITURE_BENCHMARKS["ed_visits_per_1k"] else None},
+            {"label": "Cost / Visit", "value": _fmt_dollar(cost_per_visit), "benchmark": f"${EXPENDITURE_BENCHMARKS['ed_cost_per_visit']:,}", "status": "over" if cost_per_visit > EXPENDITURE_BENCHMARKS["ed_cost_per_visit"] else None},
             {"label": "Avoidable ED %", "value": "--%"},
             {"label": "Obs Rate", "value": "--%"},
             {"label": "2-Midnight Compliance", "value": "--%"},
@@ -619,9 +620,9 @@ async def _drilldown_professional(db: AsyncSession, base_filter, member_count: i
     return {
         "kpis": [
             {"label": "Total Spend", "value": _fmt_dollar(total_spend)},
-            {"label": "PMPM", "value": _fmt_dollar(round(total_spend / max(member_count * 12, 1), 2)), "benchmark": "$195", "status": "over" if round(total_spend / max(member_count * 12, 1), 2) > 195 else None},
+            {"label": "PMPM", "value": _fmt_dollar(round(total_spend / max(member_count * 12, 1), 2)), "benchmark": f"${EXPENDITURE_BENCHMARKS['professional_pmpm']}", "status": "over" if round(total_spend / max(member_count * 12, 1), 2) > EXPENDITURE_BENCHMARKS["professional_pmpm"] else None},
             {"label": "Unique Providers", "value": f"{unique_providers:,}"},
-            {"label": "Avg Cost / Visit", "value": _fmt_dollar(avg_cost), "benchmark": "$198", "status": "over" if avg_cost > 198 else None},
+            {"label": "Avg Cost / Visit", "value": _fmt_dollar(avg_cost), "benchmark": f"${EXPENDITURE_BENCHMARKS['professional_cost_per_visit']}", "status": "over" if avg_cost > EXPENDITURE_BENCHMARKS["professional_cost_per_visit"] else None},
             {"label": "OON Leakage", "value": "--%"},
             {"label": "Referral Loop Closure", "value": "--%"},
         ],
@@ -711,7 +712,7 @@ async def _drilldown_snf(db: AsyncSession, base_filter, member_count: int, total
     return {
         "kpis": [
             {"label": "Total Episodes", "value": f"{total_episodes:,}"},
-            {"label": "Cost / Episode", "value": _fmt_dollar(cost_per_episode), "benchmark": "$5,800", "status": "over" if cost_per_episode > 5800 else None},
+            {"label": "Cost / Episode", "value": _fmt_dollar(cost_per_episode), "benchmark": f"${EXPENDITURE_BENCHMARKS['snf_cost_per_episode']:,}", "status": "over" if cost_per_episode > EXPENDITURE_BENCHMARKS["snf_cost_per_episode"] else None},
             {"label": "Avg LOS", "value": "-- days"},
             {"label": "Rehospitalization Rate", "value": "--%"},
             {"label": "Discharge to Home %", "value": "--%"},
@@ -827,7 +828,7 @@ async def _drilldown_pharmacy(db: AsyncSession, base_filter, member_count: int, 
     return {
         "kpis": [
             {"label": "Total Spend", "value": _fmt_dollar(total_spend)},
-            {"label": "PMPM", "value": _fmt_dollar(round(total_spend / max(member_count * 12, 1), 2)), "benchmark": "$175", "status": "over" if round(total_spend / max(member_count * 12, 1), 2) > 175 else None},
+            {"label": "PMPM", "value": _fmt_dollar(round(total_spend / max(member_count * 12, 1), 2)), "benchmark": f"${EXPENDITURE_BENCHMARKS['pharmacy_pmpm']}", "status": "over" if round(total_spend / max(member_count * 12, 1), 2) > EXPENDITURE_BENCHMARKS["pharmacy_pmpm"] else None},
             {"label": "Generic Dispense Rate", "value": "--%"},
             {"label": "Total Fills", "value": f"{total_fills:,}"},
             {"label": "Members Below 80% PDC", "value": "--"},
@@ -1019,10 +1020,12 @@ async def get_expenditure_insights(db: AsyncSession, category: str | None = None
 
     # Filter by surface_on if category specified
     if category:
+        from sqlalchemy import type_coerce
+        from sqlalchemy.dialects.postgresql import JSONB as JSONB_TYPE
         query = query.where(
             or_(
-                Insight.surface_on.op("@>")(f'["expenditure.{category}"]'),
-                Insight.surface_on.op("@>")(f'["expenditure"]'),
+                Insight.surface_on.op("@>")(type_coerce(f'["expenditure.{category}"]', JSONB_TYPE)),
+                Insight.surface_on.op("@>")(type_coerce('["expenditure"]', JSONB_TYPE)),
             )
         )
 
@@ -1059,9 +1062,13 @@ async def get_part_analysis(db: AsyncSession, period: str | None = None) -> dict
     """Medicare Part A/B/C/D cost breakdown."""
     from app.models.risk_accounting import CapitationPayment
 
+    from datetime import date as _date
+    _today = _date.today()
+    _year_start = _date(_today.year, 1, 1)
+
     member_count_result = await db.execute(select(func.count(Member.id)))
     member_count = _safe_int(member_count_result.scalar())
-    member_months = max(member_count * 12, 1)
+    member_months = await _compute_member_months(db, _year_start)
 
     # Aggregate claims by service category
     cat_query = select(
@@ -1113,8 +1120,7 @@ async def get_part_analysis(db: AsyncSession, period: str | None = None) -> dict
     }
 
     # Compute actual period-over-period trend for Parts A/B/D from recent vs prior 6 months
-    from datetime import date as _dt, timedelta as _td
-    _today = _dt.today()
+    from datetime import timedelta as _td
     _six_months_ago = _today - _td(days=182)
     _twelve_months_ago = _today - _td(days=365)
     for part_letter, categories in PART_MAPPING.items():
@@ -1210,9 +1216,13 @@ async def get_expenditure_by_period(
                 period_data[period_key]["by_part"][part_letter] += spend
 
     # Calculate PMPM for each period
+    # PMPM = total spend / member-months in the period
+    # For monthly: member_count * 1, quarterly: * 3, yearly: * 12
+    months_per_period = {"month": 1, "quarter": 3, "year": 12}.get(group_by, 1)
+    member_months_per_period = max(member_count * months_per_period, 1)
     result_list = []
     for pd in period_data.values():
-        pd["pmpm"] = round(pd["total_spend"] / member_count, 2)
+        pd["pmpm"] = round(pd["total_spend"] / member_months_per_period, 2) if member_count > 0 else 0.0
         pd["total_spend"] = round(pd["total_spend"], 2)
         for part in pd["by_part"]:
             pd["by_part"][part] = round(pd["by_part"][part], 2)

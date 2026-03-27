@@ -64,7 +64,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     if member.pcp_provider_id:
         pcp = await db.get(Provider, member.pcp_provider_id)
         if pcp:
-            pcp_name = f"Dr. {pcp.first_name} {pcp.last_name}"
+            pcp_name = f"Dr. {pcp.first_name or ''} {pcp.last_name or ''}".strip()
 
     # ---- Demographics ----
     demographics = {
@@ -72,9 +72,9 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
         "member_id": member.member_id,
         "first_name": member.first_name,
         "last_name": member.last_name,
-        "name": f"{member.first_name} {member.last_name}",
+        "name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
         "age": age,
-        "dob": member.date_of_birth.isoformat(),
+        "dob": member.date_of_birth.isoformat() if member.date_of_birth else None,
         "gender": member.gender,
         "insurance": member.health_plan or "Unknown",
         "plan_product": member.plan_product,
@@ -121,8 +121,8 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
             "condition_name": s.icd10_label or s.hcc_label or "",
             "icd10_code": s.icd10_code,
             "hcc_code": s.hcc_code,
-            "raf_value": float(s.raf_value),
-            "annual_value": float(s.annual_value) if s.annual_value else _annual_value(s.raf_value),
+            "raf_value": float(s.raf_value or 0),
+            "annual_value": float(s.annual_value) if s.annual_value else _annual_value(s.raf_value or 0),
             "evidence_summary": s.evidence_summary or "",
             "confidence": s.confidence or 0,
             "suspect_type": s.suspect_type if s.suspect_type else "unknown",
@@ -153,7 +153,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
             "condition_name": c.icd10_label or c.hcc_label or "",
             "icd10_code": c.icd10_code,
             "hcc_code": c.hcc_code,
-            "raf_value": float(c.raf_value),
+            "raf_value": float(c.raf_value or 0),
         }
         for c in confirmed_raw
     ]
@@ -236,7 +236,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     encounter_claims = encounters_result.scalars().all()
     encounters = [
         {
-            "date": c.service_date.isoformat(),
+            "date": c.service_date.isoformat() if c.service_date else None,
             "type": c.claim_type if c.claim_type else "unknown",
             "facility": c.facility_name or "Unknown",
             "provider": str(c.rendering_provider_id) if c.rendering_provider_id else "Unknown",
@@ -402,8 +402,9 @@ async def get_provider_worklist(
 
         worklist.append({
             "id": m.id,
-            "member_id": m.member_id,
-            "name": f"{m.first_name} {m.last_name}",
+            "member_id": m.id,
+            "member_external_id": m.member_id or "",
+            "name": f"{m.first_name or ''} {m.last_name or ''}".strip(),
             "age": age,
             "gender": m.gender,
             "current_raf": current,

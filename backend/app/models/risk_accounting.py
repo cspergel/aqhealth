@@ -7,7 +7,7 @@ subcapitation, and risk pool tracking.
 
 from datetime import date
 
-from sqlalchemy import Numeric, String, Text
+from sqlalchemy import Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -21,8 +21,8 @@ class CapitationPayment(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     plan_name: Mapped[str] = mapped_column(String(200))
     product_type: Mapped[str | None] = mapped_column(String(50))  # "MA", "MAPD", "DSNP", "commercial"
-    payment_month: Mapped[date]
-    member_count: Mapped[int]
+    payment_month: Mapped[date] = mapped_column(Date)
+    member_count: Mapped[int] = mapped_column(Integer)
     pmpm_rate: Mapped[float] = mapped_column(Numeric(10, 2))
     total_payment: Mapped[float] = mapped_column(Numeric(12, 2))
     adjustment_amount: Mapped[float | None] = mapped_column(Numeric(12, 2))  # retro adjustments
@@ -35,11 +35,11 @@ class SubcapPayment(Base, TimestampMixin):
     __tablename__ = "subcap_payments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    provider_id: Mapped[int | None]
-    practice_group_id: Mapped[int | None]
+    provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
+    practice_group_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True)
     specialty: Mapped[str | None] = mapped_column(String(100))
-    payment_month: Mapped[date]
-    member_count: Mapped[int]
+    payment_month: Mapped[date] = mapped_column(Date)
+    member_count: Mapped[int] = mapped_column(Integer)
     pmpm_rate: Mapped[float] = mapped_column(Numeric(10, 2))
     total_payment: Mapped[float] = mapped_column(Numeric(12, 2))
 
@@ -51,11 +51,11 @@ class RiskPool(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     plan_name: Mapped[str] = mapped_column(String(200))
-    pool_year: Mapped[int]
+    pool_year: Mapped[int] = mapped_column(Integer)
     withhold_percentage: Mapped[float] = mapped_column(Numeric(5, 2))
     total_withheld: Mapped[float] = mapped_column(Numeric(12, 2))
     quality_bonus_earned: Mapped[float | None] = mapped_column(Numeric(12, 2))
     surplus_share: Mapped[float | None] = mapped_column(Numeric(12, 2))
     deficit_share: Mapped[float | None] = mapped_column(Numeric(12, 2))
-    settlement_date: Mapped[date | None]
+    settlement_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # "active", "settled", "disputed"

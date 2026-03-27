@@ -79,7 +79,9 @@ export function LearningDashboard() {
     );
   }
 
-  const maxAccuracy = Math.max(...data.accuracy_over_time.map((p) => p.accuracy), 100);
+  const maxAccuracy = data.accuracy_over_time.length > 0
+    ? Math.max(...data.accuracy_over_time.map((p) => p.accuracy), 100)
+    : 100;
 
   return (
     <div className="space-y-6">

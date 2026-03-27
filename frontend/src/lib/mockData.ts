@@ -12,7 +12,7 @@ export const mockDashboard = {
     recapture_rate: 68.4,
     suspect_inventory: { count: 1847, total_raf_value: 312.5, total_annual_value: 3437500 },
     total_pmpm: 1247,
-    mlr: 84.2,
+    mlr: 0.842,
   },
   raf_distribution: [
     { range: "0-0.5", count: 820 },
@@ -3511,7 +3511,7 @@ export const mockGeneratedReports = [
             total_revenue: 17240000,
             total_expenses: 14520000,
             surplus: 2720000,
-            mlr: 84.2,
+            mlr: 0.842,
             pmpm_revenue: 1189,
             pmpm_expense: 1002,
           },
@@ -5682,20 +5682,20 @@ export const mockRiskIBNR = {
 };
 
 export const mockSurplusDeficitByPlan = [
-  { plan_name: "Aetna Medicare Advantage", cap_revenue: 13103505, medical_spend: 10744874, admin_costs: 655175, surplus_deficit: 1703456, mlr: 82.0 },
-  { plan_name: "Humana Gold Plus", cap_revenue: 9848530, medical_spend: 8370251, admin_costs: 492427, surplus_deficit: 985852, mlr: 85.0 },
-  { plan_name: "UHC Dual Complete", cap_revenue: 5896360, medical_spend: 5424148, admin_costs: 294818, surplus_deficit: 177394, mlr: 92.0 },
-  { plan_name: "Anthem Blue Cross Commercial", cap_revenue: 1787755, medical_spend: 1465558, admin_costs: 89388, surplus_deficit: 232809, mlr: 82.0 },
+  { plan_name: "Aetna Medicare Advantage", cap_revenue: 13103505, medical_spend: 10744874, admin_costs: 655175, surplus_deficit: 1703456, mlr: 0.82 },
+  { plan_name: "Humana Gold Plus", cap_revenue: 9848530, medical_spend: 8370251, admin_costs: 492427, surplus_deficit: 985852, mlr: 0.85 },
+  { plan_name: "UHC Dual Complete", cap_revenue: 5896360, medical_spend: 5424148, admin_costs: 294818, surplus_deficit: 177394, mlr: 0.92 },
+  { plan_name: "Anthem Blue Cross Commercial", cap_revenue: 1787755, medical_spend: 1465558, admin_costs: 89388, surplus_deficit: 232809, mlr: 0.82 },
 ];
 
 export const mockSurplusDeficitByGroup = [
-  { group_name: "Rivera Primary Care", members: 980, cap_allocated: 1421000, medical_spend: 1108380, admin_costs: 71050, surplus_deficit: 241570, mlr: 78.0 },
-  { group_name: "Park Family Medicine", members: 720, cap_allocated: 1044000, medical_spend: 856080, admin_costs: 52200, surplus_deficit: 135720, mlr: 82.0 },
-  { group_name: "Valley Cardiology Associates", members: 1450, cap_allocated: 2102500, medical_spend: 1870225, admin_costs: 105125, surplus_deficit: 127150, mlr: 89.0 },
-  { group_name: "Metro Behavioral Health", members: 2100, cap_allocated: 3045000, medical_spend: 2588250, admin_costs: 152250, surplus_deficit: 304500, mlr: 85.0 },
-  { group_name: "Pacific Imaging Center", members: 4282, cap_allocated: 6208900, medical_spend: 5712188, admin_costs: 310445, surplus_deficit: 186267, mlr: 92.0 },
-  { group_name: "Sunrise Endocrinology", members: 380, cap_allocated: 551000, medical_spend: 501410, admin_costs: 27550, surplus_deficit: 22040, mlr: 91.0 },
-  { group_name: "Coastal Nephrology Group", members: 295, cap_allocated: 427750, medical_spend: 414098, admin_costs: 21388, surplus_deficit: -7736, mlr: 96.8 },
+  { group_name: "Rivera Primary Care", members: 980, cap_allocated: 1421000, medical_spend: 1108380, admin_costs: 71050, surplus_deficit: 241570, mlr: 0.78 },
+  { group_name: "Park Family Medicine", members: 720, cap_allocated: 1044000, medical_spend: 856080, admin_costs: 52200, surplus_deficit: 135720, mlr: 0.82 },
+  { group_name: "Valley Cardiology Associates", members: 1450, cap_allocated: 2102500, medical_spend: 1870225, admin_costs: 105125, surplus_deficit: 127150, mlr: 0.89 },
+  { group_name: "Metro Behavioral Health", members: 2100, cap_allocated: 3045000, medical_spend: 2588250, admin_costs: 152250, surplus_deficit: 304500, mlr: 0.85 },
+  { group_name: "Pacific Imaging Center", members: 4282, cap_allocated: 6208900, medical_spend: 5712188, admin_costs: 310445, surplus_deficit: 186267, mlr: 0.92 },
+  { group_name: "Sunrise Endocrinology", members: 380, cap_allocated: 551000, medical_spend: 501410, admin_costs: 27550, surplus_deficit: 22040, mlr: 0.91 },
+  { group_name: "Coastal Nephrology Group", members: 295, cap_allocated: 427750, medical_spend: 414098, admin_costs: 21388, surplus_deficit: -7736, mlr: 0.968 },
 ];
 
 export const mockRiskDashboard = {
@@ -5703,16 +5703,16 @@ export const mockRiskDashboard = {
   total_medical_spend: 26004831,
   total_admin_costs: 1531808,
   surplus_deficit: 3099511,
-  mlr: 84.9,
+  mlr: 0.849,
   ibnr_estimate: 342000,
   member_months: 24846,
   pmpm_revenue: 1233,
   pmpm_spend: 1047,
   by_plan: [
-    { plan_name: "Aetna Medicare Advantage", product_type: "MA", cap_revenue: 13103505, medical_spend: 10744874, mlr: 82.0, member_count: 1895 },
-    { plan_name: "Humana Gold Plus", product_type: "MAPD", cap_revenue: 9848530, medical_spend: 8370251, mlr: 85.0, member_count: 1290 },
-    { plan_name: "UHC Dual Complete", product_type: "DSNP", cap_revenue: 5896360, medical_spend: 5424148, mlr: 92.0, member_count: 655 },
-    { plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", cap_revenue: 1787755, medical_spend: 1465558, mlr: 82.0, member_count: 442 },
+    { plan_name: "Aetna Medicare Advantage", product_type: "MA", cap_revenue: 13103505, medical_spend: 10744874, mlr: 0.82, member_count: 1895 },
+    { plan_name: "Humana Gold Plus", product_type: "MAPD", cap_revenue: 9848530, medical_spend: 8370251, mlr: 0.85, member_count: 1290 },
+    { plan_name: "UHC Dual Complete", product_type: "DSNP", cap_revenue: 5896360, medical_spend: 5424148, mlr: 0.92, member_count: 655 },
+    { plan_name: "Anthem Blue Cross Commercial", product_type: "commercial", cap_revenue: 1787755, medical_spend: 1465558, mlr: 0.82, member_count: 442 },
   ],
 };
 
@@ -5921,17 +5921,17 @@ export const mockDashboardActions = {
 };
 
 export const mockRiskCorridorAnalysis = {
-  target_mlr: 85.0,
-  actual_mlr: 84.9,
+  target_mlr: 0.85,
+  actual_mlr: 0.849,
   corridor_position: "within",
   shared_risk_exposure: 0,
-  stop_loss_threshold: 95.0,
+  stop_loss_threshold: 0.95,
   bands: [
-    { band: "Full Surplus", range: "< 80%", description: "MSO retains 100% of savings", status: "inactive", mlr_range: [0, 80] },
-    { band: "Shared Surplus", range: "80% - 85%", description: "MSO shares 50% of savings with plan", status: "inactive", mlr_range: [80, 85] },
-    { band: "Target Corridor", range: "85% - 88%", description: "No risk sharing - within target range", status: "active", mlr_range: [85, 88] },
-    { band: "Shared Deficit", range: "88% - 95%", description: "MSO shares 50% of excess with plan", status: "inactive", mlr_range: [88, 95] },
-    { band: "Stop-Loss", range: "> 95%", description: "Plan absorbs 100% of excess above stop-loss", status: "inactive", mlr_range: [95, 100] },
+    { band: "Full Surplus", range: "< 80%", description: "MSO retains 100% of savings", status: "inactive", mlr_range: [0, 0.80] },
+    { band: "Shared Surplus", range: "80% - 85%", description: "MSO shares 50% of savings with plan", status: "inactive", mlr_range: [0.80, 0.85] },
+    { band: "Target Corridor", range: "85% - 88%", description: "No risk sharing - within target range", status: "active", mlr_range: [0.85, 0.88] },
+    { band: "Shared Deficit", range: "88% - 95%", description: "MSO shares 50% of excess with plan", status: "inactive", mlr_range: [0.88, 0.95] },
+    { band: "Stop-Loss", range: "> 95%", description: "Plan absorbs 100% of excess above stop-loss", status: "inactive", mlr_range: [0.95, 1.00] },
   ],
 };
 

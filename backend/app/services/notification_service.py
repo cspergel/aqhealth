@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def send_notification(
+def send_notification(
     channel: str,  # "email", "sms", "voice", "in_app"
     recipient: str,  # email address, phone number, or user ID
     subject: str,
@@ -32,13 +32,13 @@ async def send_notification(
         }
 
 
-async def send_care_plan_reminder(
+def send_care_plan_reminder(
     member_id: int,
     goal_description: str,
     due_date: str,
 ) -> dict:
     """Send a reminder about an upcoming care plan goal due date."""
-    return await send_notification(
+    return send_notification(
         channel="in_app",
         recipient=str(member_id),
         subject="Care Plan Goal Reminder",
@@ -48,13 +48,13 @@ async def send_care_plan_reminder(
     )
 
 
-async def send_auth_decision_notification(
+def send_auth_decision_notification(
     auth_id: int,
     decision: str,
     recipient: str,
 ) -> dict:
     """Notify about a prior auth decision."""
-    return await send_notification(
+    return send_notification(
         channel="email",
         recipient=recipient,
         subject=f"Prior Authorization {decision.upper()} — Auth #{auth_id}",
@@ -64,13 +64,13 @@ async def send_auth_decision_notification(
     )
 
 
-async def send_gap_closure_outreach(
+def send_gap_closure_outreach(
     member_id: int,
     measure_code: str,
     channel: str = "sms",
 ) -> dict:
     """Send outreach for care gap closure."""
-    return await send_notification(
+    return send_notification(
         channel=channel,
         recipient=str(member_id),
         subject=f"Health Screening Reminder — {measure_code}",

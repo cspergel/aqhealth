@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, update, func
+from sqlalchemy import case, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert_rule import AlertRule, AlertRuleTrigger
@@ -119,9 +119,9 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
                 triggers.append({
                     "entity_type": "member",
                     "entity_id": row.id,
-                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "entity_name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
-                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                    "message": f"Member {row.first_name or ''} {row.last_name or ''}: {rule.metric}={value} {rule.operator} {rule.threshold}",
                 })
 
     elif rule.metric == "raf_score":
@@ -146,9 +146,9 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
             triggers.append({
                 "entity_type": "member",
                 "entity_id": m.id,
-                "entity_name": f"{m.first_name} {m.last_name}",
+                "entity_name": f"{m.first_name or ''} {m.last_name or ''}".strip(),
                 "metric_value": value,
-                "message": f"Member {m.first_name} {m.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                "message": f"Member {m.first_name or ''} {m.last_name or ''}: {rule.metric}={value} {rule.operator} {rule.threshold}",
             })
 
     elif rule.metric == "er_visits":
@@ -165,9 +165,9 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
                 triggers.append({
                     "entity_type": "member",
                     "entity_id": row.id,
-                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "entity_name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
-                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                    "message": f"Member {row.first_name or ''} {row.last_name or ''}: {rule.metric}={value} {rule.operator} {rule.threshold}",
                 })
 
     elif rule.metric == "admissions":
@@ -184,9 +184,9 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
                 triggers.append({
                     "entity_type": "member",
                     "entity_id": row.id,
-                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "entity_name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
-                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                    "message": f"Member {row.first_name or ''} {row.last_name or ''}: {rule.metric}={value} {rule.operator} {rule.threshold}",
                 })
 
     elif rule.metric == "days_since_visit":
@@ -213,9 +213,9 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
                 triggers.append({
                     "entity_type": "member",
                     "entity_id": row.id,
-                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "entity_name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
-                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                    "message": f"Member {row.first_name or ''} {row.last_name or ''}: {rule.metric}={value} {rule.operator} {rule.threshold}",
                 })
 
     elif rule.metric == "gap_count":
@@ -232,9 +232,9 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
                 triggers.append({
                     "entity_type": "member",
                     "entity_id": row.id,
-                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "entity_name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
-                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                    "message": f"Member {row.first_name or ''} {row.last_name or ''}: {rule.metric}={value} {rule.operator} {rule.threshold}",
                 })
 
     elif rule.metric == "suspect_count":
@@ -252,9 +252,9 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
                 triggers.append({
                     "entity_type": "member",
                     "entity_id": row.id,
-                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "entity_name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
-                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                    "message": f"Member {row.first_name or ''} {row.last_name or ''}: {rule.metric}={value} {rule.operator} {rule.threshold}",
                 })
 
     return triggers
@@ -285,7 +285,7 @@ async def _evaluate_provider_metric(db: AsyncSession, rule: AlertRule) -> list[d
                 triggers.append({
                     "entity_type": "provider",
                     "entity_id": row.id,
-                    "entity_name": f"Dr. {row.first_name} {row.last_name}",
+                    "entity_name": f"Dr. {row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
                     "message": f"Provider Dr. {row.last_name}: {rule.metric}={value:.1f} {rule.operator} {rule.threshold}",
                 })
@@ -308,7 +308,7 @@ async def _evaluate_provider_metric(db: AsyncSession, rule: AlertRule) -> list[d
                 triggers.append({
                     "entity_type": "provider",
                     "entity_id": row.id,
-                    "entity_name": f"Dr. {row.first_name} {row.last_name}",
+                    "entity_name": f"Dr. {row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
                     "message": f"Provider Dr. {row.last_name}: {rule.metric}={value:.1f} {rule.operator} {rule.threshold}",
                 })
@@ -332,7 +332,7 @@ async def _evaluate_provider_metric(db: AsyncSession, rule: AlertRule) -> list[d
                 triggers.append({
                     "entity_type": "provider",
                     "entity_id": row.id,
-                    "entity_name": f"Dr. {row.first_name} {row.last_name}",
+                    "entity_name": f"Dr. {row.first_name or ''} {row.last_name or ''}".strip(),
                     "metric_value": value,
                     "message": f"Provider Dr. {row.last_name}: {rule.metric}={value:.1f} {rule.operator} {rule.threshold}",
                 })
@@ -345,7 +345,6 @@ async def _evaluate_measure_metric(db: AsyncSession, rule: AlertRule) -> list[di
     triggers = []
 
     if rule.metric == "closure_rate":
-        from sqlalchemy import case as sa_case
         result = await db.execute(
             select(
                 GapMeasure.id, GapMeasure.code, GapMeasure.name,

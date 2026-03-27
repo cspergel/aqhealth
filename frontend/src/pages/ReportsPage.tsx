@@ -70,8 +70,8 @@ export function ReportsPage() {
       api.get("/api/reports"),
     ])
       .then(([tRes, rRes]) => {
-        setTemplates(tRes.data);
-        setReports(rRes.data);
+        setTemplates(Array.isArray(tRes.data) ? tRes.data : []);
+        setReports(Array.isArray(rRes.data) ? rRes.data : []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));

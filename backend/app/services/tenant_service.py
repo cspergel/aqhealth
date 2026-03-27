@@ -13,11 +13,30 @@ migrations, tenant metadata CRUD, and tenant-scoped configuration.
 """
 
 import logging
+import re
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+# Only allow alphanumeric characters and underscores in schema names
+_SAFE_SCHEMA_RE = re.compile(r"^[a-z][a-z0-9_]{0,62}$")
+
+
+def _sanitize_schema_name(tenant_name: str) -> str:
+    """Convert a tenant name into a safe PostgreSQL schema identifier.
+
+    Raises ValueError if the resulting name contains invalid characters.
+    """
+    schema_name = f"tenant_{tenant_name}".lower().replace("-", "_").replace(" ", "_")
+    if not _SAFE_SCHEMA_RE.match(schema_name):
+        raise ValueError(
+            f"Invalid tenant name '{tenant_name}': resulting schema name "
+            f"'{schema_name}' contains disallowed characters. "
+            "Only alphanumeric characters, hyphens, spaces, and underscores are allowed."
+        )
+    return schema_name
 
 
 async def create_tenant_schema(db: AsyncSession, tenant_name: str) -> dict:
@@ -27,7 +46,7 @@ async def create_tenant_schema(db: AsyncSession, tenant_name: str) -> dict:
     creation should be handled by running Alembic migrations against
     the new schema, or by calling setup_db helpers.
     """
-    schema_name = f"tenant_{tenant_name}".lower().replace("-", "_").replace(" ", "_")
+    schema_name = _sanitize_schema_name(tenant_name)
 
     try:
         await db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
@@ -59,7 +78,7 @@ async def list_tenant_schemas(db: AsyncSession) -> list[str]:
 
 async def tenant_exists(db: AsyncSession, tenant_name: str) -> bool:
     """Check whether a tenant schema already exists."""
-    schema_name = f"tenant_{tenant_name}".lower().replace("-", "_").replace(" ", "_")
+    schema_name = _sanitize_schema_name(tenant_name)
     result = await db.execute(
         text("SELECT 1 FROM information_schema.schemata WHERE schema_name = :s"),
         {"s": schema_name},

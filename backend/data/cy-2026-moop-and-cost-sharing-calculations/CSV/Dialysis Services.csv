@@ -1,0 +1,9 @@
+﻿Table 1: Contract Year (CY) 2026 Dialysis Services Copayment Limit for All Maximum Out-of-Pocket (MOOP) Types,,
+Row Reference,Description,All MOOP Types
+A,CY 2026 projected total average Medicare FFS allowed amount1,$345.25 
+B,CY 2026 coinsurance limit per § 422.100(j)(1),20%
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(j)(1) (row A multiplied by row B)2,$69.05 
+D,Final CY 2026 copayment limit per § 422.100(j)(1) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$70.00 
+"1 This amount is based on 2025 Medicare FFS published prices and 2024 Medicare FFS utilization and then to project to CY 2026, the Office of the Actuary (OACT) applied the increase between 2024 to 2026 to that data. This amount represents the CY 2026 projected total average Medicare FFS allowed amount per dialysis session (including facility fees, approximated physician fees, and Part B drug costs), weighted by all types of dialysis and settings (such as, hospital outpatient departments, provider offices, and the beneficiary's home). The Part B drug costs include coverage of oral-only ESRD drugs that begins 1/1/2025. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ",,
+"2 Section 422.100(f)(8)(i) requires use of Medicare FFS data projections based on the coinsurance limits that would apply in 2026, which is necessary for service categories subject to paragraph (f)(6)(iii), where the coinsurance percentages are changing overtime. For purposes of paragraph (j)(1), the applicable coinsurance percentage is the same for CY 2024 through 2026 and thereafter, unless the cost sharing requirements in original Medicare change. ",,
+,,

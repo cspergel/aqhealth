@@ -1,0 +1,8 @@
+Table 1: Contract Year (CY) 2027 Intensive Cardiac Rehabilitation Services Copayment Limits by Maximum Out-of-Pocket (MOOP) Type,,,,,,,
+Row Reference,Description,Lower MOOP,Intermediate MOOP,Mandatory MOOP,,,
+A,CY 2027 projected total average Medicare FFS allowed amount*,$140.00 ,,,,,
+B,CY 2027 coinsurance limit per § 422.100(f)(6)(iii)(F),50%,40%,30%,,,
+C,Unrounded actuarially equivalent copayment value to CY 2027 coinsurance limit per § 422.100(f)(6)(iii)(F) (row A multiplied by row B)  ,$70.00 ,$56.00 ,$42.00 ,,,
+D,Final CY 2027 copayment limit per § 422.100(f)(6)(iii) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$70.00 ,$55.00 ,$40.00 ,,,
+"*This amount is based on 2024 Medicare FFS data and the Office of the Actuary's (OACT's) cost and utilization projections between 2024 to 2027. This amount represents the CY 2027 projected total average Medicare FFS allowed amount per intensive cardiac rehabilitation session (based on HCPCS codes G0422 and G0423 and APC code 5771), weighted by the type of setting (such as, hospital outpatient departments and provider offices). The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)).",,,,,,,
+,,,,,,,

@@ -87,7 +87,7 @@ const PART_COLORS: Record<string, string> = {
 
 export function ExpenditurePage() {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [insights, _setInsights] = useState<InsightData[]>([]);
+  const [insights, setInsights] = useState<InsightData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"categories" | "parts" | "trends">("categories");
@@ -107,7 +107,15 @@ export function ExpenditurePage() {
       .then(([overviewRes, partRes, periodRes]) => {
         setOverview(overviewRes.data);
         setPartAnalysis(partRes.data);
-        setPeriodData(periodRes.data);
+        setPeriodData(Array.isArray(periodRes.data) ? periodRes.data : []);
+        // Fetch cost insights across top categories
+        const categories = overviewRes.data?.categories ?? [];
+        if (categories.length > 0) {
+          const topCategory = [...categories].sort((a: Category, b: Category) => (b.total_spend ?? 0) - (a.total_spend ?? 0))[0];
+          api.get(`/api/expenditure/${topCategory.key}/insights`)
+            .then((insightRes) => setInsights(Array.isArray(insightRes.data) ? insightRes.data : []))
+            .catch(() => {});
+        }
       })
       .catch((err) => {
         console.error("Failed to load expenditure overview:", err);
@@ -284,11 +292,11 @@ export function ExpenditurePage() {
                     {pctOfTotal}% of total
                   </div>
                   <div className="flex justify-between mt-2 text-[11px]" style={{ color: tokens.textSecondary }}>
-                    <span>PMPM: ${part.pmpm}</span>
-                    <span>{part.claim_count.toLocaleString()} claims</span>
+                    <span>PMPM: ${(part.pmpm ?? 0).toFixed(0)}</span>
+                    <span>{(part.claim_count ?? 0).toLocaleString()} claims</span>
                   </div>
                   <div className="text-[11px] mt-1" style={{ color: tokens.textMuted }}>
-                    {part.member_count.toLocaleString()} members
+                    {(part.member_count ?? 0).toLocaleString()} members
                   </div>
                 </div>
               );
@@ -376,7 +384,7 @@ export function ExpenditurePage() {
                       {formatDollars(pd.total_spend)}
                     </td>
                     <td className="text-right p-3" style={{ fontFamily: fonts.code, color: tokens.textSecondary }}>
-                      ${pd.pmpm.toLocaleString()}
+                      ${(pd.pmpm ?? 0).toLocaleString()}
                     </td>
                     <td className="text-right p-3" style={{ fontFamily: fonts.code, color: PART_COLORS.A }}>
                       {formatDollars(pd.by_part?.A || 0)}

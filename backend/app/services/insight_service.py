@@ -241,7 +241,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
     for p in all_providers:
         provider_metrics.append({
             "provider_id": p.id,
-            "name": f"{p.first_name} {p.last_name}".strip(),
+            "name": f"{p.first_name or ''} {p.last_name or ''}".strip(),
             "specialty": p.specialty,
             "panel_size": _safe_int(p.panel_size),
             "capture_rate": _safe_float(p.capture_rate),
@@ -659,12 +659,12 @@ async def generate_member_insights(db: AsyncSession, member_id: int, tenant_sche
     if member.pcp_provider_id:
         prov = await db.get(Provider, member.pcp_provider_id)
         if prov:
-            provider_name = f"{prov.first_name} {prov.last_name}"
+            provider_name = f"{prov.first_name or ''} {prov.last_name or ''}".strip()
 
     context = {
         "member_id": member_id,
-        "name": f"{member.first_name} {member.last_name}",
-        "dob": str(member.date_of_birth),
+        "name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
+        "dob": str(member.date_of_birth) if member.date_of_birth else None,
         "gender": member.gender,
         "current_raf": _safe_float(member.current_raf),
         "projected_raf": _safe_float(member.projected_raf),
@@ -782,7 +782,7 @@ async def generate_provider_insights(db: AsyncSession, provider_id: int, tenant_
 
     context = {
         "provider_id": provider_id,
-        "name": f"{provider.first_name} {provider.last_name}",
+        "name": f"{provider.first_name or ''} {provider.last_name or ''}".strip(),
         "specialty": provider.specialty,
         "panel_size": _safe_int(provider.panel_size),
         "capture_rate": _safe_float(provider.capture_rate),

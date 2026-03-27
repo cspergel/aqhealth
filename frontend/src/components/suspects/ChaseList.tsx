@@ -1,18 +1,49 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo, Fragment } from "react";
 import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
 import { MemberDetail } from "./MemberDetail";
 
+/**
+ * A single suspect row as returned by GET /api/hcc/suspects.
+ * Matches backend SuspectWithMemberOut schema.
+ */
 export interface SuspectRow {
-  member_id: string;
+  id: number;
+  member_id: number;
+  payment_year: number;
+  hcc_code: number;
+  hcc_label: string | null;
+  icd10_code: string | null;
+  icd10_label: string | null;
+  raf_value: number;
+  annual_value: number | null;
+  suspect_type: string;
+  status: string;
+  confidence: number | null;
+  evidence_summary: string | null;
+  identified_date: string;
+  captured_date: string | null;
+  dismissed_date: string | null;
+  dismissed_reason: string | null;
+  member_name: string | null;
+  date_of_birth: string | null;
+  pcp_name: string | null;
+  current_raf: number | null;
+  projected_raf: number | null;
+  risk_tier: string | null;
+}
+
+/** Member-grouped view built client-side from individual suspect rows. */
+interface MemberGroup {
+  member_id: number;
   member_name: string;
-  dob: string;
-  pcp: string;
+  date_of_birth: string | null;
+  pcp_name: string | null;
   current_raf: number;
   projected_raf: number;
   uplift: number;
-  top_suspects: { condition_name: string; suspect_type: string }[];
+  top_suspects: { hcc_label: string; suspect_type: string }[];
   status: string;
   suspect_count: number;
 }
@@ -42,12 +73,54 @@ const typeVariant = (t: string) => {
   }
 };
 
-export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged }: ChaseListProps) {
-  const [expandedMember, setExpandedMember] = useState<string | null>(null);
-  const [memberSuspects, setMemberSuspects] = useState<Record<string, any>>({});
-  const [loadingMember, setLoadingMember] = useState<string | null>(null);
+function groupByMember(rows: SuspectRow[]): MemberGroup[] {
+  const map = new Map<number, SuspectRow[]>();
+  for (const row of rows) {
+    const existing = map.get(row.member_id);
+    if (existing) {
+      existing.push(row);
+    } else {
+      map.set(row.member_id, [row]);
+    }
+  }
 
-  const toggleExpand = useCallback(async (memberId: string) => {
+  const groups: MemberGroup[] = [];
+  for (const [memberId, suspects] of map.entries()) {
+    const first = suspects[0];
+    const totalRaf = suspects.reduce((sum, s) => sum + s.raf_value, 0);
+    const currentRaf = first.current_raf ?? 0;
+    const projectedRaf = first.projected_raf ?? currentRaf + totalRaf;
+    const hasOpen = suspects.some((s) => s.status === "open");
+    const allCaptured = suspects.every((s) => s.status === "captured");
+
+    groups.push({
+      member_id: memberId,
+      member_name: first.member_name ?? `Member #${memberId}`,
+      date_of_birth: first.date_of_birth,
+      pcp_name: first.pcp_name,
+      current_raf: currentRaf,
+      projected_raf: projectedRaf,
+      uplift: projectedRaf - currentRaf,
+      top_suspects: suspects.map((s) => ({
+        hcc_label: s.hcc_label ?? `HCC ${s.hcc_code}`,
+        suspect_type: s.suspect_type,
+      })),
+      status: allCaptured ? "captured" : hasOpen ? "open" : "dismissed",
+      suspect_count: suspects.length,
+    });
+  }
+
+  return groups;
+}
+
+export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged }: ChaseListProps) {
+  const [expandedMember, setExpandedMember] = useState<number | null>(null);
+  const [memberSuspects, setMemberSuspects] = useState<Record<number, any>>({});
+  const [loadingMember, setLoadingMember] = useState<number | null>(null);
+
+  const memberGroups = useMemo(() => groupByMember(rows), [rows]);
+
+  const toggleExpand = useCallback(async (memberId: number) => {
     if (expandedMember === memberId) {
       setExpandedMember(null);
       return;
@@ -68,7 +141,7 @@ export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged 
     }
   }, [expandedMember, memberSuspects]);
 
-  const handleSuspectUpdated = useCallback((_suspectId: string, _status: string) => {
+  const handleSuspectUpdated = useCallback((_suspectId: number, _status: string) => {
     // Refresh parent data after a capture/dismiss
     onDataChanged();
   }, [onDataChanged]);
@@ -97,10 +170,9 @@ export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged 
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <>
+            {memberGroups.map((row) => (
+              <Fragment key={row.member_id}>
                 <tr
-                  key={row.member_id}
                   onClick={() => toggleExpand(row.member_id)}
                   className="cursor-pointer transition-colors hover:bg-stone-50"
                   style={{ borderBottom: `1px solid ${tokens.borderSoft}` }}
@@ -109,10 +181,10 @@ export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged 
                     {row.member_name}
                   </td>
                   <td className="px-4 py-3 text-xs" style={{ color: tokens.textSecondary, fontFamily: fonts.code }}>
-                    {row.dob}
+                    {row.date_of_birth ?? "--"}
                   </td>
                   <td className="px-4 py-3 text-xs" style={{ color: tokens.textSecondary }}>
-                    {row.pcp}
+                    {row.pcp_name ?? "--"}
                   </td>
                   <td className="px-4 py-3 text-sm" style={{ fontFamily: fonts.code, color: tokens.text }}>
                     {row.current_raf.toFixed(3)}
@@ -127,9 +199,9 @@ export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged 
                     <div className="flex flex-wrap gap-1">
                       {row.top_suspects.slice(0, 3).map((s, i) => (
                         <Tag key={i} variant={typeVariant(s.suspect_type)}>
-                          {s.condition_name.length > 20
-                            ? s.condition_name.slice(0, 18) + "..."
-                            : s.condition_name}
+                          {s.hcc_label.length > 20
+                            ? s.hcc_label.slice(0, 18) + "..."
+                            : s.hcc_label}
                         </Tag>
                       ))}
                       {row.suspect_count > 3 && (
@@ -146,7 +218,7 @@ export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged 
 
                 {/* Expanded detail row */}
                 {expandedMember === row.member_id && (
-                  <tr key={`${row.member_id}-detail`}>
+                  <tr>
                     <td colSpan={8} className="p-0" style={{ borderBottom: `1px solid ${tokens.border}` }}>
                       {loadingMember === row.member_id ? (
                         <div className="px-6 py-8 text-center text-xs" style={{ color: tokens.textMuted }}>
@@ -156,7 +228,6 @@ export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged 
                         <MemberDetail
                           memberId={row.member_id}
                           suspects={memberSuspects[row.member_id].suspects || []}
-                          medications={memberSuspects[row.member_id].medications}
                           onSuspectUpdated={handleSuspectUpdated}
                         />
                       ) : (
@@ -167,10 +238,10 @@ export function ChaseList({ rows, page, totalPages, onPageChange, onDataChanged 
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
 
-            {rows.length === 0 && (
+            {memberGroups.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-12 text-center text-sm" style={{ color: tokens.textMuted }}>
                   No suspects match the current filters.

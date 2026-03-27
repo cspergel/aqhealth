@@ -57,6 +57,15 @@ class Claim(Base, TimestampMixin):
     quantity: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     days_supply: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Primary diagnosis (first element of diagnosis_codes, denormalized for query perf)
+    primary_diagnosis: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    # Length of stay (inpatient / SNF claims)
+    los: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Claim adjudication status (pending, paid, denied, adjusted)
+    status: Mapped[str | None] = mapped_column(String(20), nullable=True, default="paid")
+
     extra: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # --- Dual Data Tier fields ---

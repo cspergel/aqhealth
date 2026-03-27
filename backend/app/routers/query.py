@@ -65,4 +65,4 @@ async def suggestions(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Return suggested questions for the given page context."""
-    return await suggest_questions(db, context)
+    return suggest_questions(db, context)

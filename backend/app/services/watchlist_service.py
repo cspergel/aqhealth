@@ -5,7 +5,7 @@ Watchlist service — personal monitoring lists with change detection.
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.watchlist import WatchlistItem

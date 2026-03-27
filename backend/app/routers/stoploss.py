@@ -6,7 +6,6 @@ All endpoints are tenant-scoped via JWT auth.
 """
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -30,17 +29,18 @@ class StopLossDashboardOut(BaseModel):
     total_exposure: float
     risk_corridor_position: float
     threshold: float
-    total_high_cost_spend: float
+    actual_spend: float
+    target_spend: float
 
 
 class HighCostMemberOut(BaseModel):
-    member_id: str
-    member_name: str
-    twelve_month_spend: float
-    stoploss_threshold: float
+    member_id: int
+    first_name: str | None = None
+    last_name: str | None = None
+    health_plan: str | None = None
+    total_spend: float
+    claim_count: int
     pct_of_threshold: float
-    projected_year_end: float
-    primary_conditions: list[str]
     exceeds_threshold: bool
 
 
@@ -50,7 +50,7 @@ class RiskCorridorOut(BaseModel):
     ratio: float
     corridor_band: str
     shared_risk_exposure: float
-    corridor_bands: list[dict[str, Any]]
+    surplus_or_deficit: float
 
 
 # ---------------------------------------------------------------------------

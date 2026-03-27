@@ -60,7 +60,7 @@ class UserInteraction(Base, TimestampMixin):
     __tablename__ = "user_interactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
     interaction_type: Mapped[str] = mapped_column(String(30))
     # "view", "bookmark", "dismiss", "act_on", "ask_question", "export", "capture"
     target_type: Mapped[str] = mapped_column(String(30))

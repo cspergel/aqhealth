@@ -36,7 +36,7 @@ export function ScenariosPage() {
 
   useEffect(() => {
     api.get("/api/scenarios/prebuilt")
-      .then((res) => setPrebuilt(res.data))
+      .then((res) => setPrebuilt(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error("Failed to load scenarios:", err))
       .finally(() => setInitialLoading(false));
   }, []);

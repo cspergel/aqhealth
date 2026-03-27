@@ -38,6 +38,9 @@ class UploadJob(Base, TimestampMixin):
 
     uploaded_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Path to pre-processed (cleaned) version of uploaded file
+    cleaned_file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
 
 class MappingTemplate(Base, TimestampMixin):
     """Saved column mapping template for repeated uploads from same source."""

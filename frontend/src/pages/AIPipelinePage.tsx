@@ -122,9 +122,9 @@ export function AIPipelinePage() {
   const [showTeachModal, setShowTeachModal] = useState(false);
 
   useEffect(() => {
-    api.get("/api/pipeline/dashboard").then((r) => setDashboard(r.data));
-    api.get("/api/pipeline/rules").then((r) => setRules(r.data));
-    api.get("/api/pipeline/runs").then((r) => setRuns(r.data));
+    api.get("/api/pipeline/dashboard").then((r) => setDashboard(r.data)).catch(() => {});
+    api.get("/api/pipeline/rules").then((r) => setRules(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get("/api/pipeline/runs").then((r) => setRuns(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
   const tabs: { key: Tab; label: string }[] = [

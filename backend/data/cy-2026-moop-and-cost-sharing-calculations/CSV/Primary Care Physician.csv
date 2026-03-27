@@ -1,0 +1,16 @@
+﻿Table 1: Contract Year (CY) 2026 Primary Care Physician Medicare FFS Data Projections,,,,
+Provider Specialties,Office Allowed Professional Costs (excluding drugs),Number of Visits,Percent of Total,Weighted Average (Column B x D)
+Family Practice ,133.60,"15,144,413",48.62%,$64.96
+General Practice,157.51,"565,249",1.81%,$2.86
+Internal Medicine ,140.26,"15,115,771",48.53%,$68.07
+Geriatric Medicine,138.80,"321,173",1.03%,$1.43
+Primary Care Physician (Total),," 31,146,606 ",100.00%,$137.32
+,,,,
+,,,,
+Table 2: Contract Year (CY) 2026 Primary Care Physician Copayment Limits by Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,Lower MOOP,Intermediate MOOP,Mandatory MOOP
+A,CY 2026 projected total average Medicare FFS allowed amount*,$137.32 ,,
+B,CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F),50%,40%,30%
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F) (row A multiplied by row B)  ,$68.66 ,$54.93 ,$41.20 
+D,Final CY 2026 copayment limit per § 422.100(f)(6)(iii) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$70.00 ,$55.00 ,$40.00 
+"*This amount is based on 2024 Medicare FFS cost and utilization data of provider specialties in an office setting and the Office of the Actuary's (OACT's) projections of cost changes between 2024 to 2026. This amount represents the CY 2026 projected total average Medicare FFS allowed amount per primary care visit (excluding drug costs), weighted by utilization of the following provider specialty types: family practice, general practice, internal medicine, and geriatric medicine. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ",,,,

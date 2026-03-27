@@ -42,7 +42,7 @@ export function CareGapsPage() {
     setError(null);
     api
       .get("/api/care-gaps")
-      .then((res) => setSummaries(res.data))
+      .then((res) => setSummaries(Array.isArray(res.data) ? res.data : []))
       .catch((err) => {
         console.error("Failed to load care gap summaries:", err);
         setError("Failed to load care gap data.");
@@ -53,7 +53,7 @@ export function CareGapsPage() {
   const loadMeasures = () => {
     api
       .get("/api/care-gaps/measures")
-      .then((res) => setMeasures(res.data))
+      .then((res) => setMeasures(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error("Failed to load measures:", err));
   };
 
@@ -61,7 +61,7 @@ export function CareGapsPage() {
     setSelectedMeasureId(measureId);
     api
       .get("/api/care-gaps/members", { params: { measure_id: measureId } })
-      .then((res) => setMemberGaps(res.data))
+      .then((res) => setMemberGaps(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error("Failed to load member gaps:", err));
   };
 

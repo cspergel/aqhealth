@@ -19,6 +19,7 @@ from app.services.pattern_service import (
     generate_playbooks,
     track_intervention_outcomes,
     get_network_benchmarks,
+    get_improvement_areas,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,15 @@ async def outcomes(
 ) -> list[dict[str, Any]]:
     """Intervention outcome tracking — what worked."""
     return await track_intervention_outcomes(db)
+
+
+@router.get("/improvements")
+async def improvements(
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_tenant_db),
+) -> list[dict[str, Any]]:
+    """Identified areas for improvement across the network."""
+    return await get_improvement_areas(db)
 
 
 @router.get("/benchmarks")

@@ -11,22 +11,14 @@ from typing import Any
 from sqlalchemy import text
 
 from app.config import settings
-from app.database import async_session_factory, validate_schema_name
 from app.services.ingestion_service import process_upload
+from app.workers import get_tenant_session
 
 logger = logging.getLogger(__name__)
 
 
-async def _get_tenant_session(tenant_schema: str):
-    """Create a tenant-scoped session for background work (outside of FastAPI DI)."""
-    validate_schema_name(tenant_schema)
-    session = async_session_factory()
-    try:
-        await session.execute(text(f"SET search_path TO {tenant_schema}, public"))
-        return session
-    except Exception:
-        await session.close()
-        raise
+# Alias for backward-compat within this module
+_get_tenant_session = get_tenant_session
 
 
 async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> dict[str, Any]:
@@ -144,6 +136,7 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
                 column_mapping=column_mapping,
                 data_type=data_type,
                 db=processing_db,
+                tenant_schema=tenant_schema,
             )
         finally:
             await processing_db.close()
@@ -253,27 +246,37 @@ async def _trigger_downstream(ctx: dict, tenant_schema: str, data_type: str) -> 
         return
 
     try:
+        from arq.connections import ArqRedis
+
+        if not isinstance(redis, ArqRedis):
+            logger.warning("Redis pool is not an ArqRedis instance; skipping downstream triggers")
+            return
+
         # After claims/pharmacy: trigger HCC analysis
         if data_type in ("claims", "pharmacy"):
-            from arq.connections import ArqRedis
-            if isinstance(redis, ArqRedis):
-                await redis.enqueue_job(
-                    "run_hcc_analysis",
-                    tenant_schema,
-                    _queue_name="default",
-                )
-                logger.info(f"Enqueued HCC analysis for {tenant_schema}")
+            await redis.enqueue_job(
+                "run_hcc_analysis",
+                tenant_schema,
+                _queue_name="default",
+            )
+            logger.info(f"Enqueued HCC analysis for {tenant_schema}")
 
         # After roster/eligibility: may need to recalculate RAF scores
         if data_type in ("roster", "eligibility"):
-            from arq.connections import ArqRedis
-            if isinstance(redis, ArqRedis):
-                await redis.enqueue_job(
-                    "run_hcc_analysis",
-                    tenant_schema,
-                    _queue_name="default",
-                )
-                logger.info(f"Enqueued HCC analysis (roster/eligibility) for {tenant_schema}")
+            await redis.enqueue_job(
+                "run_hcc_analysis",
+                tenant_schema,
+                _queue_name="default",
+            )
+            logger.info(f"Enqueued HCC analysis (roster/eligibility) for {tenant_schema}")
+
+        # After any ingestion type: trigger AI insight generation
+        await redis.enqueue_job(
+            "run_insight_generation",
+            tenant_schema,
+            _queue_name="default",
+        )
+        logger.info(f"Enqueued insight generation for {tenant_schema}")
 
     except Exception as e:
         # Don't fail the main job if downstream triggers fail
@@ -298,12 +301,12 @@ class WorkerSettings:
     queue_name = "ingestion"
 
     @staticmethod
-    def on_startup(ctx: dict) -> None:
+    async def on_startup(ctx: dict) -> None:
         """Called when the worker starts."""
         logger.info("Ingestion worker started")
 
     @staticmethod
-    def on_shutdown(ctx: dict) -> None:
+    async def on_shutdown(ctx: dict) -> None:
         """Called when the worker shuts down."""
         logger.info("Ingestion worker shutting down")
 

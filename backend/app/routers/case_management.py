@@ -161,4 +161,7 @@ async def create_note(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Add a case note and log the contact."""
-    return await add_case_note(db, case_id, body.model_dump())
+    result = await add_case_note(db, case_id, body.model_dump())
+    if not result:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return result

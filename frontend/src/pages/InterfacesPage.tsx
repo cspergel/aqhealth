@@ -135,7 +135,7 @@ export function InterfacesPage() {
       api.get("/api/interfaces/status"),
     ])
       .then(([ifRes, statusRes]) => {
-        setInterfaces(ifRes.data);
+        setInterfaces(Array.isArray(ifRes.data) ? ifRes.data : []);
         setStatusSummary(statusRes.data);
       })
       .catch((err) => console.error("Failed to load interfaces:", err))

@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 # CMS quality bonus threshold
 QUALITY_BONUS_THRESHOLD = 4.0
-# Per-member quality bonus (approximate CMS benchmark)
-QUALITY_BONUS_PER_MEMBER = 248.0
+# Per-member annual quality bonus (approximate CMS benchmark: ~5% of county rate)
+QUALITY_BONUS_PER_MEMBER_ANNUAL = 660.0
 # Fallback membership if query returns zero
 _FALLBACK_MEMBERSHIP = 1
 
@@ -183,7 +183,7 @@ async def get_current_star_projection(db: AsyncSession) -> dict[str, Any]:
     member_count = max(member_count_q.scalar() or 0, _FALLBACK_MEMBERSHIP)
 
     qualifies_bonus = overall_rating >= QUALITY_BONUS_THRESHOLD
-    bonus_amount = round(QUALITY_BONUS_PER_MEMBER * member_count * 12) if qualifies_bonus else 0
+    bonus_amount = round(QUALITY_BONUS_PER_MEMBER_ANNUAL * member_count) if qualifies_bonus else 0
 
     return {
         "overall_rating": overall_rating,
@@ -269,7 +269,7 @@ async def simulate_scenario(
     member_count = max(member_count_q.scalar() or 0, _FALLBACK_MEMBERSHIP)
 
     qualifies_bonus = new_overall >= QUALITY_BONUS_THRESHOLD
-    bonus = round(QUALITY_BONUS_PER_MEMBER * member_count * 12) if qualifies_bonus else 0
+    bonus = round(QUALITY_BONUS_PER_MEMBER_ANNUAL * member_count) if qualifies_bonus else 0
     bonus_change = bonus - current.get("quality_bonus_amount", 0)
 
     return {

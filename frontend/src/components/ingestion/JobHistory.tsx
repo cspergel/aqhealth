@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
@@ -34,7 +34,7 @@ export function JobHistory() {
   const fetchJobs = async () => {
     try {
       const res = await api.get("/api/ingestion/jobs");
-      setJobs(res.data);
+      setJobs(Array.isArray(res.data) ? res.data : []);
     } catch {
       // silent
     } finally {
@@ -118,9 +118,8 @@ export function JobHistory() {
         </thead>
         <tbody>
           {jobs.map((job, i) => (
-            <>
+            <React.Fragment key={job.job_id}>
               <tr
-                key={job.job_id}
                 onClick={() => toggleExpand(job)}
                 className="cursor-pointer transition-colors hover:opacity-80"
                 style={{
@@ -158,7 +157,7 @@ export function JobHistory() {
                 </td>
               </tr>
               {expandedId === job.job_id && (
-                <tr key={`${job.job_id}-detail`}>
+                <tr>
                   <td colSpan={6} className="px-4 py-3" style={{ background: tokens.surfaceAlt }}>
                     {expandedErrors.length > 0 ? (
                       <div className="space-y-1.5">
@@ -190,7 +189,7 @@ export function JobHistory() {
                   </td>
                 </tr>
               )}
-            </>
+            </React.Fragment>
           ))}
         </tbody>
       </table>

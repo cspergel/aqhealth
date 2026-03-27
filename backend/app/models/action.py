@@ -35,7 +35,7 @@ class ActionItem(Base, TimestampMixin):
 
     # Priority and status
     priority: Mapped[str] = mapped_column(String(20), default="medium")  # "critical", "high", "medium", "low"
-    status: Mapped[str] = mapped_column(String(20), default="open")  # "open", "in_progress", "completed", "cancelled"
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)  # "open", "in_progress", "completed", "cancelled"
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     completed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 

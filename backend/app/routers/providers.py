@@ -125,10 +125,10 @@ class TargetsIn(BaseModel):
 
 @router.get("", response_model=list[ProviderListItem])
 async def list_providers(
-    sort_by: str = Query("name", description="Sort column"),
-    order: str = Query("asc", regex="^(asc|desc)$"),
+    sort_by: str = Query("name", description="Sort column", pattern="^(name|specialty|panel_size|capture_rate|recapture_rate|avg_raf|panel_pmpm|gap_closure_rate)$"),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
     specialty: str | None = Query(None),
-    tier: str | None = Query(None, regex="^(green|amber|red)$"),
+    tier: str | None = Query(None, pattern="^(green|amber|red)$"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
 ):

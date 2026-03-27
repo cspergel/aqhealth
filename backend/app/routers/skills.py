@@ -93,7 +93,7 @@ async def get_suggestions(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Get AI-suggested skills based on usage patterns."""
-    return await suggest_skills(db)
+    return await suggest_skills(db, tenant_schema=current_user["tenant_schema"])
 
 
 @router.post("")
@@ -174,6 +174,7 @@ async def run_skill(
             skill_id,
             triggered_by=triggered_by,
             executed_by=current_user["user_id"],
+            tenant_schema=current_user["tenant_schema"],
         )
         return result
     except ValueError as e:

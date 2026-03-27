@@ -43,8 +43,8 @@ export function EducationPage() {
       api.get("/api/education/library"),
     ])
       .then(([recRes, libRes]) => {
-        setRecommendations(recRes.data);
-        setLibrary(libRes.data);
+        setRecommendations(Array.isArray(recRes.data) ? recRes.data : []);
+        setLibrary(Array.isArray(libRes.data) ? libRes.data : []);
       })
       .catch((err) => console.error("Failed to load education data:", err))
       .finally(() => setLoading(false));

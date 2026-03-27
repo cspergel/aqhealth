@@ -1,0 +1,18 @@
+﻿Table 1: Contract Year (CY) 2026 Mental Health Specialty Services Medicare FFS Data Projections,,,,
+Provider Specialties,Office Allowed Professional Costs (excluding drugs),Number of Visits,Percent of Total,Weighted Average (Column B x D)
+Clinical Psychologist ,230.69,"990,375",24.15%,$55.71
+Licensed Clinical Social Worker,131.50,"1,520,634",37.08%,$48.76
+Psychiatry ,175.07,"1,367,428",33.34%,$58.37
+Marriage and Family Therapists,128.68,"29,767",0.73%,$0.93
+Mental Health Counselors,114.06,"193,124",4.71%,$5.37
+Mental Health Specialty Services (Total),," 4,101,328 ",100.00%,$169.14
+,,,,
+,,,,
+Table 2: Contract Year (CY) 2026 Mental Health Specialty Services Copayment Limits by Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,Lower MOOP,Intermediate MOOP,Mandatory MOOP
+Actuarially Equivalent Copayment Value Calculation,,,,
+A,CY 2026 projected total average Medicare FFS allowed amount*,$169.14 ,,
+B,CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F),50%,40%,30%
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F) (row A multiplied by row B)  ,$84.57 ,$67.66 ,$50.74 
+D,Final CY 2026 copayment limit per § 422.100(f)(6)(iii) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$85.00 ,$70.00 ,$50.00 
+"*This amount is based on 2024 Medicare FFS cost and utilization data of provider specialties in an office setting and the Office of the Actuary's (OACT's) projections of cost changes between 2024 to 2026. This amount represents the CY 2026 projected total average Medicare FFS allowed amount per mental health specialty visit (excluding drug costs), weighted by utilization of the following provider specialty types: clinical psychologist, licensed clinical social worker, and psychiatry. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ",,,,

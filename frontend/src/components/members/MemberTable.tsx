@@ -169,8 +169,8 @@ export function MemberTable({ members, sortBy, order, onSort }: Props) {
                   onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                   onClick={() => {
                     // Navigate to journey page with member_id number extracted
-                    const numId = parseInt(m.member_id.replace("M", ""));
-                    navigate(`/journey/${numId}`);
+                    const numId = parseInt(m.member_id.replace(/\D/g, ""), 10);
+                    if (!isNaN(numId)) navigate(`/journey/${numId}`);
                   }}
                 >
                   {/* Name */}

@@ -8,25 +8,12 @@ across an entire tenant population after claims ingestion completes.
 import logging
 from typing import Any
 
-from sqlalchemy import text
-
 from app.config import settings
-from app.database import async_session_factory, validate_schema_name
 from app.services.hcc_engine import analyze_population
+from app.services.provider_service import refresh_provider_scorecards
+from app.workers import get_tenant_session
 
 logger = logging.getLogger(__name__)
-
-
-async def _get_tenant_session(tenant_schema: str):
-    """Create a tenant-scoped session for background work (outside FastAPI DI)."""
-    validate_schema_name(tenant_schema)
-    session = async_session_factory()
-    try:
-        await session.execute(text(f"SET search_path TO {tenant_schema}, public"))
-        return session
-    except Exception:
-        await session.close()
-        raise
 
 
 async def run_hcc_analysis(ctx: dict, tenant_schema: str) -> dict[str, Any]:
@@ -44,7 +31,7 @@ async def run_hcc_analysis(ctx: dict, tenant_schema: str) -> dict[str, Any]:
         Dict with analysis summary (total_members, total_suspects, etc.).
     """
     logger.info("Starting HCC analysis job for tenant: %s", tenant_schema)
-    db = await _get_tenant_session(tenant_schema)
+    db = await get_tenant_session(tenant_schema)
 
     try:
         result = await analyze_population(tenant_schema, db)
@@ -54,6 +41,24 @@ async def run_hcc_analysis(ctx: dict, tenant_schema: str) -> dict[str, Any]:
             result.get("total_suspects", 0),
             result.get("total_members", 0),
         )
+
+        # Refresh provider/group scorecards now that suspects are up to date
+        try:
+            scorecard_result = await refresh_provider_scorecards(db)
+            logger.info(
+                "Provider scorecard refresh completed for %s: %d providers, %d groups",
+                tenant_schema,
+                scorecard_result.get("providers_updated", 0),
+                scorecard_result.get("groups_updated", 0),
+            )
+            result["scorecard_refresh"] = scorecard_result
+        except Exception as sc_err:
+            logger.error(
+                "Provider scorecard refresh failed for %s: %s",
+                tenant_schema, sc_err, exc_info=True,
+            )
+            result["scorecard_refresh_error"] = str(sc_err)
+
         return result
 
     except Exception as e:
@@ -82,11 +87,11 @@ class WorkerSettings:
     queue_name = "default"
 
     @staticmethod
-    def on_startup(ctx: dict) -> None:
+    async def on_startup(ctx: dict) -> None:
         logger.info("HCC analysis worker started")
 
     @staticmethod
-    def on_shutdown(ctx: dict) -> None:
+    async def on_shutdown(ctx: dict) -> None:
         logger.info("HCC analysis worker shutting down")
 
 

@@ -49,7 +49,7 @@ class MemberRow(BaseModel):
     has_gaps: bool = False
     er_visits_12mo: int = 0
     admissions_12mo: int = 0
-    snf_days_12mo: int = 0
+    snf_days_12mo: int = 0  # TODO: not yet populated by member_service
 
 
 class MemberListOut(BaseModel):
@@ -144,8 +144,8 @@ async def member_list(
     search: Optional[str] = Query(None),
     min_er_visits: Optional[int] = Query(None),
     min_admissions: Optional[int] = Query(None),
-    sort_by: str = Query("raf"),
-    order: str = Query("desc"),
+    sort_by: str = Query("raf", pattern="^(raf|name|last_visit|suspect_count|gap_count|spend)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     current_user: dict = Depends(get_current_user),

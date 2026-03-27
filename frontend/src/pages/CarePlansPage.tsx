@@ -108,7 +108,7 @@ export function CarePlansPage() {
         api.get("/api/care-plans"),
         api.get("/api/care-plans/summary"),
       ]);
-      setPlans(plansRes.data);
+      setPlans(Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.items || []);
       setSummary(summaryRes.data);
       setError(null);
     } catch {

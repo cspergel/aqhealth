@@ -222,9 +222,9 @@ export function DashboardPage() {
         />
         <MetricCard
           label="MLR"
-          value={`${(metrics.mlr ?? 0).toFixed(1)}%`}
-          trendDirection={(metrics.mlr ?? 0) > 85 ? "down" : "up"}
-          trend={(metrics.mlr ?? 0) > 85 ? "Above target" : "On track"}
+          value={`${((metrics.mlr ?? 0) * 100).toFixed(1)}%`}
+          trendDirection={(metrics.mlr ?? 0) > 0.85 ? "down" : "up"}
+          trend={(metrics.mlr ?? 0) > 0.85 ? "Above target" : "On track"}
         />
       </div>
 
@@ -390,7 +390,7 @@ export function DashboardPage() {
                           ${(spot.pmpm ?? 0).toFixed(0)}
                         </td>
                         <td className="text-right py-2" style={{ color: tokens.textMuted, fontFamily: fonts.code, fontSize: 12 }}>
-                          ${spot.benchmark_pmpm}
+                          ${(spot.benchmark_pmpm ?? 0).toFixed(0)}
                         </td>
                         <td
                           className="text-right py-2 font-semibold"

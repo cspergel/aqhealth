@@ -85,7 +85,7 @@ async def evaluate_predictions(db: AsyncSession) -> dict[str, Any]:
                 context={
                     "hcc_code": suspect.hcc_code,
                     "suspect_type": suspect.suspect_type,
-                    "raf_value": float(suspect.raf_value),
+                    "raf_value": float(suspect.raf_value or 0),
                     "member_id": suspect.member_id,
                 },
             )
@@ -181,7 +181,7 @@ async def generate_learning_report(db: AsyncSession, tenant_schema: str = "defau
 
     accuracy_over_time = [
         {
-            "date": m.metric_date.isoformat(),
+            "date": m.metric_date.isoformat() if m.metric_date else None,
             "accuracy_rate": float(m.accuracy_rate) if m.accuracy_rate else 0,
             "total_predictions": m.total_predictions,
             "confirmed": m.confirmed,

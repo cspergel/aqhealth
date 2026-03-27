@@ -139,7 +139,7 @@ function AddMeasureForm({ onCreated }: { onCreated: () => void }) {
           <select
             style={inputStyle}
             value={form.stars_weight}
-            onChange={(e) => setForm({ ...form, stars_weight: parseInt(e.target.value) })}
+            onChange={(e) => setForm({ ...form, stars_weight: parseInt(e.target.value, 10) || 1 })}
           >
             <option value={1}>1x</option>
             <option value={3}>3x (Triple)</option>

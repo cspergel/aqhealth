@@ -94,7 +94,7 @@ def lookup_hcc_for_icd10(icd10_code: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 # CMS average per-member-per-month base rate (approximate, for dollar impact)
-from app.constants import CMS_PMPM_BASE as _CMS_BASE
+from app.constants import CMS_PMPM_BASE as _CMS_BASE, RAF_TIER_THRESHOLDS
 CMS_PMPM_BASE = Decimal(str(_CMS_BASE))
 ANNUAL_MULTIPLIER = Decimal("12")
 
@@ -184,17 +184,19 @@ LOCAL_HCC_RAF: dict[int, Decimal] = HCC_RAF_LOOKUP if HCC_RAF_LOOKUP else {
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _calculate_age(dob: date) -> int:
+def _calculate_age(dob: date | None) -> int:
+    if dob is None:
+        return 0
     today = date.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
 def _determine_risk_tier(raf: float) -> RiskTier:
-    if raf >= 3.0:
+    if raf >= RAF_TIER_THRESHOLDS["complex"]:
         return RiskTier.complex
-    elif raf >= 1.5:
+    elif raf >= RAF_TIER_THRESHOLDS["high"]:
         return RiskTier.high
-    elif raf >= 0.8:
+    elif raf >= RAF_TIER_THRESHOLDS["rising"]:
         return RiskTier.rising
     return RiskTier.low
 

@@ -154,7 +154,7 @@ export function GroupScorecard() {
                 >
                   <td className="px-4 py-2.5 font-medium">{p.name}</td>
                   <td className="px-4 py-2.5" style={{ color: tokens.textSecondary }}>{p.specialty || "--"}</td>
-                  <td className="px-4 py-2.5" style={{ fontFamily: fonts.code }}>{p.panel_size.toLocaleString()}</td>
+                  <td className="px-4 py-2.5" style={{ fontFamily: fonts.code }}>{(p.panel_size ?? 0).toLocaleString()}</td>
                   <td className="px-4 py-2.5" style={{ fontFamily: fonts.code }}>{p.capture_rate != null ? `${p.capture_rate.toFixed(1)}%` : "--"}</td>
                   <td className="px-4 py-2.5" style={{ fontFamily: fonts.code }}>{p.recapture_rate != null ? `${p.recapture_rate.toFixed(1)}%` : "--"}</td>
                   <td className="px-4 py-2.5" style={{ fontFamily: fonts.code }}>{p.avg_raf != null ? p.avg_raf.toFixed(3) : "--"}</td>
@@ -188,9 +188,9 @@ export function GroupScorecard() {
                 {trends.quarters.map((q, i) => (
                   <tr key={q} style={{ borderBottom: `1px solid ${tokens.borderSoft}` }}>
                     <td className="px-4 py-2.5">{q}</td>
-                    <td className="px-4 py-2.5 text-right" style={{ fontFamily: fonts.code }}>{trends.capture_rate[i]?.toFixed(1)}%</td>
-                    <td className="px-4 py-2.5 text-right" style={{ fontFamily: fonts.code }}>${trends.group_pmpm[i]?.toLocaleString()}</td>
-                    <td className="px-4 py-2.5 text-right" style={{ fontFamily: fonts.code }}>{trends.gap_closure_rate[i]?.toFixed(1)}%</td>
+                    <td className="px-4 py-2.5 text-right" style={{ fontFamily: fonts.code }}>{trends.capture_rate[i] != null ? `${trends.capture_rate[i].toFixed(1)}%` : "--"}</td>
+                    <td className="px-4 py-2.5 text-right" style={{ fontFamily: fonts.code }}>{trends.group_pmpm[i] != null ? `$${trends.group_pmpm[i].toLocaleString()}` : "--"}</td>
+                    <td className="px-4 py-2.5 text-right" style={{ fontFamily: fonts.code }}>{trends.gap_closure_rate[i] != null ? `${trends.gap_closure_rate[i].toFixed(1)}%` : "--"}</td>
                   </tr>
                 ))}
               </tbody>

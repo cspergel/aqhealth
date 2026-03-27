@@ -116,9 +116,9 @@ export function PriorAuthPage() {
         api.get("/api/auth-requests/overdue"),
       ]);
       setDashboard(dashRes.data);
-      setAuths(authsRes.data);
+      setAuths(Array.isArray(authsRes.data) ? authsRes.data : authsRes.data?.items || []);
       setCompliance(compRes.data);
-      setOverdue(overdueRes.data);
+      setOverdue(Array.isArray(overdueRes.data) ? overdueRes.data : overdueRes.data?.items || []);
       setError(null);
     } catch {
       setError("Failed to load prior auth data.");

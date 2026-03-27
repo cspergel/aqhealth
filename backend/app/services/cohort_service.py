@@ -6,9 +6,8 @@ All queries are tenant-scoped (session is already bound to the tenant schema).
 
 import logging
 from datetime import date
-from typing import Any
 
-from sqlalchemy import select, func, and_, or_, exists
+from sqlalchemy import select, or_, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member

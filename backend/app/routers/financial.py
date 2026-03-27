@@ -7,7 +7,7 @@ All endpoints are tenant-scoped via JWT auth.
 
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/financial", tags=["financial"])
 
+VALID_PERIODS = {"ytd", "q1", "q2", "q3", "q4", "prior_year"}
+
 
 # ---------------------------------------------------------------------------
 # Pydantic response schemas
@@ -31,21 +33,19 @@ router = APIRouter(prefix="/api/financial", tags=["financial"])
 class RevenueOut(BaseModel):
     capitation: float
     raf_adjustment: float
-    quality_bonus: float
-    per_capture_fees: float
+    quality_bonus: float = 0.0
+    per_capture_fees: float = 0.0
     total: float
 
 
 class ExpensesOut(BaseModel):
-    inpatient: float
-    pharmacy: float
-    professional: float
-    ed_observation: float
-    snf_postacute: float
-    home_health: float
-    dme: float
-    administrative: float
-    care_management: float
+    """Expense breakdown by service category.
+
+    Only ``total`` is guaranteed; individual category keys are present when
+    claims exist for that category.
+    """
+    model_config = {"extra": "allow"}
+
     total: float
 
 
@@ -53,13 +53,16 @@ class ComparisonPeriod(BaseModel):
     revenue: float
     expenses: float
     surplus: float
-    mlr: float
+    mlr: float | None = None
 
 
 class ComparisonOut(BaseModel):
-    budget: ComparisonPeriod
-    prior_year: ComparisonPeriod
-    prior_quarter: ComparisonPeriod
+    """Comparison periods.  Only ``prior_year`` is always present;
+    ``budget`` and ``prior_quarter`` are optional until those data sources
+    are implemented."""
+    budget: ComparisonPeriod | None = None
+    prior_year: ComparisonPeriod | None = None
+    prior_quarter: ComparisonPeriod | None = None
 
 
 class PnlOut(BaseModel):
@@ -67,7 +70,7 @@ class PnlOut(BaseModel):
     revenue: RevenueOut
     expenses: ExpensesOut
     surplus: float
-    mlr: float
+    mlr: float | None = None
     member_count: int
     per_member_margin: float
     comparison: ComparisonOut
@@ -79,7 +82,7 @@ class PlanPnlOut(BaseModel):
     revenue: float
     expenses: float
     surplus: float
-    mlr: float
+    mlr: float | None = None
     per_member_margin: float
 
 
@@ -90,7 +93,7 @@ class GroupPnlOut(BaseModel):
     revenue: float
     expenses: float
     surplus: float
-    mlr: float
+    mlr: float | None = None
     per_member_margin: float
 
 
@@ -130,6 +133,8 @@ async def financial_pnl(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Return a full profit & loss statement for the current period."""
+    if period not in VALID_PERIODS:
+        raise HTTPException(status_code=400, detail=f"Invalid period '{period}'. Must be one of: {', '.join(sorted(VALID_PERIODS))}")
     data = await get_pnl(db, period)
     return PnlOut(**data)
 

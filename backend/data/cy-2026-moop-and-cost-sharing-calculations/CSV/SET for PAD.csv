@@ -1,0 +1,7 @@
+﻿Table 1: Contract Year (CY) 2026 Supervised Exercise Therapy (SET) for Symptomatic Peripheral Artery Disease (PAD) Copayment Limits by Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,Lower MOOP,Intermediate MOOP,Mandatory MOOP
+A,CY 2026 projected total average Medicare FFS allowed amount*,$62.00 ,,
+B,CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F),50%,40%,30%
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F) (row A multiplied by row B)  ,$31.00 ,$24.80 ,$18.60 
+D,Final CY 2026 copayment limit per § 422.100(f)(6)(iii) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$30.00 ,$25.00 ,$20.00 
+"*This amount from the Office of the Actuary (OACT) is based on 2024 Medicare FFS data and the increase between 2023 to 2024 to project to CY 2026. This amount represents the CY 2026 projected total average Medicare FFS allowed amount per SET for PAD session (based on CPT code 93668 and APC code 5733), weighted by the type of setting (such as, hospital outpatient departments and provider offices).  The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)).",,,,

@@ -131,8 +131,8 @@ async def get_avoidable_er_detail(db: AsyncSession) -> list[dict[str, Any]]:
         details.append({
             "claim_id": claim.id,
             "member_id": member.id,
-            "member_name": f"{member.first_name} {member.last_name}".strip(),
-            "service_date": str(claim.service_date),
+            "member_name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
+            "service_date": str(claim.service_date) if claim.service_date else None,
             "facility": claim.facility_name,
             "diagnosis_codes": claim.diagnosis_codes,
             "is_avoidable": reason is not None,
@@ -179,7 +179,7 @@ async def get_education_opportunities(db: AsyncSession) -> list[dict[str, Any]]:
         potential_savings = round(count * (AVG_ER_COST - AVG_PCP_COST))
         opportunities.append({
             "member_id": m.id,
-            "member_name": f"{m.first_name} {m.last_name}".strip(),
+            "member_name": f"{m.first_name or ''} {m.last_name or ''}".strip(),
             "avoidable_er_count": count,
             "potential_savings": potential_savings,
             "pcp_provider_id": m.pcp_provider_id,

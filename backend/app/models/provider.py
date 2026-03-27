@@ -9,7 +9,7 @@ class Provider(Base, TimestampMixin):
     __tablename__ = "providers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    npi: Mapped[str] = mapped_column(String(15), index=True)
+    npi: Mapped[str] = mapped_column(String(15), unique=True, index=True)
     practice_group_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("practice_groups.id"), nullable=True, index=True
     )

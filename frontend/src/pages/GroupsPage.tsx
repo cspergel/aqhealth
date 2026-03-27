@@ -41,7 +41,7 @@ function GroupListView() {
   useEffect(() => {
     setLoading(true);
     api.get("/api/groups")
-      .then((res) => setGroups(res.data))
+      .then((res) => setGroups(Array.isArray(res.data) ? res.data : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

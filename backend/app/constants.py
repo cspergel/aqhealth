@@ -31,3 +31,37 @@ PMPM_BENCHMARKS = {
     "dme": 40,
     "other": 50,
 }
+
+# ---------------------------------------------------------------------------
+# Expenditure drill-down benchmarks (per-unit cost & utilization thresholds)
+# ---------------------------------------------------------------------------
+# These are approximate MA industry benchmarks used for KPI status indicators
+# in the expenditure drill-down views. Override per tenant in production.
+EXPENDITURE_BENCHMARKS = {
+    "inpatient_admits_per_1k": 72.0,
+    "inpatient_cost_per_admit": 12_800,
+    "ed_visits_per_1k": 310.0,
+    "ed_cost_per_visit": 1_280,
+    "professional_pmpm": 195,
+    "professional_cost_per_visit": 198,
+    "snf_cost_per_episode": 5_800,
+    "pharmacy_pmpm": 175,
+}
+
+# ---------------------------------------------------------------------------
+# RAF risk-tier thresholds
+# ---------------------------------------------------------------------------
+# Used by hcc_engine._determine_risk_tier and awv_service priority scoring.
+# These define the RAF score breakpoints for risk stratification.
+RAF_TIER_THRESHOLDS = {
+    "complex": 3.0,    # RAF >= 3.0 → complex
+    "high": 1.5,       # RAF >= 1.5 → high
+    "rising": 0.8,     # RAF >= 0.8 → rising
+    # Below 0.8 → low
+}
+
+# ---------------------------------------------------------------------------
+# Discovery thresholds
+# ---------------------------------------------------------------------------
+# Minimum PMPM gap ($) between providers to flag as a comparative finding.
+PROVIDER_PMPM_GAP_THRESHOLD = 200

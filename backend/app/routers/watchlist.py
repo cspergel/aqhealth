@@ -111,6 +111,8 @@ async def acknowledge_changes(
     item = await watchlist_service.acknowledge_changes(db, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+    if item.user_id != current_user["user_id"]:
+        raise HTTPException(status_code=404, detail="Item not found")
     return _item_to_dict(item)
 
 

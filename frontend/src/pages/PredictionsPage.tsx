@@ -63,10 +63,11 @@ interface RafProjection {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatDollars(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
+function formatDollars(n: number | null | undefined): string {
+  const v = n ?? 0;
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -243,10 +244,10 @@ export function PredictionsPage() {
                 className="text-2xl font-semibold"
                 style={{
                   fontFamily: fonts.code,
-                  color: costProjection.total_change_pct > 0 ? tokens.red : tokens.accentText,
+                  color: (costProjection.total_change_pct ?? 0) > 0 ? tokens.red : tokens.accentText,
                 }}
               >
-                {costProjection.total_change_pct > 0 ? "+" : ""}{costProjection.total_change_pct}%
+                {(costProjection.total_change_pct ?? 0) > 0 ? "+" : ""}{costProjection.total_change_pct ?? 0}%
               </div>
             </div>
           </div>
@@ -351,19 +352,19 @@ export function PredictionsPage() {
             <div className="rounded-[10px] border p-4" style={{ borderColor: tokens.border, background: tokens.surface }}>
               <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: tokens.textMuted }}>Population Avg RAF</div>
               <div className="text-2xl font-semibold" style={{ fontFamily: fonts.code, color: tokens.text }}>
-                {rafProjection.current_state.avg_raf}
+                {rafProjection.current_state?.avg_raf ?? 0}
               </div>
             </div>
             <div className="rounded-[10px] border p-4" style={{ borderColor: tokens.border, background: tokens.surface }}>
               <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: tokens.textMuted }}>Current Revenue</div>
               <div className="text-2xl font-semibold" style={{ fontFamily: fonts.code, color: tokens.text }}>
-                {formatDollars(rafProjection.current_state.annual_revenue)}
+                {formatDollars(rafProjection.current_state?.annual_revenue)}
               </div>
             </div>
             <div className="rounded-[10px] border p-4" style={{ borderColor: tokens.border, background: tokens.surface }}>
               <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: tokens.textMuted }}>Capture Rate</div>
               <div className="text-2xl font-semibold" style={{ fontFamily: fonts.code, color: tokens.text }}>
-                {rafProjection.current_state.capture_rate}%
+                {rafProjection.current_state?.capture_rate ?? 0}%
               </div>
             </div>
             <div className="rounded-[10px] border p-4" style={{ borderColor: tokens.border, background: tokens.surface }}>
@@ -395,14 +396,14 @@ export function PredictionsPage() {
                   <span className="text-[12px]" style={{ color: tokens.textSecondary }}>Avg RAF</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[12px]" style={{ fontFamily: fonts.code, color: tokens.textMuted }}>
-                      {rafProjection.current_state.avg_raf}
+                      {rafProjection.current_state?.avg_raf ?? 0}
                     </span>
                     <span style={{ color: tokens.textMuted }}>{"-->"}</span>
                     <span className="text-[13px] font-semibold" style={{ fontFamily: fonts.code, color: tokens.accentText }}>
-                      {rafProjection.scenario_all_captured.avg_raf}
+                      {rafProjection.scenario_all_captured?.avg_raf ?? 0}
                     </span>
                     <span className="text-[11px] font-medium" style={{ color: tokens.accentText }}>
-                      (+{rafProjection.scenario_all_captured.raf_change})
+                      (+{rafProjection.scenario_all_captured?.raf_change ?? 0})
                     </span>
                   </div>
                 </div>
@@ -443,14 +444,14 @@ export function PredictionsPage() {
                   <span className="text-[12px]" style={{ color: tokens.textSecondary }}>Avg RAF</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[12px]" style={{ fontFamily: fonts.code, color: tokens.textMuted }}>
-                      {rafProjection.current_state.avg_raf}
+                      {rafProjection.current_state?.avg_raf ?? 0}
                     </span>
                     <span style={{ color: tokens.textMuted }}>{"-->"}</span>
                     <span className="text-[13px] font-semibold" style={{ fontFamily: fonts.code, color: tokens.accentText }}>
-                      {rafProjection.scenario_80_recapture.avg_raf}
+                      {rafProjection.scenario_80_recapture?.avg_raf ?? 0}
                     </span>
                     <span className="text-[11px] font-medium" style={{ color: tokens.accentText }}>
-                      (+{rafProjection.scenario_80_recapture.raf_change})
+                      (+{rafProjection.scenario_80_recapture?.raf_change ?? 0})
                     </span>
                   </div>
                 </div>
@@ -500,7 +501,7 @@ export function PredictionsPage() {
               <div>
                 <div className="text-[11px] uppercase tracking-wider mb-1" style={{ color: tokens.textMuted }}>Total Annual Value</div>
                 <div className="text-lg font-semibold" style={{ fontFamily: fonts.code, color: tokens.accentText }}>
-                  {formatDollars(rafProjection.suspect_summary.total_suspect_annual_value)}
+                  {formatDollars(rafProjection.suspect_summary?.total_suspect_annual_value ?? 0)}
                 </div>
               </div>
             </div>

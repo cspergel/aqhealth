@@ -6,16 +6,20 @@ and retrieves AI coaching insights.
 """
 
 import logging
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select, func, case, and_
+from sqlalchemy import select, and_, func, case, literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.provider import Provider
 from app.models.member import Member
-from app.models.hcc import HccSuspect, SuspectStatus
-from app.models.insight import Insight, InsightCategory, InsightStatus
+from app.models.claim import Claim
+from app.models.hcc import HccSuspect
+from app.models.care_gap import MemberGap
+from app.models.practice_group import PracticeGroup
+from app.models.insight import Insight, InsightStatus
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +90,7 @@ def _provider_to_dict(p: Provider) -> dict:
         "npi": p.npi,
         "first_name": p.first_name,
         "last_name": p.last_name,
-        "name": f"{p.last_name}, {p.first_name}",
+        "name": f"{p.last_name or ''}, {p.first_name or ''}".strip(", "),
         "specialty": p.specialty,
         "practice_name": p.practice_name,
         "panel_size": p.panel_size or 0,
@@ -355,3 +359,238 @@ async def get_provider_insights(db: AsyncSession, provider_id: int) -> list[dict
             })
 
     return matched
+
+
+# ---------------------------------------------------------------------------
+# Refresh provider & practice-group scorecards (batch computation)
+# ---------------------------------------------------------------------------
+
+async def refresh_provider_scorecards(db: AsyncSession) -> dict[str, Any]:
+    """
+    Recompute all computed scorecard fields for every Provider and
+    PracticeGroup in one pass using batch SQL queries (no N+1).
+
+    Returns a summary dict with counts of updated providers and groups.
+    """
+    logger.info("Starting provider scorecard refresh")
+
+    twelve_months_ago = date.today() - timedelta(days=365)
+
+    # ------------------------------------------------------------------
+    # 1. panel_size: COUNT(members) per provider
+    # ------------------------------------------------------------------
+    panel_size_q = (
+        select(
+            Member.pcp_provider_id.label("provider_id"),
+            func.count(Member.id).label("panel_size"),
+        )
+        .where(Member.pcp_provider_id.isnot(None))
+        .group_by(Member.pcp_provider_id)
+    )
+    panel_size_result = await db.execute(panel_size_q)
+    panel_sizes: dict[int, int] = {
+        row.provider_id: row.panel_size for row in panel_size_result
+    }
+
+    # ------------------------------------------------------------------
+    # 2. avg_panel_raf: AVG(member.current_raf) per provider
+    # ------------------------------------------------------------------
+    avg_raf_q = (
+        select(
+            Member.pcp_provider_id.label("provider_id"),
+            func.avg(Member.current_raf).label("avg_raf"),
+        )
+        .where(
+            and_(
+                Member.pcp_provider_id.isnot(None),
+                Member.current_raf.isnot(None),
+            )
+        )
+        .group_by(Member.pcp_provider_id)
+    )
+    avg_raf_result = await db.execute(avg_raf_q)
+    avg_rafs: dict[int, float] = {
+        row.provider_id: float(row.avg_raf) for row in avg_raf_result
+    }
+
+    # ------------------------------------------------------------------
+    # 3. capture_rate: captured / total suspects per provider panel
+    #    We join HccSuspect → Member on member_id, group by pcp_provider_id
+    # ------------------------------------------------------------------
+    capture_q = (
+        select(
+            Member.pcp_provider_id.label("provider_id"),
+            func.count(HccSuspect.id).label("total"),
+            func.count(
+                case(
+                    (HccSuspect.status == "captured", HccSuspect.id),
+                )
+            ).label("captured"),
+        )
+        .select_from(HccSuspect)
+        .join(Member, HccSuspect.member_id == Member.id)
+        .where(Member.pcp_provider_id.isnot(None))
+        .group_by(Member.pcp_provider_id)
+    )
+    capture_result = await db.execute(capture_q)
+    capture_rates: dict[int, float] = {}
+    for row in capture_result:
+        if row.total > 0:
+            capture_rates[row.provider_id] = round(row.captured / row.total * 100, 2)
+
+    # ------------------------------------------------------------------
+    # 4. recapture_rate: captured recapture suspects / total recapture suspects
+    # ------------------------------------------------------------------
+    recapture_q = (
+        select(
+            Member.pcp_provider_id.label("provider_id"),
+            func.count(HccSuspect.id).label("total"),
+            func.count(
+                case(
+                    (HccSuspect.status == "captured", HccSuspect.id),
+                )
+            ).label("captured"),
+        )
+        .select_from(HccSuspect)
+        .join(Member, HccSuspect.member_id == Member.id)
+        .where(
+            and_(
+                Member.pcp_provider_id.isnot(None),
+                HccSuspect.suspect_type == "recapture",
+            )
+        )
+        .group_by(Member.pcp_provider_id)
+    )
+    recapture_result = await db.execute(recapture_q)
+    recapture_rates: dict[int, float] = {}
+    for row in recapture_result:
+        if row.total > 0:
+            recapture_rates[row.provider_id] = round(row.captured / row.total * 100, 2)
+
+    # ------------------------------------------------------------------
+    # 5. panel_pmpm: SUM(paid_amount for panel in last 12mo) / panel_size / 12
+    # ------------------------------------------------------------------
+    pmpm_q = (
+        select(
+            Member.pcp_provider_id.label("provider_id"),
+            func.coalesce(func.sum(Claim.paid_amount), 0).label("total_paid"),
+        )
+        .select_from(Claim)
+        .join(Member, Claim.member_id == Member.id)
+        .where(
+            and_(
+                Member.pcp_provider_id.isnot(None),
+                Claim.service_date >= twelve_months_ago,
+            )
+        )
+        .group_by(Member.pcp_provider_id)
+    )
+    pmpm_result = await db.execute(pmpm_q)
+    panel_pmpms: dict[int, float] = {}
+    for row in pmpm_result:
+        prov_id = row.provider_id
+        ps = panel_sizes.get(prov_id, 0)
+        if ps > 0:
+            panel_pmpms[prov_id] = round(float(row.total_paid) / ps / 12, 2)
+
+    # ------------------------------------------------------------------
+    # 6. gap_closure_rate: closed / total MemberGap per provider panel
+    # ------------------------------------------------------------------
+    gap_q = (
+        select(
+            Member.pcp_provider_id.label("provider_id"),
+            func.count(MemberGap.id).label("total"),
+            func.count(
+                case(
+                    (MemberGap.status == "closed", MemberGap.id),
+                )
+            ).label("closed"),
+        )
+        .select_from(MemberGap)
+        .join(Member, MemberGap.member_id == Member.id)
+        .where(Member.pcp_provider_id.isnot(None))
+        .group_by(Member.pcp_provider_id)
+    )
+    gap_result = await db.execute(gap_q)
+    gap_closure_rates: dict[int, float] = {}
+    for row in gap_result:
+        if row.total > 0:
+            gap_closure_rates[row.provider_id] = round(row.closed / row.total * 100, 2)
+
+    # ------------------------------------------------------------------
+    # 7. Update all providers in batch
+    # ------------------------------------------------------------------
+    all_providers_result = await db.execute(select(Provider))
+    all_providers = all_providers_result.scalars().all()
+
+    providers_updated = 0
+    for provider in all_providers:
+        pid = provider.id
+        provider.panel_size = panel_sizes.get(pid, 0)
+        provider.capture_rate = capture_rates.get(pid)
+        provider.recapture_rate = recapture_rates.get(pid)
+        provider.avg_panel_raf = avg_rafs.get(pid)
+        provider.panel_pmpm = panel_pmpms.get(pid)
+        provider.gap_closure_rate = gap_closure_rates.get(pid)
+        providers_updated += 1
+
+    # ------------------------------------------------------------------
+    # 8. Aggregate into PracticeGroups (weighted averages)
+    # ------------------------------------------------------------------
+    all_groups_result = await db.execute(select(PracticeGroup))
+    all_groups = all_groups_result.scalars().all()
+
+    # Build a mapping: group_id -> list of providers
+    group_providers: dict[int, list[Provider]] = {}
+    for provider in all_providers:
+        if provider.practice_group_id is not None:
+            group_providers.setdefault(provider.practice_group_id, []).append(provider)
+
+    groups_updated = 0
+    for group in all_groups:
+        gid = group.id
+        members = group_providers.get(gid, [])
+        group.provider_count = len(members)
+
+        total_panel = sum(p.panel_size or 0 for p in members)
+        group.total_panel_size = total_panel
+
+        if total_panel > 0:
+            # Weighted averages by panel_size
+            group.avg_capture_rate = round(
+                sum((p.capture_rate or 0) * (p.panel_size or 0) for p in members) / total_panel, 2
+            )
+            group.avg_recapture_rate = round(
+                sum((p.recapture_rate or 0) * (p.panel_size or 0) for p in members) / total_panel, 2
+            )
+            group.avg_raf = round(
+                sum((p.avg_panel_raf or 0) * (p.panel_size or 0) for p in members) / total_panel, 2
+            )
+            group.gap_closure_rate = round(
+                sum((p.gap_closure_rate or 0) * (p.panel_size or 0) for p in members) / total_panel, 2
+            )
+
+            # group_pmpm: total spend across all panel members / total_panel / 12
+            total_spend = sum((p.panel_pmpm or 0) * (p.panel_size or 0) * 12 for p in members)
+            group.group_pmpm = round(total_spend / total_panel / 12, 2)
+        else:
+            group.avg_capture_rate = None
+            group.avg_recapture_rate = None
+            group.avg_raf = None
+            group.group_pmpm = None
+            group.gap_closure_rate = None
+
+        groups_updated += 1
+
+    await db.commit()
+
+    logger.info(
+        "Provider scorecard refresh complete: %d providers, %d groups updated",
+        providers_updated,
+        groups_updated,
+    )
+
+    return {
+        "providers_updated": providers_updated,
+        "groups_updated": groups_updated,
+    }

@@ -8,7 +8,7 @@ intelligence, admission calendars, and admission pattern analytics.
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import select, func, and_, or_, extract
+from sqlalchemy import select, func, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.adt import ADTEvent
@@ -309,7 +309,7 @@ async def get_follow_up_needed(db: AsyncSession) -> list[dict[str, Any]]:
             discharge_date = discharge_dt.date() if hasattr(discharge_dt, "date") else discharge_dt
             results.append({
                 "member_id": member.id,
-                "member_name": f"{member.first_name} {member.last_name}".strip(),
+                "member_name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
                 "discharge_date": str(discharge_date),
                 "facility": adt_event.facility_name,
                 "days_since_discharge": (date.today() - discharge_date).days,

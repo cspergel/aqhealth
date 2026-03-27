@@ -99,7 +99,8 @@ export function CohortBuilder({ onBuild, loading }: CohortBuilderProps) {
       if (!fieldDef) continue;
 
       if (fieldDef.type === "number") {
-        filterObj[f.field] = parseFloat(f.value);
+        const parsed = parseFloat(f.value);
+        if (!isNaN(parsed)) filterObj[f.field] = parsed;
       } else if (["diagnoses_include", "diagnoses_exclude", "medications", "care_gaps", "suspect_hccs"].includes(f.field)) {
         // Array fields — split by comma or push
         const existing = filterObj[f.field];

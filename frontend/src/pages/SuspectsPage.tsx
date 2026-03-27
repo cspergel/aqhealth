@@ -13,13 +13,13 @@ interface Summary {
   by_provider: { provider_id: number; provider_name: string; count: number }[];
 }
 
-type SortField = "raf_value" | "member_name" | "date_identified" | "annual_value";
+type SortField = "raf_value" | "member_name" | "identified_date" | "annual_value";
 
 const sortOptions: { value: SortField; label: string }[] = [
   { value: "raf_value", label: "RAF Value (High to Low)" },
   { value: "annual_value", label: "Annual Value (High to Low)" },
   { value: "member_name", label: "Member Name (A-Z)" },
-  { value: "date_identified", label: "Date Identified (Newest)" },
+  { value: "identified_date", label: "Date Identified (Newest)" },
 ];
 
 const suspectTypes = [
@@ -158,19 +158,19 @@ export function SuspectsPage() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         <MetricCard
           label="Total Suspects"
-          value={summary ? summary.total_suspects.toLocaleString() : "--"}
+          value={summary ? (summary.total_suspects ?? 0).toLocaleString() : "--"}
         />
         <MetricCard
           label="Total RAF Opportunity"
-          value={summary ? summary.total_raf_opportunity.toFixed(1) : "--"}
+          value={summary ? (summary.total_raf_opportunity ?? 0).toFixed(1) : "--"}
         />
         <MetricCard
           label="Estimated Annual Value"
-          value={summary ? `$${Math.round(summary.total_dollar_opportunity).toLocaleString()}` : "--"}
+          value={summary ? `$${Math.round(summary.total_dollar_opportunity ?? 0).toLocaleString()}` : "--"}
         />
         <MetricCard
           label="Capture Rate"
-          value={summary ? `${summary.total_suspects > 0 ? ((summary.total_captured / summary.total_suspects) * 100).toFixed(1) : "0.0"}%` : "--"}
+          value={summary ? `${(summary.total_suspects ?? 0) > 0 ? (((summary.total_captured ?? 0) / summary.total_suspects) * 100).toFixed(1) : "0.0"}%` : "--"}
         />
       </div>
 

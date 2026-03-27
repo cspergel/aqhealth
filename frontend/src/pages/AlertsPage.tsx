@@ -9,6 +9,7 @@ type PriorityFilter = "critical" | "high" | "medium" | "low" | "all";
 export function AlertsPage() {
   const [alerts, setAlerts] = useState<CareAlertData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("all");
   const [typeFilter, setTypeFilter] = useState("");
@@ -23,8 +24,14 @@ export function AlertsPage() {
     const qs = new URLSearchParams(params).toString();
     api
       .get(`/api/adt/alerts${qs ? `?${qs}` : ""}`)
-      .then((res) => setAlerts(res.data))
-      .catch((err) => console.error("Failed to load alerts:", err))
+      .then((res) => {
+        setAlerts(Array.isArray(res.data) ? res.data : res.data?.items || []);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error("Failed to load alerts:", err);
+        setError("Failed to load alerts.");
+      })
       .finally(() => setLoading(false));
   };
 
@@ -193,7 +200,11 @@ export function AlertsPage() {
       </div>
 
       {/* Alert list */}
-      {loading ? (
+      {error ? (
+        <div className="text-sm py-12 text-center" style={{ color: tokens.red }}>
+          {error}
+        </div>
+      ) : loading ? (
         <div className="text-sm py-12 text-center" style={{ color: tokens.textMuted }}>
           Loading alerts...
         </div>

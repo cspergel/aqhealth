@@ -7,7 +7,7 @@ generates metric timelines, and produces chronological change logs.
 
 import calendar
 import logging
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select, func, and_, or_
@@ -16,11 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.member import Member
 from app.models.claim import Claim
 from app.models.hcc import HccSuspect, RafHistory, SuspectStatus
-from app.models.care_gap import MemberGap, GapStatus, GapMeasure
+from app.models.care_gap import MemberGap, GapStatus
 
 logger = logging.getLogger(__name__)
-
-from app.constants import CMS_PMPM_BASE as CMS_MONTHLY_BASE
 
 
 def _safe_float(v) -> float:

@@ -1,0 +1,13 @@
+﻿Table 1: Contract Year (CY) 2026 Urgently Needed Services Medicare FFS Data Projections,,,,
+Measure of Central Tendency,Medicare FFS Allowed Amount (Total Per Session),,,
+Median,$109 ,,,
+Weighted Average,$128 ,,,
+,,,,
+,,,,
+Table 2: Contract Year (CY) 2026 Urgently Needed Services Copayment Limits by Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,Lower MOOP,Intermediate MOOP,Mandatory MOOP
+A,CY 2026 projected total average Medicare FFS allowed amount*,$128.00 ,,
+B,CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F),50%,40%,30%
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F) (row A multiplied by row B)  ,$64.00 ,$51.20 ,$38.40 
+D,Final CY 2026 copayment limit per § 422.100(f)(6)(iii) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$65.00 ,$50.00 ,$40.00 
+"1 This amount is based on 2023 Medicare FFS data and the Office of the Actuary's (OACT's) cost and utilization projections between 2023 to 2026. This amount represents the CY 2026 projected total average Medicare FFS allowed amount per urgent care visit, weighted by the number of visits rendered. This amount includes Medicare's payment plus the out-of-pocket cost for the visit code as well as the other services rendered and Part B drug costs. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)).",,,,

@@ -144,7 +144,7 @@ async def create_case(db: AsyncSession, data: dict) -> dict:
     """Assign a member to a care manager."""
     assignment = CaseAssignment(**data)
     db.add(assignment)
-    await db.flush()
+    await db.commit()
     await db.refresh(assignment)
     return {"id": assignment.id, "status": "created"}
 
@@ -158,23 +158,26 @@ async def update_case(db: AsyncSession, case_id: int, data: dict) -> dict | None
     for key, value in data.items():
         if hasattr(c, key):
             setattr(c, key, value)
-    await db.flush()
+    await db.commit()
     return {"id": c.id, "status": "updated"}
 
 
-async def add_case_note(db: AsyncSession, case_id: int, data: dict) -> dict:
-    """Add a note to a case and update contact tracking."""
+async def add_case_note(db: AsyncSession, case_id: int, data: dict) -> dict | None:
+    """Add a note to a case and update contact tracking. Returns None if case not found."""
+    # Verify case exists before adding note
+    result = await db.execute(select(CaseAssignment).where(CaseAssignment.id == case_id))
+    c = result.scalar_one_or_none()
+    if not c:
+        return None
+
     note = CaseNote(assignment_id=case_id, **data)
     db.add(note)
 
     # Update last contact on the assignment
-    result = await db.execute(select(CaseAssignment).where(CaseAssignment.id == case_id))
-    c = result.scalar_one_or_none()
-    if c:
-        c.last_contact_date = date.today()
-        c.contact_count = (c.contact_count or 0) + 1
+    c.last_contact_date = date.today()
+    c.contact_count = (c.contact_count or 0) + 1
 
-    await db.flush()
+    await db.commit()
     await db.refresh(note)
     return {"id": note.id, "status": "created"}
 

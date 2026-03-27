@@ -34,7 +34,7 @@ export function ADTConfigPage() {
     setLoading(true);
     api
       .get("/api/adt/sources")
-      .then((res) => setSources(res.data))
+      .then((res) => setSources(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error("Failed to load sources:", err))
       .finally(() => setLoading(false));
   };

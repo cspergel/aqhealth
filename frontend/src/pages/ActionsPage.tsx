@@ -37,7 +37,7 @@ export function ActionsPage() {
       api.get("/api/actions/stats"),
     ])
       .then(([aRes, sRes]) => {
-        setActions(aRes.data);
+        setActions(Array.isArray(aRes.data) ? aRes.data : aRes.data?.items || []);
         setStats(sRes.data);
       })
       .catch(console.error)
@@ -236,13 +236,7 @@ function CreateActionForm({
         </div>
         <div>
           <label className="text-[10px] font-medium uppercase" style={{ color: tokens.textMuted }}>Assigned To</label>
-          <select style={inputStyle} value={assignedToName} onChange={(e) => setAssignedToName(e.target.value)}>
-            <option value="">Unassigned</option>
-            <option value="Maria Santos">Maria Santos</option>
-            <option value="James Rivera">James Rivera</option>
-            <option value="Lisa Chen">Lisa Chen</option>
-            <option value="Angela Brooks">Angela Brooks</option>
-          </select>
+          <input style={inputStyle} value={assignedToName} onChange={(e) => setAssignedToName(e.target.value)} placeholder="Assignee name..." />
         </div>
       </div>
 

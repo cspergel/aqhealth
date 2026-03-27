@@ -120,9 +120,27 @@ async def get_auth_detail(db: AsyncSession, auth_id: int) -> dict | None:
     return _auth_to_dict(auth)
 
 
+# Fields allowed when creating a new auth request (caller-controlled)
+_CREATE_ALLOWED_FIELDS = {
+    "auth_number", "member_id", "service_type", "procedure_code",
+    "diagnosis_code", "requesting_provider_npi", "requesting_provider_name",
+    "servicing_provider_npi", "servicing_facility", "request_date",
+    "auth_start_date", "auth_end_date", "urgency", "notes",
+}
+
+# Fields allowed when updating an auth request (reviewer-controlled)
+_UPDATE_ALLOWED_FIELDS = _CREATE_ALLOWED_FIELDS | {
+    "status", "decision", "decision_date", "approved_units", "denial_reason",
+    "appeal_date", "appeal_status", "peer_to_peer_date",
+    "reviewer_id", "reviewer_name",
+    "turnaround_hours", "compliant",
+}
+
+
 async def create_auth_request(db: AsyncSession, data: dict) -> dict:
-    """Create a new auth request."""
-    auth = PriorAuth(**data)
+    """Create a new auth request. Only whitelisted fields are accepted."""
+    safe_data = {k: v for k, v in data.items() if k in _CREATE_ALLOWED_FIELDS}
+    auth = PriorAuth(**safe_data)
     db.add(auth)
     await db.flush()
     await db.refresh(auth)
@@ -130,13 +148,13 @@ async def create_auth_request(db: AsyncSession, data: dict) -> dict:
 
 
 async def update_auth_request(db: AsyncSession, auth_id: int, data: dict) -> dict | None:
-    """Update an auth request (approve, deny, appeal, etc.)."""
+    """Update an auth request (approve, deny, appeal, etc.). Only whitelisted fields are accepted."""
     result = await db.execute(select(PriorAuth).where(PriorAuth.id == auth_id))
     auth = result.scalar_one_or_none()
     if not auth:
         return None
     for key, value in data.items():
-        if hasattr(auth, key):
+        if key in _UPDATE_ALLOWED_FIELDS and hasattr(auth, key):
             setattr(auth, key, value)
     await db.flush()
     return {"id": auth.id, "status": "updated"}

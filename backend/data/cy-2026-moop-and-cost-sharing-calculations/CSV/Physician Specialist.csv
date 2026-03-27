@@ -1,0 +1,16 @@
+﻿Table 1: Contract Year (CY) 2026 Physician Specialist Medicare FFS Data Projections,,,,
+Provider Specialties,Office Allowed Professional Costs (excluding drugs),Number of Visits,Percent of Total,Weighted Average (Column B x D)
+Cardiology ,209.30,"9,192,753",59.99%,$125.57
+Gastroenterology,137.67,"1,776,220",11.59%,$15.96
+Nephrology ,151.49,"1,649,123",10.76%,$16.30
+ENT (Otolaryngology),188.16,"2,704,784",17.65%,$33.21
+Physician Specialist (Total),," 15,322,880 ",100.00%,$191.05
+,,,,
+,,,,
+Table 2: Contract Year (CY) 2026 Physician Specialist Copayment Limits by Maximum Out-of-Pocket (MOOP) Type,,,,
+Row Reference,Description,Lower MOOP,Intermediate MOOP,Mandatory MOOP
+A,CY 2026 projected total average Medicare FFS allowed amount*,$191.05 ,,
+B,CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F),50%,40%,30%
+C,Unrounded actuarially equivalent copayment value to CY 2026 coinsurance limit per § 422.100(f)(6)(iii)(F) (row A multiplied by row B)  ,$95.52 ,$76.42 ,$57.31 
+D,Final CY 2026 copayment limit per § 422.100(f)(6)(iii) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$95.00 ,$75.00 ,$55.00 
+"*This amount is based on 2024 Medicare FFS cost and utilization data of provider specialties in an office setting and the Office of the Actuary's (OACT's) projections of cost changes between 2024 to 2026. This amount represents the CY 2026 projected total average Medicare FFS allowed amount per physician specialist visit (excluding drug costs), weighted by utilization of the following provider specialty types: cardiology, gastroenterology, nephrology, and ENT (otolaryngology). The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ",,,,

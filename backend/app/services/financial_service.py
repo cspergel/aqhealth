@@ -241,7 +241,7 @@ async def get_pnl_by_plan(db: AsyncSession) -> list[dict]:
         members = max(rev_data["members"], 1)
         exp = exp_by_plan.get(plan, 0)
         surplus = revenue - exp
-        mlr = exp / max(revenue, 1)
+        mlr = round(exp / revenue, 4) if revenue > 0 else None
         per_member = surplus / max(members, 1)
         results.append({
             "plan": plan,
@@ -249,7 +249,7 @@ async def get_pnl_by_plan(db: AsyncSession) -> list[dict]:
             "revenue": round(revenue, 2),
             "expenses": round(exp, 2),
             "surplus": round(surplus, 2),
-            "mlr": round(mlr, 4),
+            "mlr": mlr,
             "per_member_margin": round(per_member, 2),
         })
 
@@ -312,7 +312,7 @@ async def get_pnl_by_group(db: AsyncSession) -> list[dict]:
         revenue = total_cap * (members / total_members)
         expenses = data["expenses"]
         surplus = revenue - expenses
-        mlr = expenses / max(revenue, 1)
+        mlr = round(expenses / revenue, 4) if revenue > 0 else None
         per_member = surplus / max(members, 1)
         results.append({
             "group": data["group"],
@@ -321,7 +321,7 @@ async def get_pnl_by_group(db: AsyncSession) -> list[dict]:
             "revenue": round(revenue, 2),
             "expenses": round(expenses, 2),
             "surplus": round(surplus, 2),
-            "mlr": round(mlr, 4),
+            "mlr": mlr,
             "per_member_margin": round(per_member, 2),
         })
 

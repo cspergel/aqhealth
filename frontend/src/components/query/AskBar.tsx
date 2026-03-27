@@ -35,7 +35,7 @@ export function AskBar({ pageContext }: { pageContext: string }) {
   useEffect(() => {
     api
       .get("/api/query/suggestions", { params: { context: pageContext } })
-      .then((r) => setSuggestions(r.data))
+      .then((r) => setSuggestions(Array.isArray(r.data) ? r.data : []))
       .catch(() => {});
   }, [pageContext]);
 

@@ -34,12 +34,12 @@ class ADTEvent(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     source_id: Mapped[int] = mapped_column(ForeignKey("adt_sources.id"))
-    event_type: Mapped[str] = mapped_column(String(50))  # "admit", "discharge", "transfer", "ed_visit", "observation"
-    event_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    event_type: Mapped[str] = mapped_column(String(50), index=True)  # "admit", "discharge", "transfer", "ed_visit", "observation"
+    event_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     raw_message_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     # Patient matching
-    member_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True)
+    member_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True, index=True)
     patient_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     patient_dob: Mapped[date | None] = mapped_column(Date, nullable=True)
     patient_mrn: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -95,6 +95,6 @@ class CareAlert(Base, TimestampMixin):
     recommended_action: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     assigned_to: Mapped[int | None] = mapped_column(Integer, nullable=True)  # user ID of care manager
-    status: Mapped[str] = mapped_column(String(30), default="open")  # "open", "acknowledged", "in_progress", "resolved"
+    status: Mapped[str] = mapped_column(String(30), default="open", index=True)  # "open", "acknowledged", "in_progress", "resolved"
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     resolution_notes: Mapped[str | None] = mapped_column(Text, nullable=True)

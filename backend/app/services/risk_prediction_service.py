@@ -10,7 +10,7 @@ import logging
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select, func, case, distinct, and_
+from sqlalchemy import select, func, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member
@@ -21,7 +21,7 @@ from app.models.provider import Provider
 
 logger = logging.getLogger(__name__)
 
-from app.constants import CMS_PMPM_BASE as CMS_MONTHLY_BASE
+from app.constants import CMS_PMPM_BASE as CMS_MONTHLY_BASE, CMS_ANNUAL_BASE
 
 
 def _safe_float(v) -> float:
@@ -190,7 +190,7 @@ async def predict_hospitalization_risk(db: AsyncSession) -> list[dict]:
     provider_q = await db.execute(
         select(Provider.id, Provider.first_name, Provider.last_name)
     )
-    providers = {r.id: f"Dr. {r.first_name} {r.last_name}" for r in provider_q.all()}
+    providers = {r.id: f"Dr. {r.first_name or ''} {r.last_name or ''}".strip() for r in provider_q.all()}
 
     # Now load only the member objects needed for scoring (all active — we sort later)
     members_q = await db.execute(
@@ -271,7 +271,7 @@ async def predict_hospitalization_risk(db: AsyncSession) -> list[dict]:
         scored_members.append({
             "id": m.id,
             "member_id": m.member_id,
-            "member_name": f"{m.first_name} {m.last_name}",
+            "member_name": f"{m.first_name or ''} {m.last_name or ''}".strip(),
             "age": age,
             "risk_score": risk_score,
             "risk_level": level,
@@ -418,12 +418,12 @@ async def predict_raf_impact(db: AsyncSession) -> dict:
     current_capture_rate = (captured_count / max(total_suspects, 1)) * 100
 
     # Annual revenue at current RAF
-    current_annual_revenue = total_raf * CMS_MONTHLY_BASE * 12
+    current_annual_revenue = total_raf * CMS_ANNUAL_BASE
 
     # Scenario 1: All suspects captured
     all_captured_raf = total_raf + total_suspect_raf
     all_captured_avg = all_captured_raf / total_lives
-    all_captured_revenue = all_captured_raf * CMS_MONTHLY_BASE * 12
+    all_captured_revenue = all_captured_raf * CMS_ANNUAL_BASE
     all_captured_uplift = all_captured_revenue - current_annual_revenue
 
     # Scenario 2: 80% recapture rate
@@ -433,7 +433,7 @@ async def predict_raf_impact(db: AsyncSession) -> dict:
     additional_raf = total_suspect_raf * (additional_captures_pct / max(1 - current_rate_decimal, 0.01))
     improved_raf = total_raf + additional_raf
     improved_avg = improved_raf / total_lives
-    improved_revenue = improved_raf * CMS_MONTHLY_BASE * 12
+    improved_revenue = improved_raf * CMS_ANNUAL_BASE
     improved_uplift = improved_revenue - current_annual_revenue
 
     return {

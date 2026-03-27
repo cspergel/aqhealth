@@ -587,7 +587,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "observation_value", "test_result",
     ],
     "result_units": [
-        "result_units", "units", "unit_of_measure", "uom",
+        "result_units", "unit_of_measure", "uom",
         "lab_units", "result_unit",
     ],
     "reference_range": [
@@ -682,7 +682,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "due_date", "gap_due_date", "next_due_date", "compliance_date",
     ],
     "last_service_date": [
-        "last_service_date", "last_completed_date", "compliance_date",
+        "last_service_date", "last_completed_date",
         "gap_closed_date",
     ],
     "stars_weight": [

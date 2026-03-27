@@ -84,7 +84,7 @@ export function ClinicalExchangePage() {
     ])
       .then(([dashRes, reqRes]) => {
         setDashboard(dashRes.data);
-        setRequests(reqRes.data);
+        setRequests(Array.isArray(reqRes.data) ? reqRes.data : []);
       })
       .catch((err) => console.error("Failed to load exchange data:", err))
       .finally(() => setLoading(false));

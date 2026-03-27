@@ -124,8 +124,8 @@ export function AvoidablePage() {
     ])
       .then(([analysisRes, erRes, eduRes]) => {
         setAnalysis(analysisRes.data);
-        setErDetail(erRes.data);
-        setEducation(eduRes.data);
+        setErDetail(Array.isArray(erRes.data) ? erRes.data : []);
+        setEducation(Array.isArray(eduRes.data) ? eduRes.data : []);
       })
       .catch((err) => console.error("Failed to load avoidable analysis:", err))
       .finally(() => setLoading(false));

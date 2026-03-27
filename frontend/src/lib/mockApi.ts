@@ -636,7 +636,7 @@ export function enableDemoMode() {
               { label: "Open Suspects", value: totalOpenSuspects.toString() },
               { label: "Total RAF Uplift", value: totalOpenRaf.toFixed(2) },
               { label: "Avg RAF", value: avgRaf.toString() },
-              { label: "Est. Annual Value", value: `$${Math.round(totalOpenRaf * 11000).toLocaleString()}` },
+              { label: "Est. Annual Value", value: `$${Math.round(totalOpenRaf * 13200).toLocaleString()}` },
             ],
             related_members: topByUplift.map((m) => ({ member_id: m.member_id, member_name: m.member_name, raf: m.current_raf, uplift: m.uplift })),
             recommended_actions: [
@@ -1125,7 +1125,7 @@ export function enableDemoMode() {
             suspect_inventory: {
               count: scaledCount,
               total_raf_value: scaledRaf,
-              total_annual_value: Math.round(scaledRaf * 11000),
+              total_annual_value: Math.round(scaledRaf * 13200),
             },
           },
           care_gap_summary: dynamicCareGaps,
@@ -1145,7 +1145,7 @@ export function enableDemoMode() {
           ...mockSuspectsSummary,
           total_suspects: scaledTotal,
           total_raf_opportunity: totalRafOpp,
-          estimated_annual_value: Math.round(totalRafOpp * 11000),
+          estimated_annual_value: Math.round(totalRafOpp * 13200),
           capture_rate: captureRate,
         };
       }

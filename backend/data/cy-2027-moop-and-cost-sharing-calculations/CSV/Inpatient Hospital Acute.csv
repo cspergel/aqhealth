@@ -1,0 +1,47 @@
+Table 1: Contract Year (CY) 2027 Inpatient Hospital Acute Medicare FFS Data Projections,,,,,
+Row Reference,Description,Medicare FFS Amount,,,
+A,Projected Part A Deductible1,"$1,768.00",,,
+B,"Projected Part B Professional Acute Day 1 Cost Sharing1,2",$282.00,,,
+C,"Projected Part B Professional Acute Day 2 Cost Sharing1,2",$114.00,,,
+D,"Projected Part B Professional Acute Day 3 Cost Sharing1,2",$77.00,,,
+E,"Projected Part B Professional Acute Day 4 Cost Sharing1,2",$74.00,,,
+F,"Projected Part B Professional Acute Day 5 Cost Sharing1,2",$68.00,,,
+G,"Projected Part B Professional Acute Day 6+ Cost Sharing1,2",$67.00,,,
+1These amounts are based on 2025 Medicare FFS data and the Office of the Actuary's (OACT's) projections for 2027. The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ,,,,,
+2These amounts contain 100% of ESRD Cost Differential per § 422.100(f)(4)(vi)(B) and (f)(6)(iv)(C)).,,,,,
+,,,,,
+Table 2: Contract Year (CY) 2027 Inpatient Hospital Acute Cost Sharing Limits for the Mandatory Maximum Out-of-Pocket (MOOP) Type,,,,,
+Row Reference,Description,3 Days,6 Days,10 Days,60 Days
+A,Projected Part A deductible (value from row A in Table 1),"$1,768.00",,,
+B,Projected Part B professional acute day cost sharing (sum of values from rows B through G in Table 1 based on the number of days in the length of stay scenario established at § 422.100(f)(6)(iv)(B)),$473.00,$682.00,$950.00,"$4,300.00"
+C,100% of estimated Medicare FFS cost sharing per § 422.100(f)(6)(iv)(D)(1) (sum of row A and B),"$2,241.00","$2,450.00","$2,718.00","$6,068.00"
+D,"Final CY 2027 in-network mandatory MOOP limit (value in row E, mandatory MOOP column in Table 1 from ""MOOP Limits"" tab)","$9,850.00 ",,,
+E,Unrounded CY 2027 inpatient hospital acute cost sharing limits for the mandatory MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row C and D),"$2,241.00","$2,450.00","$2,718.00","$6,068.00"
+F,Final CY 2027 inpatient hospital acute cost sharing limits for the mandatory MOOP type per § 422.100(f)(6)(iv) (row E rounded per § 422.100(f)(6)(ii)),"$2,241.00 ","$2,450.00 ","$2,718.00 ","$6,068.00 "
+,,,,,
+Table 3: Contract Year (CY) 2027 Inpatient Hospital Acute Cost Sharing Limits for the Lower Maximum Out-of-Pocket (MOOP) Type,,,,,
+Row Reference,Description,3 Days,6 Days,10 Days,60 Days
+A,125% of estimated Medicare FFS cost sharing per § 422.100(f)(6)(iv)(D)(3) (value from row C in Table 2 multiplied by 1.25),"$2,801.25","$3,062.50","$3,397.50","$7,585.00"
+B,"Final CY 2027 in-network lower MOOP limit  (value in row E, lower MOOP column in Table 1 from ""MOOP Limits"" tab)","$4,450.00",,,
+C,Unrounded CY 2027 inpatient hospital acute cost sharing limits for the lower MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row A and B; except for 60-days which equals the final CY 2027 in-network lower MOOP limit from row B per § 422.100(f)(6)(iv)(D)(3)),"$2,801.25","$3,062.50","$3,397.50","$4,450.00"
+D,Final CY 2027 inpatient hospital acute cost sharing limits for the lower MOOP type per § 422.100(f)(6)(iv) (row C rounded per § 422.100(f)(6)(ii)),"$2,801.00","$3,062.00","$3,397.00","$4,450.00"
+,,,,,
+Table 4: Contract Year (CY) 2027 Inpatient Hospital Acute Cost Sharing Limits for the Intermediate Maximum Out-of-Pocket (MOOP) Type,,,,,
+Row Reference,Description,3 Days,6 Days,10 Days,60 Days
+A,Unrounded CY 2027 inpatient hospital acute cost sharing limits for the mandatory MOOP type (values in row E from Table 2) ,"$2,241.00","$2,450.00","$2,718.00","$6,068.00"
+B,Unrounded CY 2027 inpatient hospital acute cost sharing limits for the lower MOOP type (values in row C from Table 3),"$2,801.25","$3,062.50","$3,397.50","$4,450.00"
+C,Numeric midpoint between the unrounded inpatient hospital acute cost sharing limits for the mandatory and lower MOOP types per § 422.100(f)(6)(iv)(D)(2) (numeric midpoint between row A and row B),"$2,521.13","$2,756.25","$3,057.75","$5,259.00"
+D,"Final CY 2027 in-network intermediate MOOP limit (value in row D in Table 2 from ""MOOP Limits"" tab)","$7,150.00",,,
+E,Unrounded CY 2027 inpatient hospital acute cost sharing limits for the intermediate MOOP type per § 422.100(f)(6)(iv)(D) (lesser value comparing row C and row D),"$2,521.13","$2,756.25","$3,057.75","$5,259.00"
+F,Final CY 2027 inpatient hospital acute cost sharing limits for the intermediate MOOP type per § 422.100(f)(6)(iv) (row E rounded per § 422.100(f)(6)(ii)),"$2,521.00","$2,756.00","$3,058.00","$5,259.00"
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,

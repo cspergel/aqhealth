@@ -64,7 +64,7 @@ async def process_data(
         "source_name": body.source_name or "manual_upload",
         "format_hint": body.format_hint,
     }
-    result = await process_incoming_data(db, body.raw_data, source_info)
+    result = await process_incoming_data(db, body.raw_data, source_info, tenant_schema=current_user["tenant_schema"])
     return result
 
 
@@ -95,7 +95,7 @@ async def list_rules(
     if field:
         q = q.where(TransformationRule.field == field)
     if active_only:
-        q = q.where(TransformationRule.is_active == True)
+        q = q.where(TransformationRule.is_active.is_(True))
     q = q.order_by(TransformationRule.times_applied.desc())
 
     result = await db.execute(q)
@@ -140,7 +140,6 @@ async def update_rule(
     updates = body.model_dump(exclude_unset=True)
     for key, val in updates.items():
         setattr(rule, key, val)
-    await db.flush()
     await db.commit()
 
     return {"id": rule.id, "updated": list(updates.keys())}

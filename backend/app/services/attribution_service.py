@@ -9,12 +9,12 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import select, func, and_, or_, case
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member
 from app.models.claim import Claim
-from app.constants import CMS_ANNUAL_BASE, CMS_PMPM_BASE
+from app.constants import CMS_ANNUAL_BASE
 
 logger = logging.getLogger(__name__)
 
@@ -120,9 +120,9 @@ async def get_attribution_changes(
         changes.append({
             "id": m.id,
             "member_id": m.member_id,
-            "member_name": f"{m.first_name} {m.last_name}".strip(),
+            "member_name": f"{m.first_name or ''} {m.last_name or ''}".strip(),
             "change_type": "new",
-            "effective_date": str(m.coverage_start),
+            "effective_date": str(m.coverage_start) if m.coverage_start else None,
             "plan": m.health_plan,
         })
 
@@ -137,14 +137,14 @@ async def get_attribution_changes(
         changes.append({
             "id": m.id,
             "member_id": m.member_id,
-            "member_name": f"{m.first_name} {m.last_name}".strip(),
+            "member_name": f"{m.first_name or ''} {m.last_name or ''}".strip(),
             "change_type": "lost",
-            "effective_date": str(m.coverage_end),
+            "effective_date": str(m.coverage_end) if m.coverage_end else None,
             "plan": m.health_plan,
         })
 
-    # Sort by date descending
-    changes.sort(key=lambda c: c["effective_date"], reverse=True)
+    # Sort by date descending; use empty string for None to avoid TypeError
+    changes.sort(key=lambda c: c["effective_date"] or "", reverse=True)
     return changes
 
 
@@ -199,7 +199,7 @@ async def get_churn_risk(db: AsyncSession) -> list[dict[str, Any]]:
         risk_list.append({
             "id": row.id,
             "member_id": row.member_id,
-            "member_name": f"{row.first_name} {row.last_name}".strip(),
+            "member_name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
             "plan": row.health_plan,
             "current_raf": round(raf, 3),
             "last_claim_date": str(last_svc) if last_svc else None,

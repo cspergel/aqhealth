@@ -99,7 +99,16 @@ async def update_annotation(
     db: AsyncSession = Depends(get_tenant_db),
     current_user: dict = Depends(get_current_user),
 ) -> dict:
-    """Update a note (edit, pin, mark follow-up complete)."""
+    """Update a note (edit, pin, mark follow-up complete). Only the author can edit content."""
+    # Check ownership for content edits
+    if body.content is not None:
+        from app.models.annotation import Annotation
+        existing = await db.get(Annotation, annotation_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Annotation not found")
+        if existing.author_id != current_user["user_id"]:
+            raise HTTPException(status_code=403, detail="Only the author can edit annotation content")
+
     annotation = await annotation_service.update_annotation(
         db=db,
         annotation_id=annotation_id,

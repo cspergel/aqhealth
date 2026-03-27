@@ -7,7 +7,7 @@ that push or pull data in various standard formats (HL7v2, X12, CDA, FHIR, etc.)
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,7 +47,7 @@ class InterfaceLog(Base, TimestampMixin):
     __tablename__ = "interface_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    interface_id: Mapped[int] = mapped_column(Integer)
+    interface_id: Mapped[int] = mapped_column(ForeignKey("data_interfaces.id"), index=True)
     event_type: Mapped[str] = mapped_column(String(50))  # "receive", "parse", "error", "test", "normalize"
     message: Mapped[str] = mapped_column(Text)
     records_count: Mapped[int] = mapped_column(Integer, default=0)

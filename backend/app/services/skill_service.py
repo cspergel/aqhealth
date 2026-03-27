@@ -126,6 +126,7 @@ AVAILABLE_ACTIONS = [
     {"action": "refresh_dashboard", "label": "Refresh Dashboard", "description": "Recalculate all dashboard metrics", "category": "Data"},
     {"action": "run_quality_checks", "label": "Run Quality Checks", "description": "Execute data quality validation rules", "category": "Data"},
     {"action": "calculate_stars", "label": "Calculate Stars", "description": "Run Stars rating projection calculator", "category": "Quality"},
+    {"action": "refresh_provider_scorecards", "label": "Refresh Provider Scorecards", "description": "Recompute provider and practice-group scorecard metrics", "category": "Data"},
 ]
 
 
@@ -149,7 +150,8 @@ async def create_skill(db: AsyncSession, skill_data: dict) -> dict:
         scope=skill_data.get("scope", "tenant"),
     )
     db.add(skill)
-    await db.flush()
+    await db.commit()
+    await db.refresh(skill)
 
     return _skill_to_dict(skill)
 
@@ -194,7 +196,8 @@ async def update_skill(db: AsyncSession, skill_id: int, updates: dict) -> dict |
     for key, val in updates.items():
         if key in UPDATABLE_FIELDS and val is not None:
             setattr(skill, key, val)
-    await db.flush()
+    await db.commit()
+    await db.refresh(skill)
     return _skill_to_dict(skill)
 
 
@@ -207,7 +210,7 @@ async def delete_skill(db: AsyncSession, skill_id: int) -> bool:
     if not skill:
         return False
     await db.delete(skill)
-    await db.flush()
+    await db.commit()
     return True
 
 
@@ -290,7 +293,7 @@ async def execute_skill(
     else:
         skill.avg_duration_seconds = duration
 
-    await db.flush()
+    await db.commit()
 
     return _execution_to_dict(execution)
 
@@ -347,7 +350,7 @@ async def _execute_step(
     elif action == "run_discovery":
         try:
             from app.services.discovery_service import run_full_discovery
-            result = await run_full_discovery(db)
+            result = await run_full_discovery(db, tenant_schema=tenant_schema)
             return {"status": "completed", "discoveries": len(result)}
         except Exception as e:
             logger.error("run_discovery failed: %s", e)
@@ -394,6 +397,15 @@ async def _execute_step(
     elif action == "calculate_stars":
         logger.info("STUB: %s — not yet wired", action)
         return {"status": "stub", "message": "Not yet wired — calculate_stars"}
+
+    elif action == "refresh_provider_scorecards":
+        try:
+            from app.services.provider_service import refresh_provider_scorecards
+            result = await refresh_provider_scorecards(db)
+            return {"status": "completed", **result}
+        except Exception as e:
+            logger.error("refresh_provider_scorecards failed: %s", e)
+            return {"status": "failed", "error": str(e)}
 
     else:
         return {"status": "skipped", "message": f"Unknown action: {action}"}

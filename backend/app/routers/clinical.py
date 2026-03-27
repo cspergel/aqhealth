@@ -11,7 +11,7 @@ import logging
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,7 +72,7 @@ async def patient_context(
 
 @router.get("/worklist")
 async def worklist(
-    provider_id: int,
+    provider_id: int = Query(..., description="Provider ID for worklist"),
     db: AsyncSession = Depends(get_tenant_db),
     user: dict = Depends(get_current_user),
 ) -> list[dict[str, Any]]:

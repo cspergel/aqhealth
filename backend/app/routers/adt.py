@@ -12,7 +12,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import contextlib
+import hmac
+
 from app.config import settings
+from app.database import get_tenant_session, validate_schema_name
 from app.dependencies import get_current_user, get_tenant_db
 from app.services.adt_service import (
     acknowledge_alert,
@@ -92,37 +96,46 @@ class SourceConfigInput(BaseModel):
 async def receive_webhook(
     payload: WebhookPayload,
     x_webhook_secret: str | None = Header(None),
-    db: AsyncSession = Depends(get_tenant_db),
+    x_tenant_schema: str | None = Header(None),
 ):
     """
     Receive real-time webhook from Bamboo Health, Collective Medical, etc.
     Authenticated via webhook secret in header (not JWT).
+    Requires X-Tenant-Schema header to identify the target tenant.
     """
     expected_secret = getattr(settings, "adt_webhook_secret", None)
     if not expected_secret:
         raise HTTPException(status_code=503, detail="Webhook secret not configured")
-    if x_webhook_secret != expected_secret:
+    if not x_webhook_secret or not hmac.compare_digest(x_webhook_secret, expected_secret):
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
-
-    # Determine source
-    source_name = payload.source or "webhook"
-    sources = await get_sources(db)
-    source = next((s for s in sources if s["name"].lower() == source_name.lower()), None)
-    if not source:
-        raise HTTPException(status_code=400, detail=f"No ADT source matching '{source_name}'")
-    source_id = source["id"]
-
-    # Merge event data
-    event_data = {**payload.data}
-    if payload.event_type:
-        event_data["event_type"] = payload.event_type
-
+    if not x_tenant_schema:
+        raise HTTPException(status_code=400, detail="X-Tenant-Schema header required")
     try:
-        result = await process_adt_event(db, event_data, source_id)
-        return {"status": "processed", "event_id": result["id"], "alerts": len(result.get("alerts", []))}
-    except Exception as e:
-        logger.error(f"Webhook processing error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to process webhook")
+        validate_schema_name(x_tenant_schema)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid tenant schema name")
+
+    # Open a tenant-scoped DB session (bypasses JWT-based get_tenant_db)
+    async with contextlib.asynccontextmanager(get_tenant_session)(x_tenant_schema) as db:
+        # Determine source
+        source_name = payload.source or "webhook"
+        sources = await get_sources(db)
+        source = next((s for s in sources if s["name"].lower() == source_name.lower()), None)
+        if not source:
+            raise HTTPException(status_code=400, detail=f"No ADT source matching '{source_name}'")
+        source_id = source["id"]
+
+        # Merge event data
+        event_data = {**payload.data}
+        if payload.event_type:
+            event_data["event_type"] = payload.event_type
+
+        try:
+            result = await process_adt_event(db, event_data, source_id)
+            return {"status": "processed", "event_id": result["id"], "alerts": len(result.get("alerts", []))}
+        except Exception as e:
+            logger.error("Webhook processing error: %s", e)
+            raise HTTPException(status_code=500, detail="Failed to process webhook")
 
 
 # ---------------------------------------------------------------------------
@@ -221,15 +234,19 @@ async def update_alert(
     user_id = current_user["user_id"]
 
     if body.action == "acknowledge":
-        return await acknowledge_alert(db, alert_id, user_id)
+        result = await acknowledge_alert(db, alert_id, user_id)
     elif body.action == "assign":
         if not body.assigned_to:
             raise HTTPException(status_code=400, detail="assigned_to is required for assign action")
-        return await assign_alert(db, alert_id, body.assigned_to)
+        result = await assign_alert(db, alert_id, body.assigned_to)
     elif body.action == "resolve":
-        return await resolve_alert(db, alert_id, user_id, body.resolution_notes)
+        result = await resolve_alert(db, alert_id, user_id, body.resolution_notes)
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return result
 
 
 # ---------------------------------------------------------------------------

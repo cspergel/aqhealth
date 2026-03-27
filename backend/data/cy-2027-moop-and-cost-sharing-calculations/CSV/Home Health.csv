@@ -1,0 +1,9 @@
+Table 1: Contract Year (CY) 2027 Home Health Copayment Limit for the Lower Maximum Out-of-Pocket (MOOP) Type,,
+Row Reference,Description,Lower MOOP1
+A,CY 2027 projected total average Medicare FFS allowed amount2,$263.00 
+B,CY 2027 coinsurance limit per § 422.100(j)(1),20%
+C,Unrounded actuarially equivalent copayment value to CY 2027 coinsurance limit per § 422.100(j)(1) (row A multiplied by row B)  ,$52.60 
+D,Final CY 2027 copayment limit per § 422.100(j)(1) and (f)(8)(ii)(D) (row C rounded per § 422.100(f)(6)(ii))  ,$55.00 
+1 The 20 percent coinsurance limit for home health (reflected in this table) only applies to MA plans that use the lower MOOP limit per § 422.100(j)(1)(i)(D). The home health copayment limit for the mandatory and intermediate MOOP limits is $0 in alignment with original Medicare that has no cost sharing for home health. ,,
+"2 This amount is based on 2024 Medicare FFS data and the Office of the Actuary's (OACT's) cost and utilization projections between 2024 to 2027. This amount represents the CY 2027 projected total Medicare FFS weighted average cost per home health visit, including services in the Medicare FFS home health bundle (such as, nurse, aid, therapist, certain medical supplies and medications) but no other services (such as other medications, supplies, and DME). The OACT employed generally accepted actuarial principles and practices in calculating this projected amount (per § 422.100(f)(7)). ",,
+,,

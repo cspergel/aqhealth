@@ -17,7 +17,7 @@ from sqlalchemy import select, func, case, distinct, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.constants import PMPM_BENCHMARKS, CMS_PMPM_BASE
+from app.constants import PMPM_BENCHMARKS, CMS_PMPM_BASE, CMS_ANNUAL_BASE, PROVIDER_PMPM_GAP_THRESHOLD
 from app.services.llm_guard import guarded_llm_call
 from app.models.claim import Claim, ClaimType
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
@@ -51,6 +51,39 @@ SNF_LOS_BENCHMARKS = {
     "CHF": 18, "COPD": 14, "UTI": 10, "Hip Fracture": 22,
     "Pneumonia": 12, "Stroke": 20, "Sepsis": 16, "default": 15,
 }
+
+# Map ICD-10 prefixes to condition labels used in SNF_LOS_BENCHMARKS
+_ICD10_TO_CONDITION: dict[str, str] = {
+    "I50": "CHF", "I11": "CHF", "I13": "CHF",
+    "J44": "COPD", "J43": "COPD",
+    "N39": "UTI", "N30": "UTI",
+    "S72": "Hip Fracture", "M84.3": "Hip Fracture", "M84.4": "Hip Fracture",
+    "J18": "Pneumonia", "J15": "Pneumonia", "J13": "Pneumonia", "J14": "Pneumonia",
+    "I63": "Stroke", "I64": "Stroke", "I61": "Stroke",
+    "A41": "Sepsis", "R65.2": "Sepsis",
+}
+
+
+def _resolve_condition_label(primary_dx: str | None) -> str | None:
+    """Map a raw ICD-10 code to a condition label for benchmark lookup."""
+    if not primary_dx:
+        return None
+    code = primary_dx.upper().replace(".", "")
+    # Try progressively shorter prefixes
+    for length in (5, 4, 3):
+        prefix = code[:length]
+        # Re-insert dot for matching against _ICD10_TO_CONDITION
+        dotted = prefix[:3] + "." + prefix[3:] if len(prefix) > 3 else prefix
+        if dotted in _ICD10_TO_CONDITION:
+            return _ICD10_TO_CONDITION[dotted]
+        if prefix in _ICD10_TO_CONDITION:
+            return _ICD10_TO_CONDITION[prefix]
+    # Try 3-char prefix
+    prefix3 = code[:3]
+    if prefix3 in _ICD10_TO_CONDITION:
+        return _ICD10_TO_CONDITION[prefix3]
+    return None
+
 
 DEVIATION_THRESHOLD = 0.15  # 15%
 
@@ -154,7 +187,7 @@ async def anomaly_scan(db: AsyncSession) -> list[dict]:
                     estimated_loss = abs(deviation) * _si(p.panel_size) * CMS_PMPM_BASE * 0.1
                     findings.append({
                         "scan": "anomaly",
-                        "entity": f"Provider: {p.first_name} {p.last_name}",
+                        "entity": f"Provider: {p.first_name or ''} {p.last_name or ''}".strip(),
                         "metric": "capture_rate",
                         "current_value": round(rate, 1),
                         "expected_value": round(avg_capture, 1),
@@ -237,15 +270,17 @@ async def opportunity_scan(db: AsyncSession) -> list[dict]:
     )
     for r in snf_q.all():
         avg_los = _sf(r.avg_los)
-        benchmark = SNF_LOS_BENCHMARKS.get(r.primary_diagnosis, SNF_LOS_BENCHMARKS["default"])
+        condition_label = _resolve_condition_label(r.primary_diagnosis) or r.primary_diagnosis
+        benchmark = SNF_LOS_BENCHMARKS.get(condition_label, SNF_LOS_BENCHMARKS["default"])
         if avg_los > benchmark * (1 + DEVIATION_THRESHOLD):
             excess_days = avg_los - benchmark
             cost_per_day = _sf(r.total_spend) / max(avg_los * _si(r.claim_count), 1)
             savings = excess_days * _si(r.claim_count) * cost_per_day
+            display_dx = condition_label or r.primary_diagnosis or "All Dx"
             findings.append({
                 "scan": "opportunity",
                 "type": "snf_los",
-                "entity": f"{r.facility_name} — {r.primary_diagnosis or 'All Dx'}",
+                "entity": f"{r.facility_name} — {display_dx}",
                 "current_value": round(avg_los, 1),
                 "benchmark": benchmark,
                 "excess_days": round(excess_days, 1),
@@ -267,18 +302,43 @@ async def opportunity_scan(db: AsyncSession) -> list[dict]:
         .order_by(func.sum(Claim.paid_amount).desc())
     )
     hh_divertible = ["UTI", "Pneumonia", "COPD", "CHF", "Cellulitis"]
+    # ICD-10 prefixes that map to HH-divertible conditions
+    _HH_ICD10_PREFIXES = {
+        "N39": "UTI", "N30": "UTI",
+        "J18": "Pneumonia", "J15": "Pneumonia", "J13": "Pneumonia",
+        "J44": "COPD", "J43": "COPD",
+        "I50": "CHF", "I11": "CHF",
+        "L03": "Cellulitis", "L08": "Cellulitis",
+    }
     for r in snf_diag_q.all():
         dx = r.primary_diagnosis or ""
-        if any(d.lower() in dx.lower() for d in hh_divertible):
+        # Resolve ICD-10 code to condition label for matching
+        condition = _resolve_condition_label(dx)
+        matched = condition and any(d.lower() == condition.lower() for d in hh_divertible)
+        if not matched:
+            # Also check if raw ICD-10 prefix matches directly
+            dx_stripped = dx.upper().replace(".", "")
+            for prefix, label in _HH_ICD10_PREFIXES.items():
+                if dx_stripped.startswith(prefix.replace(".", "")):
+                    condition = label
+                    matched = True
+                    break
+        if not matched:
+            # Fallback: substring match on the raw text (handles pre-resolved labels)
+            matched = any(d.lower() in dx.lower() for d in hh_divertible)
+            if matched:
+                condition = dx
+        if matched:
+            display_dx = condition or dx
             savings = _sf(r.total_spend) * 0.65  # HH costs ~35% of SNF
             findings.append({
                 "scan": "opportunity",
                 "type": "hh_diversion",
-                "entity": f"Diagnosis: {dx}",
+                "entity": f"Diagnosis: {display_dx}",
                 "member_count": _si(r.member_count),
                 "snf_spend": round(_sf(r.total_spend), 0),
                 "dollar_impact": round(savings, 0),
-                "description": f"{_si(r.member_count)} SNF patients with {dx} could potentially go home with HH",
+                "description": f"{_si(r.member_count)} SNF patients with {display_dx} could potentially go home with HH",
             })
 
     # --- Specificity upgrade opportunities ---
@@ -384,16 +444,16 @@ async def comparative_scan(db: AsyncSession) -> list[dict]:
                 findings.append({
                     "scan": "comparative",
                     "type": "provider_capture_gap",
-                    "entity_a": f"{best.first_name} {best.last_name}",
-                    "entity_b": f"{worst.first_name} {worst.last_name}",
+                    "entity_a": f"{best.first_name or ''} {best.last_name or ''}".strip(),
+                    "entity_b": f"{worst.first_name or ''} {worst.last_name or ''}".strip(),
                     "metric": "capture_rate",
                     "value_a": round(_sf(best.capture_rate), 1),
                     "value_b": round(_sf(worst.capture_rate), 1),
                     "gap": round(gap, 1),
                     "specialty": spec,
                     "actionable": True,
-                    "dollar_impact": round(gap / 100 * _si(worst.panel_size) * CMS_PMPM_BASE, 0),
-                    "description": f"{best.first_name} {best.last_name} captures at {_sf(best.capture_rate):.0f}% vs {worst.first_name} {worst.last_name} at {_sf(worst.capture_rate):.0f}% — same specialty ({spec})",
+                    "dollar_impact": round(gap / 100 * _si(worst.panel_size) * CMS_ANNUAL_BASE * 0.15, 0),  # avg suspect RAF ~0.15
+                    "description": f"{best.first_name or ''} {best.last_name or ''} captures at {_sf(best.capture_rate):.0f}% vs {worst.first_name or ''} {worst.last_name or ''} at {_sf(worst.capture_rate):.0f}% — same specialty ({spec})",
                 })
 
             # PMPM gap
@@ -401,12 +461,12 @@ async def comparative_scan(db: AsyncSession) -> list[dict]:
             low = sorted_pmpm[0]
             high = sorted_pmpm[-1]
             pmpm_gap = _sf(high.panel_pmpm) - _sf(low.panel_pmpm)
-            if pmpm_gap > 200:
+            if pmpm_gap > PROVIDER_PMPM_GAP_THRESHOLD:
                 findings.append({
                     "scan": "comparative",
                     "type": "provider_pmpm_gap",
-                    "entity_a": f"{low.first_name} {low.last_name}",
-                    "entity_b": f"{high.first_name} {high.last_name}",
+                    "entity_a": f"{low.first_name or ''} {low.last_name or ''}".strip(),
+                    "entity_b": f"{high.first_name or ''} {high.last_name or ''}".strip(),
                     "metric": "panel_pmpm",
                     "value_a": round(_sf(low.panel_pmpm), 0),
                     "value_b": round(_sf(high.panel_pmpm), 0),
@@ -414,7 +474,7 @@ async def comparative_scan(db: AsyncSession) -> list[dict]:
                     "specialty": spec,
                     "actionable": True,
                     "dollar_impact": round(pmpm_gap * _si(high.panel_size) * 12, 0),
-                    "description": f"PMPM gap of ${pmpm_gap:,.0f} between {low.first_name} {low.last_name} and {high.first_name} {high.last_name} ({spec})",
+                    "description": f"PMPM gap of ${pmpm_gap:,.0f} between {low.first_name or ''} {low.last_name or ''} and {high.first_name or ''} {high.last_name or ''} ({spec})",
                 })
 
     # --- Facility-to-facility comparisons ---
@@ -686,12 +746,12 @@ async def cross_module_scan(db: AsyncSession) -> list[dict]:
         if len(issues) >= 2:
             findings.append({
                 "scan": "cross_module",
-                "entity": f"Provider: {p.first_name} {p.last_name}",
+                "entity": f"Provider: {p.first_name or ''} {p.last_name or ''}".strip(),
                 "modules_flagged": issues,
                 "combined_impact": None,
                 "priority_score": 80 + len(issues) * 5,
                 "dollar_impact": None,
-                "description": f"Dr. {p.last_name} underperforms on {', '.join(issues).replace('_', ' ')} — correlated issues suggest systematic problem",
+                "description": f"Dr. {p.last_name or 'Unknown'} underperforms on {', '.join(issues).replace('_', ' ')} — correlated issues suggest systematic problem",
             })
 
     return findings

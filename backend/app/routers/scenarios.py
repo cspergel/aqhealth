@@ -7,7 +7,7 @@ impact projections.  All endpoints are tenant-scoped via JWT auth.
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +29,7 @@ async def list_prebuilt_scenarios(
     current_user: dict = Depends(get_current_user),
 ) -> list[dict]:
     """Return list of pre-built scenario definitions."""
-    return await scenario_service.get_prebuilt_scenarios()
+    return scenario_service.get_prebuilt_scenarios()
 
 
 @router.post("/run")
@@ -39,4 +39,10 @@ async def run_scenario(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Run a scenario with the given parameters and return projected impact."""
-    return await scenario_service.run_scenario(db, {"type": body.type, "params": body.params})
+    valid_types = {"capture_improvement", "facility_redirect", "gap_closure", "membership_change", "cost_reduction", "provider_education"}
+    if body.type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Invalid scenario type '{body.type}'. Must be one of: {', '.join(sorted(valid_types))}")
+    result = await scenario_service.run_scenario(db, {"type": body.type, "params": body.params})
+    if "error" in result:
+        raise HTTPException(status_code=422, detail=result["error"])
+    return result

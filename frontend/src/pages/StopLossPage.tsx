@@ -54,7 +54,7 @@ export function StopLossPage() {
     ])
       .then(([dashRes, membersRes, corridorRes]) => {
         setDashboard(dashRes.data);
-        setMembers(membersRes.data);
+        setMembers(Array.isArray(membersRes.data) ? membersRes.data : []);
         setCorridor(corridorRes.data);
       })
       .catch((err) => console.error("Failed to load stop-loss data:", err))
