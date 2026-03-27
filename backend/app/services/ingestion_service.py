@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.claim import Claim, ClaimType
 from app.models.member import Member
 from app.models.provider import Provider
+from app.services.data_preprocessor import preprocess_file
 
 logger = logging.getLogger(__name__)
 
@@ -714,6 +715,19 @@ async def process_upload(
         }
     """
     logger.info(f"Processing upload: {file_path} as {data_type}")
+
+    # Step 0: Pre-process the raw file to fix common data messiness
+    try:
+        prep_result = await preprocess_file(file_path)
+        if prep_result["cleaned_path"]:
+            file_path = prep_result["cleaned_path"]  # use cleaned version
+        # Log what was cleaned
+        for change in prep_result["changes_made"]:
+            logger.info(f"Pre-processed: {change['description']}")
+        for warning in prep_result.get("warnings", []):
+            logger.warning(f"Pre-processor warning: {warning}")
+    except Exception as prep_err:
+        logger.warning(f"Pre-processing failed (continuing with original file): {prep_err}")
 
     reverse_map = _build_reverse_mapping(column_mapping)
     all_errors: list[dict] = []

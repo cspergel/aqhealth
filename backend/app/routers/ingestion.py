@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.dependencies import get_current_user, get_tenant_db
+from app.services.data_preprocessor import preprocess_file
 from app.services.ingestion_service import read_file_headers_and_sample
 from app.services.mapping_service import propose_mapping
 
@@ -58,6 +59,16 @@ class ColumnMappingEntry(BaseModel):
     transform: dict | None = None
 
 
+class PreprocessingInfo(BaseModel):
+    original_encoding: str | None = None
+    changes_made: list[dict] = []
+    rows_removed: int = 0
+    columns_removed: list[str] = []
+    date_format_detected: dict[str, str] = {}
+    diagnosis_columns_merged: bool = False
+    warnings: list[str] = []
+
+
 class UploadResponse(BaseModel):
     job_id: int
     filename: str
@@ -65,6 +76,7 @@ class UploadResponse(BaseModel):
     proposed_mapping: dict[str, ColumnMappingEntry]
     sample_rows: list[list[str]]
     headers: list[str]
+    preprocessing: PreprocessingInfo | None = None
 
 
 class ConfirmMappingRequest(BaseModel):
@@ -200,9 +212,30 @@ async def upload_file(
     with open(file_path, "wb") as f:
         f.write(content)
 
-    # Read headers and sample data
+    # Step 0: Pre-process the raw file to fix encoding, headers, empty rows, etc.
+    preprocessing_info = None
+    effective_path = str(file_path)
     try:
-        headers, sample_rows = read_file_headers_and_sample(str(file_path), max_rows=5)
+        prep_result = await preprocess_file(str(file_path))
+        preprocessing_info = PreprocessingInfo(
+            original_encoding=prep_result.get("original_encoding"),
+            changes_made=prep_result.get("changes_made", []),
+            rows_removed=prep_result.get("rows_removed", 0),
+            columns_removed=prep_result.get("columns_removed", []),
+            date_format_detected=prep_result.get("date_format_detected", {}),
+            diagnosis_columns_merged=prep_result.get("diagnosis_columns_merged", False),
+            warnings=prep_result.get("warnings", []),
+        )
+        if prep_result.get("cleaned_path"):
+            effective_path = prep_result["cleaned_path"]
+        for change in prep_result.get("changes_made", []):
+            logger.info(f"Upload pre-processed: {change['description']}")
+    except Exception as prep_err:
+        logger.warning(f"Pre-processing failed (continuing with original file): {prep_err}")
+
+    # Read headers and sample data (from preprocessed file if available)
+    try:
+        headers, sample_rows = read_file_headers_and_sample(effective_path, max_rows=5)
     except Exception as e:
         # Clean up the file if we can't read it
         file_path.unlink(missing_ok=True)
@@ -288,6 +321,7 @@ async def upload_file(
         proposed_mapping=mapping_response,
         sample_rows=sample_rows,
         headers=headers,
+        preprocessing=preprocessing_info,
     )
 
 
