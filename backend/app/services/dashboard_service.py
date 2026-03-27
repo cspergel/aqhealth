@@ -110,7 +110,7 @@ async def get_dashboard_metrics(db: AsyncSession) -> dict:
 
     # MLR: medical spend / premium estimate (premium ~ RAF * base rate * lives * months / 12)
     # Using CMS average base rate of ~$1,100/month as a rough estimate
-    base_rate_monthly = 1100.0
+    from app.constants import CMS_PMPM_BASE; base_rate_monthly = CMS_PMPM_BASE
     premium_estimate = avg_raf * base_rate_monthly * total_lives * (months / 12) if avg_raf > 0 else 0
     mlr = (total_paid / premium_estimate * 100) if premium_estimate > 0 else 0
 

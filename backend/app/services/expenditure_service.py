@@ -359,8 +359,8 @@ async def _drilldown_inpatient(db: AsyncSession, base_filter, member_count: int,
             "description": "",  # Would come from DRG reference table
             "cases": _safe_int(row.cases),
             "avg_cost": avg,
-            "benchmark_cost": round(avg * 0.85, 0),  # Placeholder benchmark
-            "excess_spend": round(avg * 0.15 * _safe_int(row.cases), 0),
+            "benchmark_cost": None,  # Real benchmarks require CMS DRG weight data
+            "excess_spend": None,  # Cannot calculate without real DRG benchmarks
         })
 
     # --- Provider patterns (admitting PCP breakdown) ---

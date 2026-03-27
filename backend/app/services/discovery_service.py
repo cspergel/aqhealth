@@ -17,7 +17,7 @@ from sqlalchemy import select, func, case, distinct, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.constants import PMPM_BENCHMARKS
+from app.constants import PMPM_BENCHMARKS, CMS_PMPM_BASE
 from app.services.llm_guard import guarded_llm_call
 from app.models.claim import Claim, ClaimType
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
@@ -151,7 +151,7 @@ async def anomaly_scan(db: AsyncSession) -> list[dict]:
             if avg_capture > 0:
                 deviation = (rate - avg_capture) / avg_capture
                 if deviation < -DEVIATION_THRESHOLD:  # Only flag underperformers
-                    estimated_loss = abs(deviation) * _si(p.panel_size) * 1100 * 0.1
+                    estimated_loss = abs(deviation) * _si(p.panel_size) * CMS_PMPM_BASE * 0.1
                     findings.append({
                         "scan": "anomaly",
                         "entity": f"Provider: {p.first_name} {p.last_name}",
@@ -392,7 +392,7 @@ async def comparative_scan(db: AsyncSession) -> list[dict]:
                     "gap": round(gap, 1),
                     "specialty": spec,
                     "actionable": True,
-                    "dollar_impact": round(gap / 100 * _si(worst.panel_size) * 1100, 0),
+                    "dollar_impact": round(gap / 100 * _si(worst.panel_size) * CMS_PMPM_BASE, 0),
                     "description": f"{best.first_name} {best.last_name} captures at {_sf(best.capture_rate):.0f}% vs {worst.first_name} {worst.last_name} at {_sf(worst.capture_rate):.0f}% — same specialty ({spec})",
                 })
 
