@@ -594,8 +594,8 @@ async def detect_file_anomalies(
                         f"historical average ({avg_count:.0f})"
                     ),
                 })
-    except Exception:
-        pass  # History check is best-effort
+    except Exception as e:
+        logger.warning("History check failed: %s", e)
 
     safe = all(a["severity"] != "critical" for a in anomalies)
     return {"safe": safe, "anomalies": anomalies, "row_count": row_count}

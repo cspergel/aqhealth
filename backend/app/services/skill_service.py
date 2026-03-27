@@ -310,41 +310,78 @@ async def _execute_step(
     db: AsyncSession, action: str, params: dict, tenant_schema: str
 ) -> dict:
     """Dispatch a single step action to the appropriate service."""
-    # In production, each action maps to a real service call.
-    # For now, provide the dispatch structure with real imports where available.
 
     if action == "run_hcc_engine":
-        return {"status": "completed", "suspects_found": 0, "message": "HCC engine analysis completed"}
+        try:
+            from app.services.hcc_engine import analyze_population
+            result = await analyze_population(tenant_schema, db)
+            return {"status": "completed", **result}
+        except Exception as e:
+            logger.error("run_hcc_engine failed: %s", e)
+            return {"status": "failed", "error": str(e)}
+
+    elif action == "detect_care_gaps":
+        try:
+            from app.services.care_gap_service import detect_gaps
+            result = await detect_gaps(db)
+            return {"status": "completed", **result}
+        except Exception as e:
+            logger.error("detect_care_gaps failed: %s", e)
+            return {"status": "failed", "error": str(e)}
+
+    elif action == "generate_insights":
+        try:
+            from app.services.insight_service import generate_insights
+            result = await generate_insights(db, tenant_schema=tenant_schema)
+            return {"status": "completed", "insights_generated": len(result)}
+        except Exception as e:
+            logger.error("generate_insights failed: %s", e)
+            return {"status": "failed", "error": str(e)}
+
+    elif action == "run_discovery":
+        try:
+            from app.services.discovery_service import run_full_discovery
+            result = await run_full_discovery(db)
+            return {"status": "completed", "discoveries": len(result)}
+        except Exception as e:
+            logger.error("run_discovery failed: %s", e)
+            return {"status": "failed", "error": str(e)}
+
+    elif action == "evaluate_alert_rules":
+        try:
+            from app.services.alert_rules_service import evaluate_rules
+            result = await evaluate_rules(db)
+            return {"status": "completed", "alerts_triggered": len(result)}
+        except Exception as e:
+            logger.error("evaluate_alert_rules failed: %s", e)
+            return {"status": "failed", "error": str(e)}
+
+    elif action == "run_quality_checks":
+        try:
+            from app.services.data_quality_service import run_quality_checks
+            result = await run_quality_checks(db, ingestion_job_id=params.get("job_id"))
+            return {"status": "completed", **result}
+        except Exception as e:
+            logger.error("run_quality_checks failed: %s", e)
+            return {"status": "failed", "error": str(e)}
 
     elif action == "generate_chase_list":
         return {"status": "completed", "items_generated": 0, "message": "Chase list generated"}
-
-    elif action == "detect_care_gaps":
-        return {"status": "completed", "gaps_found": 0, "message": "Care gap detection completed"}
-
-    elif action == "generate_insights":
-        return {"status": "completed", "insights_created": 0, "message": "Insight generation completed"}
-
-    elif action == "run_discovery":
-        return {"status": "completed", "patterns_found": 0, "message": "Discovery analysis completed"}
 
     elif action == "create_action_items":
         return {"status": "completed", "items_created": 0, "message": "Action items created"}
 
     elif action == "send_notification":
+        logger.info("STUB: %s — wire to real service when ready", action)
         return {"status": "completed", "notifications_sent": 0, "message": "Notifications sent"}
 
     elif action == "generate_report":
+        logger.info("STUB: %s — wire to real service when ready", action)
         return {"status": "completed", "report_id": None, "message": "Report generated"}
 
-    elif action == "evaluate_alert_rules":
-        return {"status": "completed", "alerts_triggered": 0, "message": "Alert rules evaluated"}
-
     elif action == "refresh_dashboard":
+        logger.info("STUB: %s — wire to real service when ready", action)
         return {"status": "completed", "message": "Dashboard metrics refreshed"}
-
-    elif action == "run_quality_checks":
-        return {"status": "completed", "issues_found": 0, "message": "Quality checks completed"}
 
     elif action == "calculate_stars":
         return {"status": "completed", "projected_rating": None, "message": "Stars calculation completed"}

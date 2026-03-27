@@ -18,6 +18,7 @@ from sqlalchemy import select, func, case, update, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.constants import PMPM_BENCHMARKS
 from app.services.llm_guard import guarded_llm_call
 from app.models.claim import Claim, ClaimType
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
@@ -149,11 +150,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
         .group_by(Claim.service_category)
         .order_by(func.sum(Claim.paid_amount).desc())
     )
-    benchmarks = {
-        "inpatient": 450, "ed_observation": 85, "professional": 200,
-        "snf_postacute": 120, "pharmacy": 350, "home_health": 60,
-        "dme": 40, "other": 50,
-    }
+    benchmarks = PMPM_BENCHMARKS
     expenditure_categories = []
     total_spend = 0.0
     for r in cat_q.all():

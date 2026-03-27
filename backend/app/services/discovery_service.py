@@ -17,6 +17,7 @@ from sqlalchemy import select, func, case, distinct, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.constants import PMPM_BENCHMARKS
 from app.services.llm_guard import guarded_llm_call
 from app.models.claim import Claim, ClaimType
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
@@ -44,11 +45,7 @@ def _si(v) -> int:
 # Benchmarks / thresholds
 # ---------------------------------------------------------------------------
 
-PMPM_BENCHMARKS = {
-    "inpatient": 450, "ed_observation": 85, "professional": 200,
-    "snf_postacute": 120, "pharmacy": 350, "home_health": 60,
-    "dme": 40, "other": 50,
-}
+# PMPM_BENCHMARKS imported from app.constants
 
 SNF_LOS_BENCHMARKS = {
     "CHF": 18, "COPD": 14, "UTI": 10, "Hip Fracture": 22,

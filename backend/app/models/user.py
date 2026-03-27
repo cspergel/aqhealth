@@ -11,6 +11,9 @@ class UserRole(str, enum.Enum):
     analyst = "analyst"            # Read-only dashboards + exports
     provider = "provider"          # Own scorecard + panel only
     auditor = "auditor"            # Time-limited read-only
+    care_manager = "care_manager"  # Care management workflows
+    outreach = "outreach"          # Member outreach campaigns
+    financial = "financial"        # Financial reporting + reconciliation
 
 
 class User(Base, TimestampMixin):

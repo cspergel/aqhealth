@@ -9,6 +9,7 @@ requests.
 import logging
 from typing import Any
 
+from sqlalchemy import select, func, distinct, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -31,11 +32,94 @@ async def generate_hcc_evidence_package(
     - Lab results supporting the diagnosis
     - Timeline of documentation
     """
+    from app.models.claim import Claim, ClaimType
+    from app.models.hcc import HccSuspect
+
+    evidence: dict[str, Any] = {}
+
+    try:
+        # 1. Find diagnosis codes associated with this HCC
+        suspects_q = await db.execute(
+            select(HccSuspect.icd_code, HccSuspect.hcc_label, HccSuspect.evidence_summary)
+            .where(HccSuspect.member_id == member_id, HccSuspect.hcc_code == hcc_code)
+        )
+        suspects = suspects_q.all()
+        dx_codes = [s.icd_code for s in suspects if s.icd_code]
+        evidence["hcc_label"] = suspects[0].hcc_label if suspects else None
+        evidence["diagnosis_codes"] = dx_codes
+        evidence["suspect_evidence"] = [s.evidence_summary for s in suspects if s.evidence_summary]
+
+        # 2. Supporting claims with HCC-related diagnosis codes
+        if dx_codes:
+            claims_q = await db.execute(
+                select(
+                    Claim.claim_id, Claim.service_date, Claim.primary_dx,
+                    Claim.rendering_provider_name, Claim.facility_name,
+                    Claim.paid_amount,
+                )
+                .where(Claim.member_id == member_id, Claim.primary_dx.in_(dx_codes))
+                .order_by(Claim.service_date.desc())
+                .limit(20)
+            )
+            evidence["supporting_claims"] = [
+                {
+                    "claim_id": r.claim_id,
+                    "service_date": str(r.service_date) if r.service_date else None,
+                    "diagnosis": r.primary_dx,
+                    "provider": r.rendering_provider_name,
+                    "facility": r.facility_name,
+                    "paid": float(r.paid_amount) if r.paid_amount else None,
+                }
+                for r in claims_q.all()
+            ]
+        else:
+            evidence["supporting_claims"] = []
+
+        # 3. Medications that support the diagnosis (pharmacy claims)
+        meds_q = await db.execute(
+            select(distinct(Claim.drug_name), Claim.service_date)
+            .where(
+                Claim.member_id == member_id,
+                Claim.claim_type == ClaimType.pharmacy,
+                Claim.drug_name.is_not(None),
+            )
+            .order_by(Claim.service_date.desc())
+            .limit(20)
+        )
+        evidence["medications"] = [
+            {"drug_name": r[0], "fill_date": str(r[1]) if r[1] else None}
+            for r in meds_q.all()
+        ]
+
+        # 4. Recent encounters (dates, providers, facilities)
+        encounters_q = await db.execute(
+            select(
+                Claim.service_date, Claim.rendering_provider_name,
+                Claim.facility_name, Claim.service_category,
+            )
+            .where(Claim.member_id == member_id)
+            .order_by(Claim.service_date.desc())
+            .limit(15)
+        )
+        evidence["recent_encounters"] = [
+            {
+                "date": str(r.service_date) if r.service_date else None,
+                "provider": r.rendering_provider_name,
+                "facility": r.facility_name,
+                "service_category": r.service_category,
+            }
+            for r in encounters_q.all()
+        ]
+
+    except Exception as e:
+        logger.error("Failed to build HCC evidence package for member %s HCC %s: %s", member_id, hcc_code, e)
+        evidence["error"] = str(e)
+
     return {
         "member_id": member_id,
         "hcc_code": hcc_code,
         "package_type": "hcc_evidence",
-        "evidence": {},
+        "evidence": evidence,
     }
 
 

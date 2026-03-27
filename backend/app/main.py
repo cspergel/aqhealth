@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_protection, data_quality, discovery, expenditure, fhir, financial, filters, groups, hcc, ingestion, insights, interfaces, journey, learning, members, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, skills, stars, stoploss, tcm, temporal, tenants, utilization, watchlist
+from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_protection, data_quality, discovery, education, expenditure, fhir, financial, filters, groups, hcc, ingestion, insights, interfaces, journey, learning, members, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, skills, stars, stoploss, tags, tcm, temporal, tenants, utilization, watchlist
 
 app = FastAPI(
     title="AQSoft Health Platform",
@@ -76,8 +76,11 @@ app.include_router(interfaces.router)
 app.include_router(ai_pipeline.router)
 app.include_router(skills.router)
 app.include_router(data_protection.router)
+app.include_router(education.router)
+app.include_router(tags.router)
 
 
+# TODO: migrate to lifespan events in future FastAPI version
 @app.on_event("startup")
 async def _warn_default_secrets():
     if settings.secret_key == "CHANGE-ME-IN-PRODUCTION":

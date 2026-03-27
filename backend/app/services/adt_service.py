@@ -1,3 +1,4 @@
+# NOTE: This service uses raw SQL for performance. When refactoring, migrate to ORM queries.
 """
 ADT (Admit-Discharge-Transfer) Ingestion and Care Alerting Service.
 
