@@ -2,7 +2,7 @@
 
 **EMR-agnostic managed care intelligence platform.**
 
-> **62 commits** | **43 pages** | **56 services** | **51 routers** | **31 models**
+> **68 commits** | **44 pages** | **57 services** | **52 routers** | **32 models**
 
 [Live Demo](https://cspergel.github.io/aqhealth/?demo=true)
 
@@ -460,6 +460,25 @@ The closest comparison is Palantir Foundry for healthcare — but that's a $10M+
 ## Screenshots
 
 See the [live demo](https://cspergel.github.io/aqhealth/?demo=true) for a walkthrough of the platform with synthetic data.
+
+---
+
+## Vision: The Recursive Intelligence Loop
+
+Most analytics platforms are static — they do the same thing on day 365 as day 1. AQHealth **compounds**. It gets smarter, more automated, and more valuable with every data point and every user interaction.
+
+### Phase 1 (Now): Intelligence Layer
+Data flows in from any source → AI pipeline cleans and maps it → Analytics engine discovers opportunities → Humans review and act → Learning system tracks what works.
+
+### Phase 2 (Next): Automation Layer
+AI creates **Skills** (automated workflows) from patterns it discovers. Skills execute automatically — triggered by events, schedules, or conditions. "Every time new claims arrive, run HCC analysis, generate chase list, assign to providers." Users can create Skills by describing them in plain English through the Ask Bar.
+
+### Phase 3 (Future): Autonomous Operations
+A team of AI agents works toward MSO goals ("achieve 4 stars", "capture $2M in RAF"). Each agent specializes — Revenue Agent hunts HCC opportunities, Quality Agent manages Stars measures, Cost Agent optimizes spending. **Agents write their own Skills** based on what they discover: "Practices running AWV campaigns in Q1 capture 23% more HCCs → auto-launch AWV campaign every January." Humans supervise and approve.
+
+**The result:** After 12 months, 80%+ of routine MSO operations run as automated Skills. After 24 months, AI agents manage day-to-day operations while humans focus on strategy. New MSO clients onboard in days — the platform applies learned patterns immediately.
+
+See [docs/VISION.md](docs/VISION.md) for the full technical vision.
 
 ---
 
