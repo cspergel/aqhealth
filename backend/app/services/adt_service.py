@@ -1028,7 +1028,7 @@ async def _create_alert(
         },
     )
     alert_id = result.scalar_one()
-    await db.commit()
+    await db.flush()  # Don't commit here — let the caller control the transaction boundary
 
     return {
         "id": alert_id,

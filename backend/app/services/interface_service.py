@@ -18,7 +18,11 @@ Supported formats:
 
 import logging
 import re
-import xml.etree.ElementTree as ET
+# Use defusedxml if available (protects against billion-laughs DoS), fall back to stdlib
+try:
+    import defusedxml.ElementTree as ET  # type: ignore
+except ImportError:
+    import xml.etree.ElementTree as ET  # stdlib is safe for external entities in Python 3.8+
 from datetime import datetime
 from typing import Any
 

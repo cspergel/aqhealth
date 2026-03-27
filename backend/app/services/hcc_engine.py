@@ -94,7 +94,8 @@ def lookup_hcc_for_icd10(icd10_code: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 # CMS average per-member-per-month base rate (approximate, for dollar impact)
-CMS_PMPM_BASE = Decimal("1000.00")
+from app.constants import CMS_PMPM_BASE as _CMS_BASE
+CMS_PMPM_BASE = Decimal(str(_CMS_BASE))
 ANNUAL_MULTIPLIER = Decimal("12")
 
 # Current payment year — computed at call time so long-running processes

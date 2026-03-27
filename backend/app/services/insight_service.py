@@ -29,7 +29,7 @@ from app.models.provider import Provider
 
 logger = logging.getLogger(__name__)
 
-CMS_MONTHLY_BASE = 1100.0
+from app.constants import CMS_PMPM_BASE as CMS_MONTHLY_BASE
 
 
 def _safe_float(v) -> float:
