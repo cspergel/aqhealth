@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-from app.routers import actions, adt, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_quality, discovery, expenditure, fhir, financial, filters, groups, hcc, ingestion, insights, interfaces, journey, learning, members, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, stars, stoploss, tcm, temporal, tenants, utilization, watchlist
+from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_quality, discovery, expenditure, fhir, financial, filters, groups, hcc, ingestion, insights, interfaces, journey, learning, members, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, stars, stoploss, tcm, temporal, tenants, utilization, watchlist
 
 app = FastAPI(
     title="AQSoft Health Platform",
@@ -73,6 +73,7 @@ app.include_router(utilization.router)
 app.include_router(avoidable.router)
 app.include_router(fhir.router)
 app.include_router(interfaces.router)
+app.include_router(ai_pipeline.router)
 
 
 @app.on_event("startup")

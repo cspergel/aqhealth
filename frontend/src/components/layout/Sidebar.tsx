@@ -121,6 +121,7 @@ const navSections: NavSection[] = [
       { path: "/ingestion", label: "Data Ingestion" },
       { path: "/integrations", label: "Integrations" },
       { path: "/adt-sources", label: "ADT Sources" },
+      { path: "/ai-pipeline", label: "AI Pipeline" },
       { path: "/data-quality", label: "Data Quality" },
       { path: "/data-exchange", label: "Data Exchange" },
     ],

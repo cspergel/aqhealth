@@ -134,6 +134,9 @@ import {
   mockDataInterfaces,
   mockInterfaceLogs,
   mockInterfaceStatus,
+  mockPipelineDashboard,
+  mockPipelineRules,
+  mockPipelineRuns,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -1844,6 +1847,22 @@ export function enableDemoMode() {
       }
       else if (url.match(/\/api\/interfaces\/?$/) || url.match(/\/api\/interfaces\?/)) {
         mockResponse = mockDataInterfaces;
+      }
+
+      // AI Pipeline
+      else if (url.match(/\/api\/pipeline\/runs\/\d+/)) {
+        const idMatch = url.match(/\/api\/pipeline\/runs\/(\d+)/);
+        const runId = idMatch ? parseInt(idMatch[1]) : 0;
+        mockResponse = mockPipelineRuns.find((r: any) => r.id === runId) || null;
+      }
+      else if (url.includes("/api/pipeline/dashboard")) {
+        mockResponse = mockPipelineDashboard;
+      }
+      else if (url.includes("/api/pipeline/rules")) {
+        mockResponse = mockPipelineRules;
+      }
+      else if (url.includes("/api/pipeline/runs")) {
+        mockResponse = mockPipelineRuns;
       }
 
       // Generic insights
