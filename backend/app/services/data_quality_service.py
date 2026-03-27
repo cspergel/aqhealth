@@ -326,7 +326,7 @@ async def validate_pharmacy_row(row: dict) -> dict:
 # Aggregate quality checks (post-ingestion)
 # ---------------------------------------------------------------------------
 
-async def run_quality_checks(db: AsyncSession, ingestion_job_id: int) -> dict:
+async def run_quality_checks(db: AsyncSession, ingestion_job_id: int | None = None) -> dict:
     """Run aggregate quality checks on ingested data and return a quality report.
 
     Returns: {score: 0-100, checks: [{name, status, details, severity}], quarantined_count}

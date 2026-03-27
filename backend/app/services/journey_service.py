@@ -131,7 +131,9 @@ async def get_member_journey(
         "member_id": member.member_id,
         "name": f"{member.first_name} {member.last_name}",
         "dob": member.date_of_birth.isoformat(),
-        "age": (date.today() - member.date_of_birth).days // 365,
+        "age": date.today().year - member.date_of_birth.year - (
+            (date.today().month, date.today().day) < (member.date_of_birth.month, member.date_of_birth.day)
+        ),
         "gender": member.gender,
         "health_plan": member.health_plan,
         "pcp": pcp_name,

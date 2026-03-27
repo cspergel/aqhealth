@@ -22,6 +22,7 @@ from app.models.claim import Claim, ClaimType
 from app.models.hcc import HccSuspect, RafHistory, SuspectStatus
 from app.models.member import Member, RiskTier
 from app.models.provider import Provider
+from app.constants import CMS_ANNUAL_BASE, CMS_PMPM_BASE
 from app.services.hcc_engine import (
     DISEASE_INTERACTIONS,
     LOCAL_HCC_RAF,
@@ -31,19 +32,15 @@ from app.services.hcc_engine import (
     _extract_current_year_codes,
     _extract_diagnosis_codes,
     _extract_medications,
-    CMS_PMPM_BASE,
     ANNUAL_MULTIPLIER,
     get_current_payment_year,
 )
 
 logger = logging.getLogger(__name__)
 
-# Benchmark revenue per 1.0 RAF
-BENCHMARK_ANNUAL = Decimal("11000")
-
 
 def _annual_value(raf: float | Decimal) -> float:
-    return round(float(Decimal(str(raf)) * BENCHMARK_ANNUAL), 2)
+    return round(float(Decimal(str(raf)) * Decimal(str(CMS_ANNUAL_BASE))), 2)
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +64,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
     if member.pcp_provider_id:
         pcp = await db.get(Provider, member.pcp_provider_id)
         if pcp:
-            pcp_name = f"Dr. {pcp.last_name}"
+            pcp_name = f"Dr. {pcp.first_name} {pcp.last_name}"
 
     # ---- Demographics ----
     demographics = {
@@ -404,8 +401,8 @@ async def get_provider_worklist(
         age = _calculate_age(m.date_of_birth)
 
         worklist.append({
-            "member_id": m.id,
-            "member_external_id": m.member_id,
+            "id": m.id,
+            "member_id": m.member_id,
             "name": f"{m.first_name} {m.last_name}",
             "age": age,
             "gender": m.gender,

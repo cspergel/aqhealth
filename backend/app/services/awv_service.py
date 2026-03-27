@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.claim import Claim
 from app.models.member import Member
 from app.models.provider import Provider
+from app.constants import CMS_ANNUAL_BASE, CMS_PMPM_BASE
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,6 @@ AWV_CPT_CODES = ["G0438", "G0439"]
 
 # Average RAF recapture value per AWV (industry benchmark)
 AVG_RAF_RECAPTURE_PER_AWV = 0.08
-ANNUAL_VALUE_PER_RAF = 11_000  # CMS benchmark $/RAF
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +62,7 @@ async def get_awv_dashboard(db: AsyncSession) -> dict[str, Any]:
     completion_rate = round((completed_count / total_members * 100) if total_members else 0, 1)
 
     # Revenue impact estimate
-    revenue_opportunity = round(overdue_count * AVG_RAF_RECAPTURE_PER_AWV * ANNUAL_VALUE_PER_RAF)
+    revenue_opportunity = round(overdue_count * AVG_RAF_RECAPTURE_PER_AWV * CMS_ANNUAL_BASE)
 
     # By-provider breakdown
     provider_breakdown = await _get_provider_breakdown(db, year_start, year_end)
@@ -140,7 +140,7 @@ async def _get_provider_breakdown(
         completed = awv_counts.get(pid, 0)
         remaining = panel_size - completed
         rate = round((completed / panel_size * 100) if panel_size else 0, 1)
-        value = round(remaining * AVG_RAF_RECAPTURE_PER_AWV * ANNUAL_VALUE_PER_RAF)
+        value = round(remaining * AVG_RAF_RECAPTURE_PER_AWV * CMS_ANNUAL_BASE)
         breakdown.append({
             "provider_id": pid,
             "provider_name": providers.get(pid, f"Provider {pid}"),
@@ -215,9 +215,10 @@ async def get_members_due_awv(
     items = []
     for m in members:
         raf = float(m.current_raf) if m.current_raf else 0.0
-        estimated_value = round(AVG_RAF_RECAPTURE_PER_AWV * ANNUAL_VALUE_PER_RAF * (raf / 1.0))
+        estimated_value = round(AVG_RAF_RECAPTURE_PER_AWV * CMS_ANNUAL_BASE * (raf / 1.0))
         items.append({
-            "member_id": m.id,
+            "id": m.id,
+            "member_id": m.member_id,
             "member_name": f"{m.first_name} {m.last_name}".strip(),
             "date_of_birth": str(m.date_of_birth) if m.date_of_birth else None,
             "current_raf": round(raf, 3),
@@ -270,7 +271,7 @@ async def get_awv_opportunities(db: AsyncSession) -> dict[str, Any]:
     completed = awv_q.scalar() or 0
     overdue = total - completed
 
-    total_opportunity = round(overdue * AVG_RAF_RECAPTURE_PER_AWV * ANNUAL_VALUE_PER_RAF)
+    total_opportunity = round(overdue * AVG_RAF_RECAPTURE_PER_AWV * CMS_ANNUAL_BASE)
 
     # Breakdown by HCC categories that would typically be recaptured during AWV
     hcc_breakdown = [
@@ -286,12 +287,12 @@ async def get_awv_opportunities(db: AsyncSession) -> dict[str, Any]:
     return {
         "total_overdue": overdue,
         "total_opportunity": total_opportunity,
-        "avg_value_per_awv": round(AVG_RAF_RECAPTURE_PER_AWV * ANNUAL_VALUE_PER_RAF),
+        "avg_value_per_awv": round(AVG_RAF_RECAPTURE_PER_AWV * CMS_ANNUAL_BASE),
         "hcc_breakdown": hcc_breakdown,
         "insight": (
             f"If all {overdue:,} overdue members complete their AWV, "
             f"estimated RAF recapture value = ${total_opportunity:,.0f}. "
             f"Scheduling AWVs for the top 50 highest-RAF overdue members alone "
-            f"would recapture approximately ${round(50 * AVG_RAF_RECAPTURE_PER_AWV * ANNUAL_VALUE_PER_RAF * 1.8):,.0f} in RAF value."
+            f"would recapture approximately ${round(50 * AVG_RAF_RECAPTURE_PER_AWV * CMS_ANNUAL_BASE * 1.8):,.0f} in RAF value."
         ),
     }

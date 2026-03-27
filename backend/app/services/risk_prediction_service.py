@@ -201,7 +201,10 @@ async def predict_hospitalization_risk(db: AsyncSession) -> list[dict]:
     # Score each member
     scored_members = []
     for m in members:
-        age = (today - m.date_of_birth).days // 365 if m.date_of_birth else 70
+        age = (
+            today.year - m.date_of_birth.year
+            - ((today.month, today.day) < (m.date_of_birth.month, m.date_of_birth.day))
+        ) if m.date_of_birth else 70
         er = er_visits.get(m.id, 0)
         ip = ip_admits.get(m.id, 0)
         hcc = hcc_counts.get(m.id, 0)
@@ -266,7 +269,8 @@ async def predict_hospitalization_risk(db: AsyncSession) -> list[dict]:
         pcp_name = providers.get(m.pcp_provider_id, "Unassigned") if m.pcp_provider_id else "Unassigned"
 
         scored_members.append({
-            "member_id": m.id,
+            "id": m.id,
+            "member_id": m.member_id,
             "member_name": f"{m.first_name} {m.last_name}",
             "age": age,
             "risk_score": risk_score,

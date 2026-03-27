@@ -1014,7 +1014,7 @@ async def _gather_cross_module_context(db: AsyncSession) -> dict:
 # Orchestrator
 # ---------------------------------------------------------------------------
 
-async def run_full_discovery(db: AsyncSession) -> list[dict]:
+async def run_full_discovery(db: AsyncSession, tenant_schema: str = "default") -> list[dict]:
     """
     Orchestrate all 6 scans, gather cross-module context, and synthesize
     results into ranked discoveries.
@@ -1053,7 +1053,7 @@ async def run_full_discovery(db: AsyncSession) -> list[dict]:
     logger.info("Gathered cross-module context from %d modules", len(cross_module_context))
 
     # Synthesize into polished insights (with cross-module context)
-    discoveries = await synthesize_discoveries(all_raw, cross_module_context)
+    discoveries = await synthesize_discoveries(all_raw, cross_module_context, tenant_schema=tenant_schema)
     logger.info("Synthesized %d discoveries", len(discoveries))
 
     return discoveries

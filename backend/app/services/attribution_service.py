@@ -14,11 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member
 from app.models.claim import Claim
+from app.constants import CMS_ANNUAL_BASE, CMS_PMPM_BASE
 
 logger = logging.getLogger(__name__)
-
-# CMS benchmark per RAF point
-ANNUAL_VALUE_PER_RAF = 11_000
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +118,8 @@ async def get_attribution_changes(
     )
     for m in new_q.scalars().all():
         changes.append({
-            "member_id": m.id,
+            "id": m.id,
+            "member_id": m.member_id,
             "member_name": f"{m.first_name} {m.last_name}".strip(),
             "change_type": "new",
             "effective_date": str(m.coverage_start),
@@ -136,7 +135,8 @@ async def get_attribution_changes(
     )
     for m in lost_q.scalars().all():
         changes.append({
-            "member_id": m.id,
+            "id": m.id,
+            "member_id": m.member_id,
             "member_name": f"{m.first_name} {m.last_name}".strip(),
             "change_type": "lost",
             "effective_date": str(m.coverage_end),
@@ -173,6 +173,7 @@ async def get_churn_risk(db: AsyncSession) -> list[dict[str, Any]]:
     result = await db.execute(
         select(
             Member.id,
+            Member.member_id,
             Member.first_name,
             Member.last_name,
             Member.health_plan,
@@ -196,13 +197,14 @@ async def get_churn_risk(db: AsyncSession) -> list[dict[str, Any]]:
         days_inactive = (today - last_svc).days if last_svc else None
         raf = float(row.current_raf) if row.current_raf else 0.0
         risk_list.append({
-            "member_id": row.id,
+            "id": row.id,
+            "member_id": row.member_id,
             "member_name": f"{row.first_name} {row.last_name}".strip(),
             "plan": row.health_plan,
             "current_raf": round(raf, 3),
             "last_claim_date": str(last_svc) if last_svc else None,
             "days_inactive": days_inactive,
-            "revenue_at_risk": round(raf * ANNUAL_VALUE_PER_RAF),
+            "revenue_at_risk": round(raf * CMS_ANNUAL_BASE),
         })
 
     return risk_list
@@ -215,7 +217,7 @@ async def get_churn_risk(db: AsyncSession) -> list[dict[str, Any]]:
 async def get_attribution_revenue_impact(db: AsyncSession) -> dict[str, Any]:
     """
     Financial impact of recent attribution changes on projected RAF revenue.
-    Lost members x their RAF x $11,000 benchmark.
+    Lost members x their RAF x CMS_ANNUAL_BASE benchmark.
     """
     today = date.today()
     month_start = date(today.year, today.month, 1)
@@ -233,7 +235,7 @@ async def get_attribution_revenue_impact(db: AsyncSession) -> dict[str, Any]:
     lost_row = lost_q.one()
     members_lost = lost_row[0] or 0
     lost_raf_sum = float(lost_row[1] or 0)
-    revenue_at_risk = round(lost_raf_sum * ANNUAL_VALUE_PER_RAF)
+    revenue_at_risk = round(lost_raf_sum * CMS_ANNUAL_BASE)
 
     # Gained this month with RAF
     gained_q = await db.execute(
@@ -248,7 +250,7 @@ async def get_attribution_revenue_impact(db: AsyncSession) -> dict[str, Any]:
     gained_row = gained_q.one()
     members_gained = gained_row[0] or 0
     gained_raf_sum = float(gained_row[1] or 0)
-    revenue_gained = round(gained_raf_sum * ANNUAL_VALUE_PER_RAF)
+    revenue_gained = round(gained_raf_sum * CMS_ANNUAL_BASE)
 
     return {
         "members_lost": members_lost,

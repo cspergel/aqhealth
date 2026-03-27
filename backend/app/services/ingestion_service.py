@@ -817,6 +817,18 @@ async def process_upload(
 
             all_errors.extend(errors)
             if record is not None:
+                # Best-effort row-level validation from data_quality_service
+                try:
+                    if data_type in ("claims", "pharmacy"):
+                        from app.services.data_quality_service import validate_claim_row
+                        dq_result = await validate_claim_row(record)
+                        if not dq_result.get("valid"):
+                            for dq_err in dq_result.get("errors", []):
+                                all_errors.append({"row": row_num, "field": "data_quality", "error": dq_err})
+                            record = None  # skip invalid row
+                except Exception:
+                    pass  # best-effort — don't block ingestion
+            if record is not None:
                 chunk_valid_rows.append(record)
 
         chunk_offset += chunk_size
@@ -841,6 +853,32 @@ async def process_upload(
                     total_updated += result_counts["updated"]
 
                 await db.commit()
+
+                # Best-effort: write data_lineage records for audit trail
+                try:
+                    entity_type = "member" if data_type in ("roster", "eligibility") else (
+                        "claim" if data_type in ("claims", "pharmacy") else "provider"
+                    )
+                    await db.execute(
+                        text("""
+                            INSERT INTO data_lineage
+                                (entity_type, record_count, source_name, created_at)
+                            VALUES (:etype, :cnt, :src, NOW())
+                        """),
+                        {
+                            "etype": entity_type,
+                            "cnt": len(chunk_valid_rows),
+                            "src": file_path,
+                        },
+                    )
+                    await db.commit()
+                except Exception as lineage_err:
+                    logger.debug("Data lineage write failed (non-blocking): %s", lineage_err)
+                    try:
+                        await db.rollback()
+                    except Exception:
+                        pass
+
             except Exception as e:
                 await db.rollback()
                 logger.error(f"Database error during ingestion chunk: {e}")

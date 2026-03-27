@@ -416,7 +416,7 @@ async def generate_insights(db: AsyncSession, tenant_schema: str = "default") ->
     # --- Run Autonomous Discovery Engine first ---
     from app.services.discovery_service import run_full_discovery
     try:
-        discoveries = await run_full_discovery(db)
+        discoveries = await run_full_discovery(db, tenant_schema=tenant_schema)
         logger.info("Discovery engine returned %d findings", len(discoveries))
     except Exception as e:
         logger.error("Discovery engine failed, continuing with LLM-only: %s", e)

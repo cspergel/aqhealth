@@ -50,7 +50,7 @@ async def run_insight_generation(ctx: dict, tenant_schema: str) -> dict[str, Any
     try:
         # Discovery engine runs as part of generate_insights now,
         # which calls run_full_discovery() internally.
-        results = await generate_insights(db)
+        results = await generate_insights(db, tenant_schema=tenant_schema)
 
         # Tag each result with scan metadata for tracking
         for r in results:

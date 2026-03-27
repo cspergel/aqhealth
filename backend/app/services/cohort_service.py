@@ -137,7 +137,10 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
     members = []
     total_raf = 0.0
     for m in members_raw:
-        age = (today - m.date_of_birth).days // 365 if m.date_of_birth else None
+        age = (
+            today.year - m.date_of_birth.year
+            - ((today.month, today.day) < (m.date_of_birth.month, m.date_of_birth.day))
+        ) if m.date_of_birth else None
         raf = float(m.current_raf) if m.current_raf is not None else 0.0
         total_raf += raf
         members.append({

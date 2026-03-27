@@ -54,8 +54,8 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
     try:
         # 1. Load the UploadJob
         result = await db.execute(
-            text("SELECT id, filename, column_mapping, detected_type, status "
-                 "FROM upload_jobs WHERE id = :jid"),
+            text("SELECT id, filename, column_mapping, detected_type, status, "
+                 "cleaned_file_path FROM upload_jobs WHERE id = :jid"),
             {"jid": job_id},
         )
         job = result.mappings().first()
@@ -84,7 +84,11 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
 
         uploads_dir = Path(settings.uploads_dir if hasattr(settings, "uploads_dir")
                           else "uploads")
-        file_path = str(uploads_dir / job["filename"])
+        # Prefer cleaned_file_path (pre-processed) if available
+        if job.get("cleaned_file_path"):
+            file_path = job["cleaned_file_path"]
+        else:
+            file_path = str(uploads_dir / job["filename"])
 
         column_mapping = job["column_mapping"]
         if isinstance(column_mapping, str):
@@ -265,11 +269,11 @@ async def _trigger_downstream(ctx: dict, tenant_schema: str, data_type: str) -> 
             from arq.connections import ArqRedis
             if isinstance(redis, ArqRedis):
                 await redis.enqueue_job(
-                    "refresh_member_scores",
+                    "run_hcc_analysis",
                     tenant_schema,
                     _queue_name="default",
                 )
-                logger.info(f"Enqueued member score refresh for {tenant_schema}")
+                logger.info(f"Enqueued HCC analysis (roster/eligibility) for {tenant_schema}")
 
     except Exception as e:
         # Don't fail the main job if downstream triggers fail

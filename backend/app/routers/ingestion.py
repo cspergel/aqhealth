@@ -312,6 +312,20 @@ async def upload_file(
     job_id = id_result.scalar_one()
     await db.commit()
 
+    # Best-effort: fingerprint the source file for data protection tracking
+    try:
+        from app.services.data_protection_service import fingerprint_source
+        await fingerprint_source(
+            db=db,
+            headers=headers,
+            sample_rows=sample_rows,
+            source_name=unique_name,
+            upload_job_id=job_id,
+        )
+        await db.commit()
+    except Exception as fp_err:
+        logger.warning("Source fingerprinting failed (non-blocking): %s", fp_err)
+
     # Convert proposed mapping to response format
     mapping_response = {}
     for src, info in proposed.items():
