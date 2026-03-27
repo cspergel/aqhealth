@@ -142,6 +142,11 @@ import {
   mockSkillPresets,
   mockSkillSuggestions,
   mockSkillActions,
+  mockProtectionDashboard,
+  mockFingerprints,
+  mockDataContracts,
+  mockGoldenRecords,
+  mockIngestionBatches,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -997,6 +1002,53 @@ export function enableDemoMode() {
       }
       else if (url.includes("/api/ingest/json")) {
         mockResponse = { success: true, format: "json_custom", records_parsed: 1 };
+      }
+      // Data Protection POST routes
+      else if (url.match(/\/api\/data-protection\/contracts\/?$/)) {
+        const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+        const newContract = {
+          id: Date.now(),
+          name: body.name,
+          source_name: body.source_name || null,
+          contract_rules: body.contract_rules || {},
+          is_active: true,
+          violations_last_30d: 0,
+          last_tested: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        (mockDataContracts as any[]).push(newContract);
+        mockResponse = newContract;
+      }
+      else if (url.match(/\/api\/data-protection\/rollback\/\d+/)) {
+        const idMatch = url.match(/\/api\/data-protection\/rollback\/(\d+)/);
+        const batchId = idMatch ? parseInt(idMatch[1]) : 0;
+        const batch = mockIngestionBatches.find((b: any) => b.id === batchId);
+        if (batch) {
+          batch.status = "rolled_back";
+          batch.rolled_back_at = new Date().toISOString();
+          batch.rolled_back_by = 1;
+          batch.rollback_reason = (typeof config.data === "string" ? JSON.parse(config.data) : config.data)?.reason || "Manual rollback";
+        }
+        mockResponse = { records_removed: 145, records_restored: 0, affected_tables: ["claims"], batch_id: batchId };
+      }
+      else if (url.includes("/api/data-protection/shadow-check")) {
+        mockResponse = {
+          safe: true,
+          warnings: ["Record count changed 3% vs last file (4801 -> 4832)"],
+          anomalies: [],
+          prev_record_count: 4801,
+          new_record_count: 4832,
+          last_ingestion: "2026-02-25T14:15:00Z",
+        };
+      }
+      else if (url.includes("/api/data-protection/validate-contract")) {
+        mockResponse = {
+          passed: true,
+          violations: [
+            { rule: "unexpected_column", detail: "Unexpected column 'attribution_group' not in contract", severity: "info" },
+          ],
+        };
       }
       else {
         mockResponse = { success: true };
@@ -1957,6 +2009,25 @@ export function enableDemoMode() {
       }
       else if (url.includes("/api/pipeline/runs")) {
         mockResponse = mockPipelineRuns;
+      }
+
+      // Data Protection
+      else if (url.includes("/api/data-protection/dashboard")) {
+        mockResponse = mockProtectionDashboard;
+      }
+      else if (url.includes("/api/data-protection/fingerprints")) {
+        mockResponse = mockFingerprints;
+      }
+      else if (url.includes("/api/data-protection/contracts")) {
+        mockResponse = mockDataContracts;
+      }
+      else if (url.includes("/api/data-protection/golden-records")) {
+        const params = config.params || {};
+        const memberId = params.member_id ? parseInt(params.member_id) : 1001;
+        mockResponse = mockGoldenRecords.filter((r: any) => r.member_id === memberId);
+      }
+      else if (url.includes("/api/data-protection/batches")) {
+        mockResponse = mockIngestionBatches;
       }
 
       // Generic insights

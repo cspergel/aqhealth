@@ -124,6 +124,7 @@ const navSections: NavSection[] = [
       { path: "/adt-sources", label: "ADT Sources" },
       { path: "/ai-pipeline", label: "AI Pipeline" },
       { path: "/data-quality", label: "Data Quality" },
+      { path: "/data-protection", label: "Data Protection" },
       { path: "/data-exchange", label: "Data Exchange" },
     ],
   },
