@@ -7,7 +7,7 @@ Runs aggregate quality checks after ingestion to produce a quality report.
 
 import logging
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import text
@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 # Constants & helpers
 # ---------------------------------------------------------------------------
 
-ICD10_PATTERN = re.compile(r"^[A-Z]\d{2}(\.\d{1,4})?$", re.IGNORECASE)
-CPT_PATTERN = re.compile(r"^\d{5}$")
-DRG_PATTERN = re.compile(r"^\d{3}$")
+ICD10_PATTERN = re.compile(r"^[A-Z]\d{2}[A-Z0-9]*(\.[A-Z0-9]{1,4})?$", re.IGNORECASE)
+CPT_PATTERN = re.compile(r"^[A-Z0-9]\d{4}$", re.IGNORECASE)
+DRG_PATTERN = re.compile(r"^\d{1,3}$")
 NPI_PATTERN = re.compile(r"^\d{10}$")
-NDC_PATTERN = re.compile(r"^\d{11}$")
+NDC_PATTERN = re.compile(r"^\d{10,11}$")  # 10 or 11 digits after stripping dashes
 ZIP5_PATTERN = re.compile(r"^\d{5}$")
 ZIP9_PATTERN = re.compile(r"^\d{5}-?\d{4}$")
 
@@ -58,6 +58,14 @@ GENDER_NORMALIZE: dict[str, str] = {
     "male": "M",
     "f": "F",
     "female": "F",
+    "u": "U",
+    "unknown": "U",
+    "x": "U",
+    "nonbinary": "U",
+    "non-binary": "U",
+    "other": "U",
+    "undisclosed": "U",
+    "not specified": "U",
 }
 
 
@@ -104,11 +112,13 @@ def validate_roster_row(row: dict) -> dict:
     warnings: list[str] = []
     cleaned = dict(row)
 
-    # Required fields
-    required = ["member_id", "first_name", "last_name", "date_of_birth", "gender"]
-    for field in required:
+    # Required fields — member_id is hard-required; others are soft-required
+    if not row.get("member_id") and row.get("member_id") != 0:
+        errors.append("Missing required field: member_id")
+    soft_required = ["first_name", "last_name", "date_of_birth", "gender"]
+    for field in soft_required:
         if not row.get(field) and row.get(field) != 0:
-            errors.append(f"Missing required field: {field}")
+            warnings.append(f"Missing recommended field: {field}")
 
     # date_of_birth
     if row.get("date_of_birth"):
@@ -181,17 +191,26 @@ def validate_claim_row(row: dict) -> dict:
         if err:
             errors.append(err)
         elif sd:
-            if sd > date.today():
-                errors.append(f"service_date: {sd.isoformat()} is in the future")
+            if sd > date.today() + timedelta(days=90):
+                errors.append(f"service_date: {sd.isoformat()} is more than 90 days in the future")
+            elif sd > date.today():
+                warnings.append(f"service_date: {sd.isoformat()} is in the future (pre-auth or scheduled)")
+            elif sd.year < 2015:
+                errors.append(f"service_date: {sd.isoformat()} is before 2015")
             elif sd.year < 2018:
-                errors.append(f"service_date: {sd.isoformat()} is before 2018")
+                warnings.append(f"service_date: {sd.isoformat()} is before 2018 (historical data)")
             cleaned["service_date"] = sd.isoformat()
 
-    # At least one diagnosis code
+    # Diagnosis codes — not required for procedure-only or pharmacy claims
     dx_fields = [k for k in row if k.startswith("diagnosis") or k.startswith("dx_") or k == "icd10_code"]
-    has_dx = any(row.get(f) for f in dx_fields)
-    if not has_dx and not row.get("diagnosis_code"):
-        errors.append("At least one diagnosis code is required")
+    has_dx = any(row.get(f) for f in dx_fields) or row.get("diagnosis_code")
+    has_procedure = row.get("cpt_code") or row.get("procedure_code") or row.get("ndc_code") or row.get("drg_code")
+    claim_type_raw = str(row.get("claim_type", "")).lower()
+    is_pharmacy = claim_type_raw in ("rx", "pharmacy", "drug") or bool(row.get("ndc_code"))
+    if not has_dx and not has_procedure and not is_pharmacy:
+        errors.append("At least one diagnosis code, procedure code, or NDC is required")
+    elif not has_dx:
+        warnings.append("No diagnosis codes present (procedure-only or pharmacy claim)")
 
     # ICD-10 validation
     for field in dx_fields + ["diagnosis_code"]:
@@ -199,27 +218,27 @@ def validate_claim_row(row: dict) -> dict:
         if val and isinstance(val, str) and val.strip():
             code = val.strip().upper()
             if not ICD10_PATTERN.match(code):
-                errors.append(f"{field}: invalid ICD-10 format '{code}' (expected letter + 2 digits + optional .1-4 digits)")
-            else:
-                cleaned[field] = code
+                # Downgrade to warning instead of error — some codes have unusual formats
+                # and blocking the whole row for a code format issue is too aggressive
+                warnings.append(f"{field}: unusual ICD-10 format '{code}' (expected letter + 2+ alphanumeric + optional .1-4 alphanumeric)")
+            cleaned[field] = code
 
-    # CPT validation
+    # CPT/HCPCS validation
     for field in ["cpt_code", "procedure_code"]:
         val = row.get(field)
         if val and isinstance(val, str) and val.strip():
-            code = val.strip()
+            code = val.strip().upper()
             if not CPT_PATTERN.match(code):
-                errors.append(f"{field}: invalid CPT format '{code}' (expected 5 digits)")
-            else:
-                cleaned[field] = code
+                warnings.append(f"{field}: unusual CPT/HCPCS format '{code}' (expected letter or digit + 4 digits)")
+            cleaned[field] = code
 
     # DRG validation
     if row.get("drg_code"):
         code = str(row["drg_code"]).strip()
         if not DRG_PATTERN.match(code):
-            errors.append(f"drg_code: invalid DRG format '{code}' (expected 3 digits)")
+            errors.append(f"drg_code: invalid DRG format '{code}' (expected 1-3 digits)")
         else:
-            cleaned["drg_code"] = code
+            cleaned["drg_code"] = code.zfill(3)  # Zero-pad to 3 digits
 
     # NPI validation
     for field in ["npi", "provider_npi", "rendering_npi", "billing_npi"]:
@@ -284,11 +303,12 @@ def validate_pharmacy_row(row: dict) -> dict:
 
     # NDC validation
     if row.get("ndc_code"):
-        ndc = str(row["ndc_code"]).strip().replace("-", "")
+        ndc = str(row["ndc_code"]).strip().replace("-", "").replace(" ", "")
         if not NDC_PATTERN.match(ndc):
-            errors.append(f"ndc_code: invalid NDC format '{row['ndc_code']}' (expected 11 digits)")
+            errors.append(f"ndc_code: invalid NDC format '{row['ndc_code']}' (expected 10-11 digits)")
         else:
-            cleaned["ndc_code"] = ndc
+            # Zero-pad to 11 digits (standard NDC-11 format)
+            cleaned["ndc_code"] = ndc.zfill(11)
 
     # days_supply
     if row.get("days_supply") is not None:

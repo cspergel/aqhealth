@@ -135,12 +135,16 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
     mlr = None
     try:
         from sqlalchemy import text as sa_text
-        cap_result = await db.execute(
-            sa_text("SELECT COALESCE(SUM(total_payment), 0) as cap_revenue FROM capitation_payments")
-        )
-        cap_revenue = float(cap_result.scalar() or 0)
-        if cap_revenue > 0:
-            mlr = round(total_spend / cap_revenue, 4)
+        # Use a savepoint so that if capitation_payments table doesn't exist,
+        # the failed query doesn't poison the outer transaction (PostgreSQL
+        # aborts the entire transaction on error without a savepoint).
+        async with db.begin_nested():
+            cap_result = await db.execute(
+                sa_text("SELECT COALESCE(SUM(total_payment), 0) as cap_revenue FROM capitation_payments")
+            )
+            cap_revenue = float(cap_result.scalar() or 0)
+            if cap_revenue > 0:
+                mlr = round(total_spend / cap_revenue, 4)
     except Exception as e:
         # capitation_payments table may not exist; leave mlr as None
         logger.debug("MLR calculation skipped (capitation_payments may not exist): %s", e)

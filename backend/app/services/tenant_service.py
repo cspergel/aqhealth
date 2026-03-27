@@ -18,6 +18,8 @@ import re
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import create_tenant_tables
+
 logger = logging.getLogger(__name__)
 
 # Only allow alphanumeric characters and underscores in schema names
@@ -52,11 +54,29 @@ async def create_tenant_schema(db: AsyncSession, tenant_name: str) -> dict:
         await db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
         await db.commit()
         logger.info("Created tenant schema: %s", schema_name)
+
+        # Create all tenant tables inside the new schema
+        table_count = create_tenant_tables(schema_name)
+        logger.info("Created %d tables in schema %s", table_count, schema_name)
+
+        # Seed default quality measures into the new schema
+        try:
+            from app.database import async_session_factory
+            async with async_session_factory() as tenant_db:
+                await tenant_db.execute(text(f'SET search_path TO "{schema_name}", public'))
+                from app.services.care_gap_service import seed_default_measures
+                measures_created = await seed_default_measures(tenant_db)
+                await tenant_db.commit()
+                logger.info("Seeded %d default quality measures in %s", measures_created, schema_name)
+        except Exception as seed_err:
+            logger.warning("Failed to seed default measures for %s: %s", schema_name, seed_err)
+
         return {
             "tenant_name": tenant_name,
             "schema_name": schema_name,
             "status": "created",
-            "message": "Schema created. Run migrations to populate tables.",
+            "tables_created": table_count,
+            "message": f"Schema created with {table_count} tables and default quality measures.",
         }
     except Exception as e:
         logger.error("Failed to create tenant schema %s: %s", schema_name, e)

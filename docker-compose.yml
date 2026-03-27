@@ -37,5 +37,25 @@ services:
       - ./backend:/app
     command: arq app.workers.ingestion_worker.WorkerSettings
 
+  hcc-worker:
+    build: ./backend
+    env_file: ./backend/.env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+    command: arq app.workers.hcc_worker.WorkerSettings
+
+  insight-worker:
+    build: ./backend
+    env_file: ./backend/.env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+    command: arq app.workers.insight_worker.WorkerSettings
+
 volumes:
   pgdata:

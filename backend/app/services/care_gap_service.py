@@ -5,8 +5,10 @@ Provides HEDIS/Stars measure management, gap detection from claims data,
 population-level summaries, and member/provider-level gap views.
 """
 
+import json
 import logging
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select, func, and_, case, update, text
@@ -20,249 +22,47 @@ from app.models.provider import Provider
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Default HEDIS/Stars measure definitions
+# Path to the authoritative quality measures JSON
 # ---------------------------------------------------------------------------
 
-DEFAULT_MEASURES: list[dict[str, Any]] = [
-    {
-        "code": "CDC-HbA1c",
-        "name": "Diabetes Care — HbA1c Testing",
-        "description": "Percentage of diabetic members 18-75 who had HbA1c testing in the measurement year.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 85.0,
-        "star_3_cutpoint": 74.0,
-        "star_4_cutpoint": 82.0,
-        "star_5_cutpoint": 90.0,
-        "detection_logic": {
-            "type": "screening",
-            "eligible_dx": ["E11", "E10", "E13"],
-            "required_cpt": ["83036", "83037"],
-            "age_min": 18,
-            "age_max": 75,
-        },
-    },
-    {
-        "code": "CDC-Eye",
-        "name": "Diabetes Care — Eye Exam",
-        "description": "Percentage of diabetic members 18-75 who had a retinal eye exam.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 68.0,
-        "star_3_cutpoint": 55.0,
-        "star_4_cutpoint": 65.0,
-        "star_5_cutpoint": 75.0,
-        "detection_logic": {
-            "type": "screening",
-            "eligible_dx": ["E11", "E10", "E13"],
-            "required_cpt": ["92002", "92004", "92012", "92014", "67028", "67210"],
-            "age_min": 18,
-            "age_max": 75,
-        },
-    },
-    {
-        "code": "BCS",
-        "name": "Breast Cancer Screening",
-        "description": "Percentage of women 50-74 who had a mammogram in the past two years.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 75.0,
-        "star_3_cutpoint": 64.0,
-        "star_4_cutpoint": 72.0,
-        "star_5_cutpoint": 80.0,
-        "detection_logic": {
-            "type": "screening",
-            "eligible_gender": "F",
-            "required_cpt": ["77067", "77066", "77065", "G0202"],
-            "age_min": 50,
-            "age_max": 74,
-            "lookback_years": 2,
-        },
-    },
-    {
-        "code": "COL",
-        "name": "Colorectal Cancer Screening",
-        "description": "Percentage of members 45-75 who had appropriate colorectal cancer screening.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 72.0,
-        "star_3_cutpoint": 60.0,
-        "star_4_cutpoint": 70.0,
-        "star_5_cutpoint": 80.0,
-        "detection_logic": {
-            "type": "screening",
-            "required_cpt": ["45378", "45380", "45381", "45384", "45385", "82270", "82274", "81528", "G0104", "G0105", "G0121"],
-            "age_min": 45,
-            "age_max": 75,
-            "lookback_years": 10,
-        },
-    },
-    {
-        "code": "CBP",
-        "name": "Controlling Blood Pressure",
-        "description": "Percentage of members 18-85 with hypertension whose BP was adequately controlled.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 70.0,
-        "star_3_cutpoint": 58.0,
-        "star_4_cutpoint": 66.0,
-        "star_5_cutpoint": 74.0,
-        "detection_logic": {
-            "type": "screening",
-            "eligible_dx": ["I10", "I11", "I12", "I13"],
-            "required_cpt": ["99213", "99214", "99215", "99395", "99396"],
-            "age_min": 18,
-            "age_max": 85,
-        },
-    },
-    {
-        "code": "COA-MedReview",
-        "name": "Care for Older Adults — Medication Review",
-        "description": "Percentage of members 66+ who had a medication review.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 72.0,
-        "star_3_cutpoint": 60.0,
-        "star_4_cutpoint": 70.0,
-        "star_5_cutpoint": 80.0,
-        "detection_logic": {
-            "type": "screening",
-            "required_cpt": ["99605", "99606", "1160F"],
-            "age_min": 66,
-            "age_max": 999,
-        },
-    },
-    {
-        "code": "COA-Pain",
-        "name": "Care for Older Adults — Pain Assessment",
-        "description": "Percentage of members 66+ who had a pain assessment.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 72.0,
-        "star_3_cutpoint": 60.0,
-        "star_4_cutpoint": 70.0,
-        "star_5_cutpoint": 80.0,
-        "detection_logic": {
-            "type": "screening",
-            "required_cpt": ["1125F", "1126F"],
-            "age_min": 66,
-            "age_max": 999,
-        },
-    },
-    {
-        "code": "COA-Functional",
-        "name": "Care for Older Adults — Functional Status Assessment",
-        "description": "Percentage of members 66+ who had a functional status assessment.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 72.0,
-        "star_3_cutpoint": 60.0,
-        "star_4_cutpoint": 70.0,
-        "star_5_cutpoint": 80.0,
-        "detection_logic": {
-            "type": "screening",
-            "required_cpt": ["1170F"],
-            "age_min": 66,
-            "age_max": 999,
-        },
-    },
-    {
-        "code": "MRP",
-        "name": "Medication Reconciliation Post-Discharge",
-        "description": "Percentage of discharges for members 18+ with medication reconciliation within 30 days.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 60.0,
-        "star_3_cutpoint": 48.0,
-        "star_4_cutpoint": 56.0,
-        "star_5_cutpoint": 65.0,
-        "detection_logic": {
-            "type": "followup",
-            "trigger_event": "inpatient_discharge",
-            "required_cpt": ["99495", "99496", "1111F"],
-            "followup_days": 30,
-            "age_min": 18,
-            "age_max": 999,
-        },
-    },
-    {
-        "code": "FMC",
-        "name": "Follow-Up After ED Visit for Mental Health",
-        "description": "Percentage of ED visits for mental health with follow-up within 30 days.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 55.0,
-        "star_3_cutpoint": 40.0,
-        "star_4_cutpoint": 50.0,
-        "star_5_cutpoint": 60.0,
-        "detection_logic": {
-            "type": "followup",
-            "trigger_event": "ed_mental_health",
-            "trigger_dx": ["F20", "F25", "F31", "F32", "F33", "F41", "F43"],
-            "required_cpt": ["90791", "90832", "90834", "90837", "99213", "99214"],
-            "followup_days": 30,
-            "age_min": 6,
-            "age_max": 999,
-        },
-    },
-    {
-        "code": "SPD",
-        "name": "Statin Use in Persons with Diabetes",
-        "description": "Percentage of diabetic members 40-75 receiving statin therapy.",
-        "category": "Medication Adherence",
-        "stars_weight": 3,
-        "target_rate": 85.0,
-        "star_3_cutpoint": 76.0,
-        "star_4_cutpoint": 82.0,
-        "star_5_cutpoint": 88.0,
-        "detection_logic": {
-            "type": "medication_adherence",
-            "eligible_dx": ["E11", "E10"],
-            "drug_classes": ["HMG CoA Reductase Inhibitors", "statins"],
-            "pdc_threshold": 0.8,
-            "age_min": 40,
-            "age_max": 75,
-        },
-    },
-    {
-        "code": "KED",
-        "name": "Kidney Health Evaluation for Patients with Diabetes",
-        "description": "Percentage of diabetic members 18-85 who received a kidney health evaluation.",
-        "category": "Effectiveness of Care",
-        "stars_weight": 1,
-        "target_rate": 40.0,
-        "star_3_cutpoint": 28.0,
-        "star_4_cutpoint": 36.0,
-        "star_5_cutpoint": 44.0,
-        "detection_logic": {
-            "type": "screening",
-            "eligible_dx": ["E11", "E10", "E13"],
-            "required_cpt": ["82043", "82044", "81001", "81003", "82565"],
-            "age_min": 18,
-            "age_max": 85,
-        },
-    },
-    {
-        "code": "AAP",
-        "name": "Adults' Access to Preventive/Ambulatory Services",
-        "description": "Percentage of members 20+ who had an ambulatory or preventive care visit.",
-        "category": "Access to Care",
-        "stars_weight": 1,
-        "target_rate": 90.0,
-        "star_3_cutpoint": 82.0,
-        "star_4_cutpoint": 88.0,
-        "star_5_cutpoint": 94.0,
-        "detection_logic": {
-            "type": "screening",
-            "required_cpt": ["99381", "99382", "99383", "99384", "99385", "99386", "99387",
-                             "99391", "99392", "99393", "99394", "99395", "99396", "99397",
-                             "99201", "99202", "99203", "99204", "99205",
-                             "99211", "99212", "99213", "99214", "99215"],
-            "age_min": 20,
-            "age_max": 999,
-        },
-    },
-]
+_QUALITY_MEASURES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "quality_measures.json"
+
+
+def _load_measures_from_json() -> list[dict[str, Any]]:
+    """Load measure definitions from quality_measures.json and map to GapMeasure fields."""
+    with open(_QUALITY_MEASURES_PATH, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    measures = []
+    for m in data["measures"]:
+        cutpoints = m.get("star_cutpoints", {})
+        # Use the 4-star cutpoint as the default target_rate, falling back to 80.0
+        target_rate = cutpoints.get("4") or cutpoints.get("3") or 80.0
+
+        # Build detection_logic from the rich JSON fields
+        detection_logic: dict[str, Any] = {"type": m.get("measure_type", "screening")}
+        eligible = m.get("eligible_criteria", {})
+        compliance = m.get("compliance_criteria", {})
+        if eligible:
+            detection_logic["eligible_criteria"] = eligible
+        if compliance:
+            detection_logic["compliance_criteria"] = compliance
+        if m.get("inverse"):
+            detection_logic["inverse"] = True
+
+        measures.append({
+            "code": m["code"],
+            "name": m["name"],
+            "description": m.get("description"),
+            "category": m.get("category"),
+            "stars_weight": m.get("stars_weight", 1),
+            "target_rate": float(target_rate),
+            "star_3_cutpoint": cutpoints.get("3"),
+            "star_4_cutpoint": cutpoints.get("4"),
+            "star_5_cutpoint": cutpoints.get("5"),
+            "detection_logic": detection_logic,
+        })
+    return measures
 
 
 # ---------------------------------------------------------------------------
@@ -270,12 +70,13 @@ DEFAULT_MEASURES: list[dict[str, Any]] = [
 # ---------------------------------------------------------------------------
 
 async def seed_default_measures(db: AsyncSession) -> int:
-    """Create default HEDIS/Stars measures if they don't already exist.
+    """Create default HEDIS/Stars measures from quality_measures.json if they don't already exist.
 
     Returns the number of measures created.
     """
+    measures = _load_measures_from_json()
     created = 0
-    for defn in DEFAULT_MEASURES:
+    for defn in measures:
         existing = await db.execute(
             select(GapMeasure).where(GapMeasure.code == defn["code"])
         )

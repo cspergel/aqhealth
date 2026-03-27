@@ -40,6 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
+    const urlHasDemo = new URLSearchParams(window.location.search).get("demo") === "true";
+
     if (isDemoMode()) {
       if (!demoModeInitialized) {
         enableDemoMode();
@@ -50,6 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsDemo(true);
       setIsLoading(false);
       return;
+    }
+
+    // If the URL no longer has ?demo=true, clear stale demo flag so real auth takes over
+    if (!urlHasDemo && localStorage.getItem("demo_mode") === "true") {
+      localStorage.removeItem("demo_mode");
     }
 
     const token = localStorage.getItem("access_token");
@@ -83,6 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    // Real login clears any lingering demo state
+    localStorage.removeItem("demo_mode");
+    demoModeInitialized = false;
+    setIsDemo(false);
+
     const res = await api.post("/api/auth/login", { email, password });
     localStorage.setItem("access_token", res.data.access_token);
     localStorage.setItem("refresh_token", res.data.refresh_token);

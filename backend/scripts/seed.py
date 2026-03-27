@@ -268,7 +268,7 @@ def _create_platform_tables() -> None:
         """))
         conn.execute(text("""
             DO $$ BEGIN
-                CREATE TYPE platform.userrole AS ENUM ('superadmin','mso_admin','analyst','provider','auditor');
+                CREATE TYPE platform.userrole AS ENUM ('superadmin','mso_admin','analyst','provider','auditor','care_manager','outreach','financial');
             EXCEPTION WHEN duplicate_object THEN NULL;
             END $$;
         """))

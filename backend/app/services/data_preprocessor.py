@@ -784,6 +784,37 @@ def _looks_like_name_column(col_name: str, series: pd.Series) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Headerless CSV detection
+# ---------------------------------------------------------------------------
+
+def _detect_headerless_csv(columns: list[str]) -> bool:
+    """
+    Heuristic: detect if a CSV's first row is data, not headers.
+
+    If most "column names" look like dates, numbers, ICD codes, or other
+    data values, the file likely has no header row.
+    """
+    if not columns:
+        return False
+
+    data_like_count = 0
+    date_pattern = re.compile(r"^\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}$")
+    number_pattern = re.compile(r"^[\$\-]?\d[\d,]*\.?\d*$")
+    icd_pattern = re.compile(r"^[A-Z]\d{2,4}\.?\d{0,4}$", re.IGNORECASE)
+
+    for col in columns:
+        s = str(col).strip()
+        if date_pattern.match(s) or number_pattern.match(s) or icd_pattern.match(s):
+            data_like_count += 1
+        # Also flag if "column name" is entirely numeric (common for headerless CSVs)
+        elif s.replace(".", "").replace("-", "").isdigit():
+            data_like_count += 1
+
+    # If >60% of columns look like data values, it's likely headerless
+    return data_like_count / len(columns) >= 0.6
+
+
+# ---------------------------------------------------------------------------
 # Main preprocessing entry point
 # ---------------------------------------------------------------------------
 
@@ -883,6 +914,22 @@ def preprocess_file(file_path: str, source_name: str | None = None) -> dict[str,
     try:
         if is_csv:
             df = pd.read_csv(file_path, dtype=str, encoding=original_encoding)
+            # Detect headerless CSV: if all "column names" look like data values
+            # (e.g., dates, numbers, ICD codes) rather than field names, re-read with no header
+            _header_looks_like_data = _detect_headerless_csv(list(df.columns))
+            if _header_looks_like_data:
+                df = pd.read_csv(file_path, dtype=str, encoding=original_encoding, header=None)
+                # Generate placeholder column names
+                df.columns = [f"column_{i+1}" for i in range(len(df.columns))]
+                changes.append({
+                    "type": "headerless_csv",
+                    "description": "No header row detected — generated placeholder column names (column_1, column_2, ...)",
+                    "rows_affected": len(df),
+                })
+                warnings.append(
+                    "CSV appears to have no header row. Placeholder column names were generated. "
+                    "Column mapping will need to be configured manually or via AI mapper."
+                )
             if original_encoding not in ("utf-8", "utf-8-sig"):
                 changes.append({
                     "type": "encoding",
@@ -890,7 +937,42 @@ def preprocess_file(file_path: str, source_name: str | None = None) -> dict[str,
                     "rows_affected": len(df),
                 })
         else:
-            df = pd.read_excel(file_path, dtype=str)
+            # Handle Excel files with multiple sheets: concatenate all sheets
+            xls = pd.ExcelFile(file_path)
+            sheet_names = xls.sheet_names
+            if len(sheet_names) > 1:
+                dfs = []
+                for sheet in sheet_names:
+                    sheet_df = pd.read_excel(file_path, sheet_name=sheet, dtype=str)
+                    if not sheet_df.empty:
+                        dfs.append(sheet_df)
+                if dfs:
+                    # Only concatenate sheets with matching columns (same schema)
+                    ref_cols = set(dfs[0].columns)
+                    matching = [dfs[0]]
+                    other_sheets = []
+                    for sdf in dfs[1:]:
+                        if set(sdf.columns) == ref_cols:
+                            matching.append(sdf)
+                        else:
+                            other_sheets.append(sdf)
+                    df = pd.concat(matching, ignore_index=True) if matching else dfs[0]
+                    if other_sheets:
+                        warnings.append(
+                            f"Excel file has {len(sheet_names)} sheets. "
+                            f"Merged {len(matching)} sheets with matching columns; "
+                            f"ignored {len(other_sheets)} sheets with different schemas."
+                        )
+                    else:
+                        changes.append({
+                            "type": "multi_sheet_merge",
+                            "description": f"Merged {len(matching)} Excel sheets into single dataset ({len(df)} rows)",
+                            "rows_affected": len(df),
+                        })
+                else:
+                    df = pd.DataFrame()
+            else:
+                df = pd.read_excel(file_path, dtype=str)
     except Exception as e:
         logger.error("Failed to read file during preprocessing: %s", e)
         return {

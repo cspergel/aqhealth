@@ -24,22 +24,24 @@ async def get_risk_dashboard(db: AsyncSession) -> dict[str, Any]:
     Full risk accounting dashboard: total cap revenue, total medical spend,
     MLR, surplus/deficit, IBNR, risk pool status, by-plan breakdown.
     """
-    # Query capitation revenue
+    # Query capitation revenue (savepoint protects transaction if table missing)
     try:
-        cap_result = await db.execute(
-            text("SELECT COALESCE(SUM(total_payment), 0) as total_revenue FROM capitation_payments")
-        )
-        total_cap_revenue = float(cap_result.scalar() or 0)
+        async with db.begin_nested():
+            cap_result = await db.execute(
+                text("SELECT COALESCE(SUM(total_payment), 0) as total_revenue FROM capitation_payments")
+            )
+            total_cap_revenue = float(cap_result.scalar() or 0)
     except Exception as e:
         logger.warning("capitation_payments query failed (table may not exist): %s", e)
         total_cap_revenue = 0
 
     # Query total medical spend from claims
     try:
-        spend_result = await db.execute(
-            text("SELECT COALESCE(SUM(paid_amount), 0) as total_spend FROM claims")
-        )
-        total_medical_spend = float(spend_result.scalar() or 0)
+        async with db.begin_nested():
+            spend_result = await db.execute(
+                text("SELECT COALESCE(SUM(paid_amount), 0) as total_spend FROM claims")
+            )
+            total_medical_spend = float(spend_result.scalar() or 0)
     except Exception as e:
         logger.warning("claims spend query failed: %s", e)
         total_medical_spend = 0
@@ -96,8 +98,9 @@ async def get_capitation_summary(
             params["period"] = period
         query += " GROUP BY plan_name, TO_CHAR(payment_month, 'YYYY-MM') ORDER BY month DESC, plan_name"
 
-        result = await db.execute(text(query), params)
-        rows = result.fetchall()
+        async with db.begin_nested():
+            result = await db.execute(text(query), params)
+            rows = result.fetchall()
 
         payments = []
         grand_total = 0.0
@@ -151,8 +154,9 @@ async def get_subcap_summary(
             params["period"] = period
         query += " GROUP BY provider_id, TO_CHAR(payment_month, 'YYYY-MM') ORDER BY month DESC, provider_id"
 
-        result = await db.execute(text(query), params)
-        rows = result.fetchall()
+        async with db.begin_nested():
+            result = await db.execute(text(query), params)
+            rows = result.fetchall()
 
         payments = []
         grand_total = 0.0
@@ -189,16 +193,17 @@ async def get_subcap_summary(
 async def get_risk_pool_status(db: AsyncSession) -> list[dict[str, Any]]:
     """Each plan's risk pool: withheld, bonus earned, surplus/deficit, settlement."""
     try:
-        result = await db.execute(text("""
-            SELECT
-                id, plan_name, pool_year,
-                total_withheld, quality_bonus_earned,
-                surplus_share, deficit_share,
-                settlement_date, status
-            FROM risk_pools
-            ORDER BY pool_year DESC, plan_name
-        """))
-        rows = result.fetchall()
+        async with db.begin_nested():
+            result = await db.execute(text("""
+                SELECT
+                    id, plan_name, pool_year,
+                    total_withheld, quality_bonus_earned,
+                    surplus_share, deficit_share,
+                    settlement_date, status
+                FROM risk_pools
+                ORDER BY pool_year DESC, plan_name
+            """))
+            rows = result.fetchall()
         return [
             {
                 "id": row.id,
@@ -280,16 +285,22 @@ async def calculate_ibnr(db: AsyncSession) -> dict[str, Any]:
 
 async def get_surplus_deficit_by_plan(db: AsyncSession) -> list[dict[str, Any]]:
     """Per-plan P&L: cap revenue - medical spend - admin = surplus/deficit."""
+    # Get cap revenue by plan (savepoint: table may not exist for new tenants)
+    cap_by_plan: dict[str, float] = {}
     try:
-        # Get cap revenue by plan
-        cap_result = await db.execute(text("""
-            SELECT plan_name, COALESCE(SUM(total_payment), 0) as revenue
-            FROM capitation_payments
-            GROUP BY plan_name
-        """))
-        cap_by_plan = {row.plan_name: float(row.revenue) for row in cap_result.fetchall()}
+        async with db.begin_nested():
+            cap_result = await db.execute(text("""
+                SELECT plan_name, COALESCE(SUM(total_payment), 0) as revenue
+                FROM capitation_payments
+                GROUP BY plan_name
+            """))
+            cap_by_plan = {row.plan_name: float(row.revenue) for row in cap_result.fetchall()}
+    except Exception as e:
+        logger.warning("Capitation by plan query failed (table may not exist): %s", e)
 
-        # Get medical spend by plan (via member's health_plan)
+    # Get medical spend by plan (via member's health_plan)
+    spend_by_plan: dict[str, float] = {}
+    try:
         spend_result = await db.execute(text("""
             SELECT m.health_plan, COALESCE(SUM(c.paid_amount), 0) as spend
             FROM claims c
@@ -298,25 +309,24 @@ async def get_surplus_deficit_by_plan(db: AsyncSession) -> list[dict[str, Any]]:
             GROUP BY m.health_plan
         """))
         spend_by_plan = {row.health_plan: float(row.spend) for row in spend_result.fetchall()}
-
-        all_plans = set(cap_by_plan.keys()) | set(spend_by_plan.keys())
-        results = []
-        for plan in sorted(all_plans):
-            revenue = cap_by_plan.get(plan, 0)
-            spend = spend_by_plan.get(plan, 0)
-            mlr = round(spend / revenue, 4) if revenue > 0 else None
-            results.append({
-                "plan_name": plan,
-                "cap_revenue": revenue,
-                "medical_spend": spend,
-                "surplus_deficit": revenue - spend,
-                "mlr": mlr,
-            })
-
-        return results
     except Exception as e:
-        logger.warning("Surplus/deficit by plan query failed: %s", e)
-        return []
+        logger.warning("Spend by plan query failed: %s", e)
+
+    all_plans = set(cap_by_plan.keys()) | set(spend_by_plan.keys())
+    results = []
+    for plan in sorted(all_plans):
+        revenue = cap_by_plan.get(plan, 0)
+        spend = spend_by_plan.get(plan, 0)
+        mlr = round(spend / revenue, 4) if revenue > 0 else None
+        results.append({
+            "plan_name": plan,
+            "cap_revenue": revenue,
+            "medical_spend": spend,
+            "surplus_deficit": revenue - spend,
+            "mlr": mlr,
+        })
+
+    return results
 
 
 # ---------------------------------------------------------------------------

@@ -93,7 +93,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 #   async def lifespan(app): yield
 #   app = FastAPI(lifespan=lifespan)
 @app.on_event("startup")
-async def _check_default_secrets():
+async def _startup():
+    # Refuse to start with default secret key (unless explicitly allowed for dev)
     if settings.secret_key.lower() in ("change-me-in-production", "changeme"):
         import os
         if os.getenv("ALLOW_DEFAULT_SECRET", "").lower() != "true":
@@ -101,6 +102,10 @@ async def _check_default_secrets():
                 "SECRET_KEY must be changed from default. "
                 "Set a real secret in .env, or set ALLOW_DEFAULT_SECRET=true for development."
             )
+
+    # Ensure platform schema and tables exist so auth works on first boot
+    from app.database import init_db
+    await init_db()
 
 
 @app.get("/api/health")

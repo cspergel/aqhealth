@@ -314,10 +314,14 @@ def _process_member_row(
 
     dob = _parse_date(_get_val(row, reverse_map, "date_of_birth"))
     if not dob:
-        errors.append({"row": row_idx, "field": "date_of_birth", "error": "Invalid or missing date of birth"})
-        return None, errors
+        # DOB missing is a data quality issue but should not block ingestion entirely.
+        # Some roster files have partial data; we ingest and flag for review.
+        logger.warning("Row %d: missing or invalid date_of_birth for member %s", row_idx, member_id)
 
-    return {
+    # Extract PCP NPI for FK resolution in the batch upsert step
+    pcp_npi = _clean_str(_get_val(row, reverse_map, "pcp_npi"), 15)
+
+    record = {
         "member_id": member_id,
         "first_name": first_name,
         "last_name": last_name,
@@ -331,7 +335,12 @@ def _process_member_row(
         "medicaid_status": _parse_bool(_get_val(row, reverse_map, "medicaid_status")),
         "disability_status": _parse_bool(_get_val(row, reverse_map, "disability_status")),
         "institutional": _parse_bool(_get_val(row, reverse_map, "institutional")),
-    }, errors
+    }
+
+    if pcp_npi:
+        record["_pcp_npi"] = pcp_npi
+
+    return record, errors
 
 
 def _process_claim_row(
@@ -491,16 +500,29 @@ async def _upsert_members(
 ) -> dict[str, int]:
     """Bulk insert/update members using INSERT ... ON CONFLICT.
 
+    Resolves ``_pcp_npi`` helper fields to ``pcp_provider_id`` FKs
+    via batch NPI lookup (same pattern as claims rendering_provider_id).
+
     Returns {"inserted": int, "updated": int}.
     """
     if not valid_rows:
         return {"inserted": 0, "updated": 0}
+
+    # Batch-resolve PCP NPI strings to provider PKs
+    pcp_npis = [r.get("_pcp_npi") for r in valid_rows if r.get("_pcp_npi")]
+    pcp_lookup = await _resolve_provider_npis_batch(db, pcp_npis)
 
     inserted = 0
     updated = 0
 
     for batch in _chunks(valid_rows, 500):
         for row_data in batch:
+            # Resolve PCP NPI → FK
+            pcp_npi = row_data.pop("_pcp_npi", None)
+            if pcp_npi:
+                provider_pk = pcp_lookup.get(pcp_npi)
+                if provider_pk:
+                    row_data["pcp_provider_id"] = provider_pk
             safe_data = _filter_allowed_columns(row_data, ALLOWED_MEMBER_COLUMNS)
             if not safe_data.get("member_id"):
                 continue
