@@ -201,8 +201,14 @@ def _determine_risk_tier(raf: float) -> RiskTier:
     return RiskTier.low
 
 
-def _annual_dollar_value(raf_value: Decimal) -> Decimal:
-    return (raf_value * CMS_PMPM_BASE * ANNUAL_MULTIPLIER).quantize(Decimal("0.01"))
+def _annual_dollar_value(raf_value: Decimal, county_pmpm: float | None = None) -> Decimal:
+    """Convert a RAF increment to annual dollar value.
+
+    If county_pmpm is provided (from county_rate_service), uses that instead
+    of the national average CMS_PMPM_BASE.
+    """
+    base = Decimal(str(county_pmpm)) if county_pmpm else CMS_PMPM_BASE
+    return (raf_value * base * ANNUAL_MULTIPLIER).quantize(Decimal("0.01"))
 
 
 async def _get_member_claims(
@@ -517,6 +523,18 @@ async def analyze_member(
 
     age = _calculate_age(member.date_of_birth)
 
+    # ---- county-level PMPM rate (if available) ----
+    _county_pmpm: float | None = None
+    try:
+        from app.services.county_rate_service import get_member_pmpm as _get_member_pmpm
+        _county_pmpm_val = _get_member_pmpm(get_current_payment_year(), member)
+        # Only use if it differs from the default (meaning county data was actually resolved)
+        from app.constants import CMS_PMPM_BASE as _fallback
+        if _county_pmpm_val != _fallback:
+            _county_pmpm = _county_pmpm_val
+    except Exception:
+        pass  # county rate service not available — use default
+
     # ---- gather claims ----
     claims = await _get_member_claims(member_id, db)
     all_dx_codes = _extract_diagnosis_codes(claims)
@@ -685,7 +703,7 @@ async def analyze_member(
         existing_suspect = existing.scalars().first()
 
         raf_val = s.get("raf_value", Decimal("0"))
-        annual_val = _annual_dollar_value(raf_val)
+        annual_val = _annual_dollar_value(raf_val, county_pmpm=_county_pmpm)
 
         if existing_suspect:
             existing_suspect.raf_value = raf_val

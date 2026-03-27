@@ -23,6 +23,7 @@ from app.models.hcc import HccSuspect, RafHistory, SuspectStatus
 from app.models.member import Member, RiskTier
 from app.models.provider import Provider
 from app.constants import CMS_ANNUAL_BASE, CMS_PMPM_BASE
+from app.services.county_rate_service import get_member_annual_value as _county_annual_value
 from app.services.hcc_engine import (
     DISEASE_INTERACTIONS,
     LOCAL_HCC_RAF,
@@ -39,7 +40,14 @@ from app.services.hcc_engine import (
 logger = logging.getLogger(__name__)
 
 
-def _annual_value(raf: float | Decimal) -> float:
+def _annual_value(raf: float | Decimal, member: Any = None) -> float:
+    """Convert RAF to annual dollar value, using county rate if member is provided."""
+    if member is not None:
+        try:
+            year = get_current_payment_year()
+            return _county_annual_value(year, member, float(raf))
+        except Exception:
+            pass  # fall back to national average
     return round(float(Decimal(str(raf)) * Decimal(str(CMS_ANNUAL_BASE))), 2)
 
 
@@ -102,8 +110,8 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
         "total_raf": current_raf,
         "projected_raf": projected_raf,
         "delta": delta,
-        "current_annual_value": _annual_value(current_raf),
-        "projected_annual_value": _annual_value(projected_raf),
+        "current_annual_value": _annual_value(current_raf, member),
+        "projected_annual_value": _annual_value(projected_raf, member),
     }
 
     # ---- Suspect HCCs ----
@@ -122,7 +130,7 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
             "icd10_code": s.icd10_code,
             "hcc_code": s.hcc_code,
             "raf_value": float(s.raf_value or 0),
-            "annual_value": float(s.annual_value) if s.annual_value else _annual_value(s.raf_value or 0),
+            "annual_value": float(s.annual_value) if s.annual_value else _annual_value(s.raf_value or 0, member),
             "evidence_summary": s.evidence_summary or "",
             "confidence": s.confidence or 0,
             "suspect_type": s.suspect_type if s.suspect_type else "unknown",
