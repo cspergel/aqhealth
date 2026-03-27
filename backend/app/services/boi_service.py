@@ -204,9 +204,78 @@ async def get_top_interventions(db: AsyncSession) -> list:
 # ---------------------------------------------------------------------------
 
 async def get_recommended_interventions(db: AsyncSession) -> list:
-    """AI suggests new interventions based on current data gaps."""
-    # In production this would analyze platform data; return static recommendations for now
-    return []
+    """Suggest interventions based on current platform data (capture rates, gaps, etc.)."""
+    from app.models.hcc import HccSuspect, SuspectStatus
+
+    recommendations = []
+
+    # Check HCC capture rate
+    total_q = await db.execute(select(func.count(HccSuspect.id)))
+    total_suspects = total_q.scalar() or 0
+    captured_q = await db.execute(
+        select(func.count(HccSuspect.id)).where(HccSuspect.status == SuspectStatus.captured.value)
+    )
+    captured = captured_q.scalar() or 0
+    capture_rate = (captured / total_suspects * 100) if total_suspects > 0 else 0
+
+    if total_suspects > 0 and capture_rate < 70:
+        recommendations.append({
+            "type": "education",
+            "title": "Provider HCC Education Program",
+            "description": (
+                f"Based on your {capture_rate:.0f}% capture rate ({captured}/{total_suspects} suspects), "
+                f"consider a provider education intervention to improve HCC documentation and coding."
+            ),
+            "estimated_roi": "3:1",
+            "priority": "high" if capture_rate < 50 else "medium",
+        })
+
+    open_q = await db.execute(
+        select(func.count(HccSuspect.id)).where(HccSuspect.status == SuspectStatus.open.value)
+    )
+    open_suspects = open_q.scalar() or 0
+    if open_suspects > 50:
+        recommendations.append({
+            "type": "program",
+            "title": "Targeted HCC Suspect Chase Campaign",
+            "description": (
+                f"You have {open_suspects} open suspects. A focused chase campaign "
+                f"could close the highest-value suspects within one quarter."
+            ),
+            "estimated_roi": "4:1",
+            "priority": "high",
+        })
+
+    # Check active interventions with negative ROI
+    negative_roi_q = await db.execute(
+        select(func.count(Intervention.id)).where(
+            Intervention.status == "active",
+            Intervention.roi_percentage < 0,
+        )
+    )
+    negative_roi_count = negative_roi_q.scalar() or 0
+    if negative_roi_count > 0:
+        recommendations.append({
+            "type": "review",
+            "title": "Review Underperforming Interventions",
+            "description": (
+                f"{negative_roi_count} active intervention(s) have negative ROI. "
+                f"Consider restructuring or reallocating investment."
+            ),
+            "estimated_roi": "N/A",
+            "priority": "medium",
+        })
+
+    if not recommendations:
+        recommendations.append({
+            "type": "maintain",
+            "title": "Continue Current Programs",
+            "description": "Current capture rates and intervention performance are on track. No urgent recommendations.",
+            "estimated_roi": "N/A",
+            "priority": "low",
+        })
+
+    return recommendations
 
 
 # ---------------------------------------------------------------------------

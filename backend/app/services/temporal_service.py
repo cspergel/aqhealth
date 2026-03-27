@@ -206,6 +206,11 @@ async def get_metric_timeline(db: AsyncSession, metric: str, months: int = 12) -
     Monthly values for a specific metric over the requested number of months.
 
     Returns: [{month: "2025-04", value: ...}, ...]
+
+    NOTE: This makes one get_population_snapshot call per month (N sequential
+    queries). For production, replace with a single query against a
+    materialized view (e.g., monthly_population_snapshots) that is refreshed
+    on a schedule. This would reduce the call from ~12 round trips to 1.
     """
     if metric not in SUPPORTED_METRICS:
         return []

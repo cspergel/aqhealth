@@ -167,7 +167,7 @@ async def get_efficiency_metrics(db: AsyncSession) -> dict:
         select(func.count(StaffMember.id))
         .where(StaffMember.is_active == True)  # noqa: E712
     )
-    staff_count = staff_result.scalar() or 1
+    staff_count = staff_result.scalar() or 0
 
     expense_result = await db.execute(
         select(func.sum(ExpenseEntry.amount))
@@ -177,7 +177,7 @@ async def get_efficiency_metrics(db: AsyncSession) -> dict:
     return {
         "total_staff": staff_count,
         "total_expenses": round(total_expenses, 2),
-        "expense_per_staff": round(total_expenses / staff_count, 2),
+        "expense_per_staff": round(total_expenses / staff_count, 2) if staff_count > 0 else 0,
     }
 
 

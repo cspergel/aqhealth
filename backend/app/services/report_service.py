@@ -201,7 +201,24 @@ async def _pull_provider_performance(db: AsyncSession) -> dict:
 
 
 async def _pull_care_management(db: AsyncSession) -> dict:
-    return {"note": "Care management data pull — placeholder"}
+    """Pull active case management counts from CaseAssignment."""
+    try:
+        from app.models.case_management import CaseAssignment
+        from sqlalchemy import func as sa_func
+        active_q = await db.execute(
+            select(sa_func.count(CaseAssignment.id)).where(CaseAssignment.status == "active")
+        )
+        active_cases = active_q.scalar() or 0
+        total_q = await db.execute(
+            select(sa_func.count(CaseAssignment.id))
+        )
+        total_cases = total_q.scalar() or 0
+        return {
+            "active_cases": active_cases,
+            "total_cases": total_cases,
+        }
+    except Exception:
+        return {"note": "Care management section data unavailable"}
 
 
 async def _pull_financial_summary(db: AsyncSession) -> dict:

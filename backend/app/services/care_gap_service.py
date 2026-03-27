@@ -670,30 +670,56 @@ async def _detect_followup_gaps(
     closed = 0
     today = date.today()
 
+    if not member_events:
+        return created, closed
+
+    all_member_ids = list(member_events.keys())
+
+    # Batch-fetch all follow-up claims for these members to avoid N+1
+    fu_result = await db.execute(
+        select(Claim.member_id, Claim.service_date).where(
+            Claim.member_id.in_(all_member_ids),
+            Claim.procedure_code.in_(required_cpt),
+            Claim.service_date >= year_start,
+            Claim.service_date <= year_end,
+        )
+    )
+    # Index follow-up claims by member for fast lookup
+    from collections import defaultdict
+    followup_claims_by_member: dict[int, list[date]] = defaultdict(list)
+    for row in fu_result.all():
+        followup_claims_by_member[row.member_id].append(row.service_date)
+
+    # Batch-fetch existing gaps for this measure and all members
+    existing_gaps_result = await db.execute(
+        select(MemberGap).where(
+            MemberGap.member_id.in_(all_member_ids),
+            MemberGap.measure_id == measure.id,
+            MemberGap.measurement_year == measurement_year,
+        )
+    )
+    existing_gaps_by_key: dict[tuple[int, date], MemberGap] = {}
+    for g in existing_gaps_result.scalars().all():
+        existing_gaps_by_key[(g.member_id, g.due_date)] = g
+
+    # Batch-fetch member PCP info for gap creation
+    member_pcp_result = await db.execute(
+        select(Member.id, Member.pcp_provider_id).where(Member.id.in_(all_member_ids))
+    )
+    member_pcp_map: dict[int, int | None] = {r.id: r.pcp_provider_id for r in member_pcp_result.all()}
+
     for member_id, event_dates in member_events.items():
+        fu_dates = followup_claims_by_member.get(member_id, [])
+
         for event_date in event_dates:
             followup_deadline = event_date + timedelta(days=followup_days)
 
-            # Check for follow-up claim
-            fu_query = await db.execute(
-                select(func.count(Claim.id)).where(
-                    Claim.member_id == member_id,
-                    Claim.procedure_code.in_(required_cpt),
-                    Claim.service_date > event_date,
-                    Claim.service_date <= followup_deadline,
-                )
+            # Check for follow-up claim in the pre-fetched data
+            has_followup = any(
+                d > event_date and d <= followup_deadline for d in fu_dates
             )
-            has_followup = (fu_query.scalar() or 0) > 0
 
-            existing = await db.execute(
-                select(MemberGap).where(
-                    MemberGap.member_id == member_id,
-                    MemberGap.measure_id == measure.id,
-                    MemberGap.measurement_year == measurement_year,
-                    MemberGap.due_date == followup_deadline,
-                )
-            )
-            existing_gap = existing.scalar_one_or_none()
+            existing_gap = existing_gaps_by_key.get((member_id, followup_deadline))
 
             if has_followup:
                 if existing_gap and existing_gap.status == GapStatus.open.value:
@@ -702,15 +728,13 @@ async def _detect_followup_gaps(
                     closed += 1
             else:
                 if not existing_gap:
-                    # Get member for provider info
-                    member = await db.get(Member, member_id)
                     gap = MemberGap(
                         member_id=member_id,
                         measure_id=measure.id,
                         status=GapStatus.open.value,
                         due_date=followup_deadline,
                         measurement_year=measurement_year,
-                        responsible_provider_id=member.pcp_provider_id if member else None,
+                        responsible_provider_id=member_pcp_map.get(member_id),
                     )
                     db.add(gap)
                     created += 1

@@ -788,14 +788,12 @@ async def test_interface_connection(db: AsyncSession, interface_id: int) -> dict
     if not iface:
         return {"success": False, "error": "Interface not found"}
 
-    # In production, would actually test the connection based on type
-    # For now, return mock success
+    # Connection testing not yet implemented — return explicit null success
     return {
-        "success": True,
+        "success": None,
         "interface_id": iface.id,
         "interface_type": iface.interface_type,
-        "message": f"Connection to {iface.name} verified successfully.",
-        "latency_ms": 42,
+        "message": "Connection testing not yet implemented",
     }
 
 

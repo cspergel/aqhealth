@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def get_care_plans(db: AsyncSession, member_id: int | None = None) -> list[dict]:
     """Return care plans, optionally filtered by member."""
     query = select(CarePlan).order_by(CarePlan.created_at.desc())
-    if member_id:
+    if member_id is not None:
         query = query.where(CarePlan.member_id == member_id)
     result = await db.execute(query)
     plans = result.scalars().all()
@@ -178,30 +178,37 @@ async def update_intervention(db: AsyncSession, intervention_id: int, data: dict
 
 async def get_care_plan_summary(db: AsyncSession) -> dict:
     """Summary of all active care plans with completion metrics."""
-    result = await db.execute(
-        select(CarePlan).where(CarePlan.status == "active")
-    )
-    plans = result.scalars().all()
-
-    total_plans = len(plans)
-    total_goals = 0
-    met_goals = 0
-    past_due_goals = 0
     today = date.today()
 
-    for p in plans:
-        goals_q = await db.execute(
-            select(CarePlanGoal).where(CarePlanGoal.care_plan_id == p.id)
+    # Single aggregate query instead of N+1 per-plan goal fetches
+    summary_q = await db.execute(
+        select(
+            func.count(func.distinct(CarePlan.id)).label("active_plans"),
+            func.count(CarePlanGoal.id).label("total_goals"),
+            func.sum(case((CarePlanGoal.status == "met", 1), else_=0)).label("met_goals"),
+            func.sum(
+                case(
+                    (
+                        and_(
+                            CarePlanGoal.status.in_(["in_progress", "not_started"]),
+                            CarePlanGoal.target_date.isnot(None),
+                            CarePlanGoal.target_date < today,
+                        ),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("past_due_goals"),
         )
-        goals = goals_q.scalars().all()
-        total_goals += len(goals)
-        met_goals += sum(1 for g in goals if g.status == "met")
-        past_due_goals += sum(
-            1 for g in goals
-            if g.status in ("in_progress", "not_started")
-            and g.target_date
-            and g.target_date < today
-        )
+        .select_from(CarePlan)
+        .outerjoin(CarePlanGoal, CarePlanGoal.care_plan_id == CarePlan.id)
+        .where(CarePlan.status == "active")
+    )
+    row = summary_q.one()
+    total_plans = row.active_plans or 0
+    total_goals = row.total_goals or 0
+    met_goals = int(row.met_goals or 0)
+    past_due_goals = int(row.past_due_goals or 0)
 
     return {
         "active_plans": total_plans,

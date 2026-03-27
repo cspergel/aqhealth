@@ -199,8 +199,12 @@ async def apply_filter(
 ) -> dict:
     """
     Apply filter conditions and return a matching count.
-    In a full implementation this would build a SQLAlchemy query.
-    For now, returns the conditions for the frontend to apply client-side.
+
+    TODO: This function intentionally does NOT perform server-side filtering.
+    It returns the conditions for the frontend to apply client-side.
+    This is by design: the frontend DataGrid handles filtering locally from
+    the already-fetched dataset. Server-side filtering should be added when
+    datasets exceed client-side thresholds (~5K rows).
     """
     # Increment usage tracking if filter has an ID
     filter_id = conditions.get("filter_id")

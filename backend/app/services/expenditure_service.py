@@ -77,10 +77,36 @@ def _fmt_pct(v: float) -> str:
 async def get_expenditure_overview(db: AsyncSession) -> dict:
     """Total spend, PMPM, MLR, and per-category breakdown."""
 
-    # Total member months (active members)
-    member_count_result = await db.execute(select(func.count(Member.id)))
+    # Total member months (from active members' actual coverage periods)
+    from datetime import date as _date
+    today = _date.today()
+    year_start = _date(today.year, 1, 1)
+    member_months_result = await db.execute(
+        select(
+            func.sum(
+                func.greatest(
+                    func.extract(
+                        "month",
+                        func.age(
+                            func.least(func.coalesce(Member.coverage_end, func.current_date()), func.current_date()),
+                            func.greatest(func.coalesce(Member.coverage_start, year_start), year_start),
+                        ),
+                    ) + 1,
+                    0,
+                )
+            )
+        ).where(
+            or_(Member.coverage_end.is_(None), Member.coverage_end >= year_start)
+        )
+    )
+    member_months = max(_safe_int(member_months_result.scalar()), 1)
+
+    member_count_result = await db.execute(
+        select(func.count(Member.id)).where(
+            or_(Member.coverage_end.is_(None), Member.coverage_end >= today)
+        )
+    )
     member_count = _safe_int(member_count_result.scalar())
-    member_months = max(member_count * 12, 1)  # annualized
 
     # Total spend
     total_result = await db.execute(select(func.sum(Claim.paid_amount)))
@@ -1050,7 +1076,7 @@ async def get_part_analysis(db: AsyncSession, period: str | None = None) -> dict
             "pmpm": pmpm,
             "claim_count": claim_count,
             "member_count": members,
-            "trend": round(total_spend * 0.03 / max(total_spend, 1) * 100, 1),  # placeholder
+            "trend": 0.0,  # computed below from period-over-period actuals
         }
 
     # Part C (MA plan admin) — from capitation payments
@@ -1067,6 +1093,34 @@ async def get_part_analysis(db: AsyncSession, period: str | None = None) -> dict
         "member_count": member_count,
         "trend": 0.0,
     }
+
+    # Compute actual period-over-period trend for Parts A/B/D from recent vs prior 6 months
+    from datetime import date as _dt, timedelta as _td
+    _today = _dt.today()
+    _six_months_ago = _today - _td(days=182)
+    _twelve_months_ago = _today - _td(days=365)
+    for part_letter, categories in PART_MAPPING.items():
+        key = f"part_{part_letter.lower()}"
+        if key not in parts:
+            continue
+        recent_q = await db.execute(
+            select(func.coalesce(func.sum(Claim.paid_amount), 0)).where(
+                Claim.service_category.in_(categories),
+                Claim.service_date >= _six_months_ago,
+                Claim.service_date <= _today,
+            )
+        )
+        prior_q = await db.execute(
+            select(func.coalesce(func.sum(Claim.paid_amount), 0)).where(
+                Claim.service_category.in_(categories),
+                Claim.service_date >= _twelve_months_ago,
+                Claim.service_date < _six_months_ago,
+            )
+        )
+        recent_spend = _safe_float(recent_q.scalar())
+        prior_spend = _safe_float(prior_q.scalar())
+        if prior_spend > 0:
+            parts[key]["trend"] = round((recent_spend - prior_spend) / prior_spend * 100, 1)
 
     total_all_parts = sum(p["total_spend"] for p in parts.values())
 

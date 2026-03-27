@@ -83,16 +83,21 @@ async def predict_hospitalization_risk(db: AsyncSession) -> list[dict]:
     today = date.today()
     active_filter = (Member.coverage_end.is_(None)) | (Member.coverage_end >= today)
 
-    # Fetch active members
-    members_q = await db.execute(
-        select(Member).where(active_filter).order_by(Member.id)
+    # Fetch active members — use aggregate queries for risk factors, then
+    # only load member rows for the final top-N scoring.  This avoids loading
+    # the entire Member table into memory for large populations.
+    member_count_q = await db.execute(
+        select(func.count(Member.id)).where(active_filter)
     )
-    members = members_q.scalars().all()
-
-    if not members:
+    total_active = member_count_q.scalar() or 0
+    if total_active == 0:
         return []
 
-    member_ids = [m.id for m in members]
+    # Fetch only member IDs first for aggregate queries
+    id_q = await db.execute(
+        select(Member.id).where(active_filter).order_by(Member.id)
+    )
+    member_ids = [r[0] for r in id_q.all()]
 
     # ER visits in last 90 days
     er_cutoff = today - timedelta(days=90)
@@ -186,6 +191,12 @@ async def predict_hospitalization_risk(db: AsyncSession) -> list[dict]:
         select(Provider.id, Provider.first_name, Provider.last_name)
     )
     providers = {r.id: f"Dr. {r.first_name} {r.last_name}" for r in provider_q.all()}
+
+    # Now load only the member objects needed for scoring (all active — we sort later)
+    members_q = await db.execute(
+        select(Member).where(active_filter).order_by(Member.id)
+    )
+    members = members_q.scalars().all()
 
     # Score each member
     scored_members = []

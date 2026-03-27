@@ -141,7 +141,49 @@ async def reconcile_signals(db: AsyncSession) -> dict:
     accuracies: list[float] = []
     accuracy_by_category: dict[str, list[float]] = {}
 
+    # --- Batch-fetch all candidate record-tier claims to avoid N+1 queries ---
+    # Collect valid signals and compute the broadest date window needed
+    valid_signals = []
+    all_member_ids: set = set()
     for signal in signals:
+        if not signal["member_id"] or not signal["service_date"]:
+            unmatched += 1
+            continue
+        valid_signals.append(signal)
+        all_member_ids.add(signal["member_id"])
+
+    # Fetch all unreconciled record-tier claims for these members in one query
+    candidate_records: list = []
+    if all_member_ids:
+        rec_result = await db.execute(
+            text("""
+                SELECT id, member_id, facility_name, service_date,
+                       paid_amount, allowed_amount
+                FROM claims
+                WHERE data_tier = 'record'
+                  AND reconciled = false
+                  AND member_id = ANY(:member_ids)
+            """),
+            {"member_ids": list(all_member_ids)},
+        )
+        candidate_records = rec_result.mappings().all()
+
+    # Index candidates by member_id for fast lookup
+    from collections import defaultdict
+    records_by_member: dict[int, list] = defaultdict(list)
+    for rec in candidate_records:
+        records_by_member[rec["member_id"]].append(rec)
+
+    # Track which record-tier claims have been matched so we don't double-match
+    matched_record_ids: set = set()
+
+    # Collect batch updates to execute after matching
+    signal_updates: list[dict] = []     # (signal_id, record_id)
+    record_updates: list[dict] = []     # (record_id, signal_id)
+    adt_updates: list[dict] = []        # (event_id, accuracy, record_id)
+    outcome_inserts: list[dict] = []    # prediction_outcomes rows
+
+    for signal in valid_signals:
         signal_id = signal["id"]
         member_id = signal["member_id"]
         facility = signal["facility_name"]
@@ -150,104 +192,88 @@ async def reconcile_signals(db: AsyncSession) -> dict:
         category = signal["service_category"] or "other"
         event_id = signal["signal_event_id"]
 
-        if not member_id or not service_date:
-            unmatched += 1
-            continue
+        date_start = service_date - timedelta(days=7)
+        date_end = service_date + timedelta(days=14)
 
-        # Search for a matching record-tier claim
-        # Same member, same/similar facility, similar date range (+/- 7 days)
-        match_result = await db.execute(
-            text("""
-                SELECT id, paid_amount, allowed_amount, service_date, facility_name
-                FROM claims
-                WHERE data_tier = 'record'
-                  AND member_id = :member_id
-                  AND service_date BETWEEN :date_start AND :date_end
-                  AND (facility_name = :facility OR :facility IS NULL)
-                  AND reconciled = false
-                ORDER BY ABS(EXTRACT(EPOCH FROM (service_date - :svc_date::date))) ASC
-                LIMIT 1
-            """),
-            {
-                "member_id": member_id,
-                "date_start": service_date - timedelta(days=7),
-                "date_end": service_date + timedelta(days=14),
-                "facility": facility,
-                "svc_date": str(service_date),
-            },
-        )
-        record = match_result.mappings().first()
+        # Find best matching record from pre-fetched candidates
+        best_record = None
+        best_distance = None
+        for rec in records_by_member.get(member_id, []):
+            if rec["id"] in matched_record_ids:
+                continue
+            rec_date = rec["service_date"]
+            if rec_date < date_start or rec_date > date_end:
+                continue
+            if facility is not None and rec["facility_name"] != facility:
+                continue
+            distance = abs((rec_date - service_date).days)
+            if best_distance is None or distance < best_distance:
+                best_distance = distance
+                best_record = rec
 
-        if record:
-            record_id = record["id"]
-            actual_paid = float(record["paid_amount"] or record["allowed_amount"] or 0)
+        if best_record:
+            record_id = best_record["id"]
+            matched_record_ids.add(record_id)
+            actual_paid = float(best_record["paid_amount"] or best_record["allowed_amount"] or 0)
 
-            # Calculate accuracy: (estimated - actual) / actual
             accuracy = 0.0
             if actual_paid > 0:
                 accuracy = (estimated - actual_paid) / actual_paid
 
-            # Link signal to record
-            await db.execute(
-                text("""
-                    UPDATE claims
-                    SET reconciled = true, reconciled_claim_id = :record_id
-                    WHERE id = :signal_id
-                """),
-                {"record_id": record_id, "signal_id": signal_id},
-            )
+            signal_updates.append({"record_id": record_id, "signal_id": signal_id})
+            record_updates.append({"signal_id": signal_id, "record_id": record_id})
 
-            # Mark record as reconciled too (it has been matched)
-            await db.execute(
-                text("""
-                    UPDATE claims
-                    SET reconciled = true, reconciled_claim_id = :signal_id
-                    WHERE id = :record_id
-                """),
-                {"signal_id": signal_id, "record_id": record_id},
-            )
-
-            # Update ADT event accuracy if linked
             if event_id:
-                await db.execute(
-                    text("""
-                        UPDATE adt_events
-                        SET estimation_accuracy = :accuracy, actual_claim_id = :record_id
-                        WHERE id = :event_id
-                    """),
-                    {"accuracy": accuracy, "record_id": record_id, "event_id": event_id},
-                )
+                adt_updates.append({"accuracy": accuracy, "record_id": record_id, "event_id": event_id})
 
-            # Create PredictionOutcome for the learning system
-            await db.execute(
-                text("""
-                    INSERT INTO prediction_outcomes (
-                        prediction_type, prediction_id, predicted_value, confidence,
-                        outcome, actual_value, was_correct, context
-                    ) VALUES (
-                        'cost_estimate', :signal_id, :predicted, 70,
-                        :outcome, :actual, :was_correct, :context::jsonb
-                    )
-                """),
-                {
-                    "signal_id": signal_id,
-                    "predicted": str(estimated),
-                    "outcome": "confirmed" if abs(accuracy) <= 0.15 else "partial",
-                    "actual": str(actual_paid),
-                    "was_correct": abs(accuracy) <= 0.15,
-                    "context": json.dumps({
-                        "category": category,
-                        "facility": facility,
-                        "accuracy_pct": round(accuracy * 100, 1),
-                    }),
-                },
-            )
+            outcome_inserts.append({
+                "signal_id": signal_id,
+                "predicted": str(estimated),
+                "outcome": "confirmed" if abs(accuracy) <= 0.15 else "partial",
+                "actual": str(actual_paid),
+                "was_correct": abs(accuracy) <= 0.15,
+                "context": json.dumps({
+                    "category": category,
+                    "facility": facility,
+                    "accuracy_pct": round(accuracy * 100, 1),
+                }),
+            })
 
             accuracies.append(accuracy)
             accuracy_by_category.setdefault(category, []).append(accuracy)
             matched += 1
         else:
             unmatched += 1
+
+    # --- Execute batch updates ---
+    for params in signal_updates:
+        await db.execute(
+            text("UPDATE claims SET reconciled = true, reconciled_claim_id = :record_id WHERE id = :signal_id"),
+            params,
+        )
+    for params in record_updates:
+        await db.execute(
+            text("UPDATE claims SET reconciled = true, reconciled_claim_id = :signal_id WHERE id = :record_id"),
+            params,
+        )
+    for params in adt_updates:
+        await db.execute(
+            text("UPDATE adt_events SET estimation_accuracy = :accuracy, actual_claim_id = :record_id WHERE id = :event_id"),
+            params,
+        )
+    for params in outcome_inserts:
+        await db.execute(
+            text("""
+                INSERT INTO prediction_outcomes (
+                    prediction_type, prediction_id, predicted_value, confidence,
+                    outcome, actual_value, was_correct, context
+                ) VALUES (
+                    'cost_estimate', :signal_id, :predicted, 70,
+                    :outcome, :actual, :was_correct, :context::jsonb
+                )
+            """),
+            params,
+        )
 
     await db.commit()
 

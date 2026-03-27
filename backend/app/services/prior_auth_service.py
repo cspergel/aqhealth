@@ -100,8 +100,10 @@ async def get_auth_requests(
     if service_type:
         query = query.where(PriorAuth.service_type == service_type)
     if provider:
+        # Escape SQL LIKE wildcards in user input
+        escaped_provider = provider.replace("%", r"\%").replace("_", r"\_")
         query = query.where(
-            PriorAuth.requesting_provider_name.ilike(f"%{provider}%")
+            PriorAuth.requesting_provider_name.ilike(f"%{escaped_provider}%")
         )
     result = await db.execute(query)
     auths = result.scalars().all()

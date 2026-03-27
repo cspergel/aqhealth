@@ -267,11 +267,16 @@ async def get_group_trends(db: AsyncSession, group_id: int) -> dict | None:
     if not group:
         return None
 
+    # TODO: Trend data will be populated once the analytics pipeline stores
+    # quarterly snapshots per group. Until then, return an explicit indicator
+    # so callers know this is not yet available.
     return {
         "group_id": group_id,
         "group_name": group.name,
+        "data_available": False,
+        "message": "Trend data not yet available. Quarterly snapshots will populate after the analytics pipeline is enabled.",
         "quarters": ["Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025", "Q1 2026"],
-        "capture_rate": [],   # Populated by analytics pipeline
+        "capture_rate": [],
         "recapture_rate": [],
         "group_pmpm": [],
         "gap_closure_rate": [],

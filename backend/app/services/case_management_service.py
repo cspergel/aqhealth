@@ -71,7 +71,7 @@ async def get_case_dashboard(db: AsyncSession) -> dict:
 async def get_cases(db: AsyncSession, care_manager_id: int | None = None) -> list[dict]:
     """Return cases optionally filtered by care manager."""
     query = select(CaseAssignment).order_by(CaseAssignment.created_at.desc())
-    if care_manager_id:
+    if care_manager_id is not None:
         query = query.where(CaseAssignment.care_manager_id == care_manager_id)
     result = await db.execute(query)
     cases = result.scalars().all()
@@ -82,7 +82,7 @@ async def get_cases(db: AsyncSession, care_manager_id: int | None = None) -> lis
             "member_id": c.member_id,
             "care_manager_id": c.care_manager_id,
             "care_manager_name": c.care_manager_name,
-            "assignment_date": str(c.assignment_date),
+            "assignment_date": str(c.assignment_date) if c.assignment_date else None,
             "end_date": str(c.end_date) if c.end_date else None,
             "reason": c.reason,
             "status": c.status,
