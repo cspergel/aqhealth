@@ -26,7 +26,9 @@ export const mockDashboard = {
   revenue_opportunities: [
     { hcc_code: 37, hcc_label: "Diabetes with Complications", member_count: 342, total_raf: 103.2, total_value: 1135200 },
     { hcc_code: 226, hcc_label: "CHF / Heart Failure", member_count: 189, total_raf: 61.0, total_value: 671000 },
-    { hcc_code: 329, hcc_label: "CKD Stage 3-5", member_count: 267, total_raf: 18.4, total_value: 202400 },
+    { hcc_code: 328, hcc_label: "CKD Stage 3b", member_count: 112, total_raf: 14.2, total_value: 156200 },
+    { hcc_code: 327, hcc_label: "CKD Stage 4", member_count: 67, total_raf: 34.4, total_value: 378400 },
+    { hcc_code: 326, hcc_label: "CKD Stage 5 / ESRD", member_count: 23, total_raf: 18.7, total_value: 205700 },
     { hcc_code: 280, hcc_label: "COPD / Chronic Lung", member_count: 198, total_raf: 55.4, total_value: 609400 },
     { hcc_code: 155, hcc_label: "Depression / Behavioral", member_count: 284, total_raf: 87.8, total_value: 965800 },
     { hcc_code: 48, hcc_label: "Morbid Obesity", member_count: 134, total_raf: 33.5, total_value: 368500 },
@@ -1813,7 +1815,7 @@ export const mockJourneyData: Record<number, {
       total_spend_12m: 87420,
       open_suspects: 3,
       open_gaps: 2,
-      conditions: ["CHF (HCC 226)", "Type 2 Diabetes w/ CKD (HCC 37)", "CKD Stage 3 (HCC 329)", "Major Depression (HCC 155)", "COPD (HCC 280)", "Morbid Obesity (HCC 48)"],
+      conditions: ["CHF (HCC 226)", "Type 2 Diabetes w/ CKD (HCC 37)", "CKD Stage 3a (HCC 329)", "Major Depression (HCC 155)", "COPD (HCC 280)", "Morbid Obesity (HCC 48)"],
     },
     timeline: [
       // --- 2026 Events ---
@@ -4385,7 +4387,7 @@ export const mockRADVReadiness = {
   strongest_codes: [
     { hcc_code: 37, hcc_label: "Diabetes with Complications", captures: 342, avg_meat_score: 94 },
     { hcc_code: 226, hcc_label: "CHF / Heart Failure", captures: 189, avg_meat_score: 91 },
-    { hcc_code: 329, hcc_label: "CKD Stage 3-5", captures: 267, avg_meat_score: 89 },
+    { hcc_code: 329, hcc_label: "CKD (HCC 326-329)", captures: 267, avg_meat_score: 89 },
   ],
 };
 
@@ -4583,7 +4585,7 @@ export const mockAWVOpportunities = {
     { hcc_category: "Diabetes with Complications (HCC 37)", pct_of_recapture: 22, estimated_value: 185240 },
     { hcc_category: "CHF / Heart Failure (HCC 226)", pct_of_recapture: 15, estimated_value: 126300 },
     { hcc_category: "COPD (HCC 280)", pct_of_recapture: 12, estimated_value: 101040 },
-    { hcc_category: "CKD Stage 3-5 (HCC 326-329)", pct_of_recapture: 10, estimated_value: 84200 },
+    { hcc_category: "CKD (HCC 326-329) (HCC 326-329)", pct_of_recapture: 10, estimated_value: 84200 },
     { hcc_category: "Depression / Behavioral (HCC 155)", pct_of_recapture: 9, estimated_value: 75780 },
     { hcc_category: "Morbid Obesity (HCC 48)", pct_of_recapture: 8, estimated_value: 67360 },
     { hcc_category: "Other conditions", pct_of_recapture: 24, estimated_value: 202080 },
