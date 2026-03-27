@@ -51,11 +51,20 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
     # --- Apply filters ---
 
     # Age filters (computed from date_of_birth)
+    # Use try/except to handle leap year edge case (e.g. today is Feb 29)
+    def _safe_date(year: int, month: int, day: int) -> date:
+        """Create a date, falling back to Feb 28 for invalid Feb 29."""
+        try:
+            return date(year, month, day)
+        except ValueError:
+            # Handles Feb 29 -> Feb 28 when target year is not a leap year
+            return date(year, month, day - 1)
+
     if filters.get("age_min") is not None:
-        max_dob = date(today.year - int(filters["age_min"]), today.month, today.day)
+        max_dob = _safe_date(today.year - int(filters["age_min"]), today.month, today.day)
         query = query.where(Member.date_of_birth <= max_dob)
     if filters.get("age_max") is not None:
-        min_dob = date(today.year - int(filters["age_max"]) - 1, today.month, today.day)
+        min_dob = _safe_date(today.year - int(filters["age_max"]) - 1, today.month, today.day)
         query = query.where(Member.date_of_birth >= min_dob)
 
     # Gender
@@ -115,7 +124,7 @@ async def build_cohort(db: AsyncSession, filters: dict) -> dict:
             exists(
                 select(MemberGap.id).where(
                     MemberGap.member_id == Member.id,
-                    MemberGap.status == GapStatus.open,
+                    MemberGap.status == GapStatus.open.value,
                 )
             )
         )

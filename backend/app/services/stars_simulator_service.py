@@ -10,6 +10,7 @@ Implements CMS Star Rating methodology:
 
 import logging
 import math
+from datetime import date as _date
 from typing import Any
 
 from sqlalchemy import select, func
@@ -86,32 +87,39 @@ def _round_half_up(x: float) -> float:
 # ---------------------------------------------------------------------------
 
 async def get_current_star_projection(db: AsyncSession) -> dict[str, Any]:
-    """Current projected Star rating based on all active measures."""
-    measurement_year = __import__("datetime").date.today().year
+    """Current projected Star rating based on all active measures.
 
+    Uses a single GROUP BY query to avoid N+1 per-measure gap count fetches.
+    """
+    from sqlalchemy import case, and_
+    measurement_year = _date.today().year
+
+    # Single query: join measures with gap counts grouped by measure
     result = await db.execute(
-        select(GapMeasure).where(GapMeasure.is_active == True).order_by(GapMeasure.code)  # noqa: E712
+        select(
+            GapMeasure,
+            func.sum(case((MemberGap.status == "open", 1), else_=0)).label("open_count"),
+            func.sum(case((MemberGap.status == "closed", 1), else_=0)).label("closed_count"),
+            func.sum(case((MemberGap.status == "excluded", 1), else_=0)).label("excluded_count"),
+        )
+        .outerjoin(
+            MemberGap,
+            and_(
+                MemberGap.measure_id == GapMeasure.id,
+                MemberGap.measurement_year == measurement_year,
+            ),
+        )
+        .where(GapMeasure.is_active.is_(True))
+        .group_by(GapMeasure.id)
+        .order_by(GapMeasure.code)
     )
-    measures = result.scalars().all()
 
     measure_details = []
-    for measure in measures:
-        counts = await db.execute(
-            select(MemberGap.status, func.count(MemberGap.id))
-            .where(
-                MemberGap.measure_id == measure.id,
-                MemberGap.measurement_year == measurement_year,
-            )
-            .group_by(MemberGap.status)
-        )
-        status_counts: dict[str, int] = {}
-        for row in counts.all():
-            key = str(row[0])
-            status_counts[key] = row[1]
-
-        open_count = status_counts.get("open", 0)
-        closed_count = status_counts.get("closed", 0)
-        excluded = status_counts.get("excluded", 0)
+    for row in result.all():
+        measure = row[0]
+        open_count = int(row.open_count or 0)
+        closed_count = int(row.closed_count or 0)
+        excluded = int(row.excluded_count or 0)
         total = open_count + closed_count + excluded
         rate = round((closed_count / total * 100) if total > 0 else 0.0, 1)
 
@@ -169,7 +177,7 @@ async def get_current_star_projection(db: AsyncSession) -> dict[str, Any]:
     # Quality bonus — use real member count
     member_count_q = await db.execute(
         select(func.count(Member.id)).where(
-            (Member.coverage_end.is_(None)) | (Member.coverage_end >= __import__("datetime").date.today())
+            (Member.coverage_end.is_(None)) | (Member.coverage_end >= _date.today())
         )
     )
     member_count = max(member_count_q.scalar() or 0, _FALLBACK_MEMBERSHIP)
@@ -255,7 +263,7 @@ async def simulate_scenario(
     # Real member count for bonus calculation
     member_count_q = await db.execute(
         select(func.count(Member.id)).where(
-            (Member.coverage_end.is_(None)) | (Member.coverage_end >= __import__("datetime").date.today())
+            (Member.coverage_end.is_(None)) | (Member.coverage_end >= _date.today())
         )
     )
     member_count = max(member_count_q.scalar() or 0, _FALLBACK_MEMBERSHIP)

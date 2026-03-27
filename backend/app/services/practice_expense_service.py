@@ -59,7 +59,7 @@ async def get_expense_dashboard(db: AsyncSession) -> dict:
     # Staffing total
     staff_result = await db.execute(
         select(func.sum(StaffMember.salary), func.sum(StaffMember.benefits_cost))
-        .where(StaffMember.is_active == True)  # noqa: E712
+        .where(StaffMember.is_active.is_(True))
     )
     staff_row = staff_result.one_or_none()
     staffing_cost = _safe_float(staff_row[0] if staff_row else 0) + _safe_float(staff_row[1] if staff_row else 0)
@@ -88,7 +88,7 @@ async def get_staffing_analysis(db: AsyncSession) -> dict:
             func.sum(StaffMember.benefits_cost).label("total_benefits"),
             func.sum(StaffMember.fte).label("total_fte"),
         )
-        .where(StaffMember.is_active == True)  # noqa: E712
+        .where(StaffMember.is_active.is_(True))
         .group_by(StaffMember.role)
     )
     rows = result.all()
@@ -165,7 +165,7 @@ async def get_efficiency_metrics(db: AsyncSession) -> dict:
 
     staff_result = await db.execute(
         select(func.count(StaffMember.id))
-        .where(StaffMember.is_active == True)  # noqa: E712
+        .where(StaffMember.is_active.is_(True))
     )
     staff_count = staff_result.scalar() or 0
 

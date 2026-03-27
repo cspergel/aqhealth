@@ -5,6 +5,7 @@ and revenue forecasting.
 All queries are tenant-scoped (session is already bound to the tenant schema).
 """
 
+import calendar
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
@@ -131,7 +132,7 @@ async def get_pnl(db: AsyncSession, period: str = "ytd") -> dict:
         expenses = {"total": 0}
 
     surplus = total_revenue - total_expenses
-    mlr = total_expenses / max(total_revenue, 1)
+    mlr = (total_expenses / total_revenue) if total_revenue > 0 else None
 
     # Member count
     active_filter = (Member.coverage_end.is_(None)) | (Member.coverage_end >= today)
@@ -142,7 +143,8 @@ async def get_pnl(db: AsyncSession, period: str = "ytd") -> dict:
 
     # ---- Comparison: prior year same period ----
     prior_start = date(start_date.year - 1, start_date.month, start_date.day)
-    prior_end = date(end_date.year - 1, end_date.month, min(end_date.day, 28))
+    prior_end_max_day = calendar.monthrange(end_date.year - 1, end_date.month)[1]
+    prior_end = date(end_date.year - 1, end_date.month, min(end_date.day, prior_end_max_day))
 
     prior_cap_q = await db.execute(
         select(func.coalesce(func.sum(CapitationPayment.total_payment), 0))
@@ -162,14 +164,14 @@ async def get_pnl(db: AsyncSession, period: str = "ytd") -> dict:
     )
     prior_expenses = _safe_float(prior_exp_q.scalar())
     prior_surplus = prior_revenue - prior_expenses
-    prior_mlr = prior_expenses / max(prior_revenue, 1)
+    prior_mlr = (prior_expenses / prior_revenue) if prior_revenue > 0 else None
 
     comparison = {
         "prior_year": {
             "revenue": round(prior_revenue, 2),
             "expenses": round(prior_expenses, 2),
             "surplus": round(prior_surplus, 2),
-            "mlr": round(prior_mlr, 4),
+            "mlr": round(prior_mlr, 4) if prior_mlr is not None else None,
         },
     }
 
@@ -178,7 +180,7 @@ async def get_pnl(db: AsyncSession, period: str = "ytd") -> dict:
         "revenue": revenue,
         "expenses": expenses,
         "surplus": round(surplus, 2),
-        "mlr": round(mlr, 4),
+        "mlr": round(mlr, 4) if mlr is not None else None,
         "member_count": member_count,
         "per_member_margin": round(per_member_margin, 2),
         "comparison": comparison,

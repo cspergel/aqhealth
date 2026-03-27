@@ -11,7 +11,7 @@ import io
 import json
 import logging
 import re
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import Any
 
 from sqlalchemy import text
@@ -80,7 +80,7 @@ async def process_adt_event(
     )
 
     # Parse dates
-    event_timestamp = _parse_datetime(event_data.get("event_timestamp")) or datetime.utcnow()
+    event_timestamp = _parse_datetime(event_data.get("event_timestamp")) or datetime.now(timezone.utc)
     admit_date = _parse_datetime(event_data.get("admit_date"))
     discharge_date = _parse_datetime(event_data.get("discharge_date"))
 
@@ -143,7 +143,9 @@ async def process_adt_event(
         {"sid": source_id},
     )
 
-    await db.commit()
+    # NOTE: No intermediate commit here — all work (ADT event insert, cost
+    # estimation, signal-tier claim) is committed in a single transaction below.
+    await db.flush()
 
     # --- Dual Data Tier: estimate cost and create signal-tier claim ---
     if event_type in ("admit", "observation", "ed_visit"):
@@ -206,8 +208,6 @@ async def process_adt_event(
                 },
             )
 
-        await db.commit()
-
     # Build event dict for alert generation
     event = {
         "id": event_id,
@@ -233,7 +233,7 @@ async def process_adt_event(
     alert_ids = [a["id"] for a in alerts]
     await db.execute(
         text("UPDATE adt_events SET is_processed = true, alerts_sent = :alerts::jsonb WHERE id = :eid"),
-        {"eid": event_id, "alerts": str(alert_ids).replace("'", '"')},
+        {"eid": event_id, "alerts": json.dumps(alert_ids)},
     )
     await db.commit()
 
@@ -437,7 +437,8 @@ async def get_live_census(db: AsyncSession) -> dict:
                   SELECT 1 FROM adt_events d
                   WHERE d.event_type = 'discharge'
                     AND d.member_id = e.member_id
-                    AND d.admit_date = e.admit_date
+                    AND d.facility_name = e.facility_name
+                    AND d.discharge_date >= e.admit_date
               )
             ORDER BY e.admit_date ASC
         """)
@@ -486,28 +487,43 @@ async def get_census_summary(db: AsyncSession) -> dict:
     Aggregate stats: total currently admitted, in ED, in SNF.
     By facility breakdown. Today's admits/discharges. 7-day trend.
     """
-    # Current census counts by patient class
+    # Current census counts by patient class — uses same discharge matching
+    # logic as get_live_census (match on member + facility + discharge >= admit)
     census_result = await db.execute(
         text("""
             SELECT
-                COALESCE(patient_class, 'unknown') AS patient_class,
+                COALESCE(e.patient_class, 'unknown') AS patient_class,
                 COUNT(*) AS cnt
-            FROM adt_events
-            WHERE event_type IN ('admit', 'observation', 'ed_visit')
-              AND discharge_date IS NULL
-            GROUP BY patient_class
+            FROM adt_events e
+            WHERE e.event_type IN ('admit', 'observation', 'ed_visit')
+              AND e.discharge_date IS NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM adt_events d
+                  WHERE d.event_type = 'discharge'
+                    AND d.member_id = e.member_id
+                    AND d.facility_name = e.facility_name
+                    AND d.discharge_date >= e.admit_date
+              )
+            GROUP BY e.patient_class
         """)
     )
     by_class = {r["patient_class"]: r["cnt"] for r in census_result.mappings().all()}
 
-    # By facility
+    # By facility — consistent with live_census discharge matching logic
     facility_result = await db.execute(
         text("""
-            SELECT facility_name, COUNT(*) AS cnt
-            FROM adt_events
-            WHERE event_type IN ('admit', 'observation', 'ed_visit')
-              AND discharge_date IS NULL
-            GROUP BY facility_name
+            SELECT e.facility_name, COUNT(*) AS cnt
+            FROM adt_events e
+            WHERE e.event_type IN ('admit', 'observation', 'ed_visit')
+              AND e.discharge_date IS NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM adt_events d
+                  WHERE d.event_type = 'discharge'
+                    AND d.member_id = e.member_id
+                    AND d.facility_name = e.facility_name
+                    AND d.discharge_date >= e.admit_date
+              )
+            GROUP BY e.facility_name
             ORDER BY cnt DESC
         """)
     )
@@ -921,22 +937,26 @@ async def _match_patient(
             if row:
                 return row[0], 90
 
-    # Fuzzy name match (partial)
+    # Fuzzy name match — requires last_name + first initial to reduce false positives
     if patient_name:
         name_parts = patient_name.strip().split()
         if len(name_parts) >= 2:
+            first = name_parts[0]
             last = name_parts[-1]
-            result = await db.execute(
-                text("""
-                    SELECT id FROM members
-                    WHERE LOWER(last_name) = LOWER(:last)
-                    LIMIT 1
-                """),
-                {"last": last},
-            )
-            row = result.first()
-            if row:
-                return row[0], 60
+            first_initial = first[0] if first else ""
+            if first_initial:
+                result = await db.execute(
+                    text("""
+                        SELECT id FROM members
+                        WHERE LOWER(last_name) = LOWER(:last)
+                          AND LOWER(first_name) LIKE LOWER(:first_prefix)
+                        LIMIT 1
+                    """),
+                    {"last": last, "first_prefix": first_initial + "%"},
+                )
+                row = result.first()
+                if row:
+                    return row[0], 60
 
     return None, None
 

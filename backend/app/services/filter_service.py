@@ -4,7 +4,7 @@ and the engine that translates JSON filter conditions into SQLAlchemy queries.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy import select, and_, or_, func, delete
@@ -214,7 +214,7 @@ async def apply_filter(
         sf = result.scalar_one_or_none()
         if sf:
             sf.use_count += 1
-            sf.last_used = datetime.utcnow()
+            sf.last_used = datetime.now(timezone.utc)
             await db.commit()
 
     return {"applied": True, "conditions": conditions, "context": page_context}

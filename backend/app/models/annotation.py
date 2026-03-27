@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Text, Integer, String, Boolean, Date
+from sqlalchemy import Index, Text, Integer, String, Boolean, Date
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -34,3 +34,7 @@ class Annotation(Base, TimestampMixin):
 
     # Pinned notes stay at top
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    __table_args__ = (
+        Index("ix_annotations_entity", "entity_type", "entity_id"),
+    )

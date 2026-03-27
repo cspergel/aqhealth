@@ -70,22 +70,24 @@ def _fmt_pct(v: float) -> str:
     return f"{v:.1f}%"
 
 
-# ---------------------------------------------------------------------------
-# Overview
-# ---------------------------------------------------------------------------
+async def _compute_member_months(db: AsyncSession, year_start) -> int:
+    """Shared helper: compute total member-months from coverage periods.
 
-async def get_expenditure_overview(db: AsyncSession) -> dict:
-    """Total spend, PMPM, MLR, and per-category breakdown."""
-
-    # Total member months (from active members' actual coverage periods)
-    from datetime import date as _date
-    today = _date.today()
-    year_start = _date(today.year, 1, 1)
-    member_months_result = await db.execute(
+    Uses year*12 + month extraction from PostgreSQL ``age()`` so multi-year
+    spans are counted correctly.
+    """
+    result = await db.execute(
         select(
             func.sum(
                 func.greatest(
                     func.extract(
+                        "year",
+                        func.age(
+                            func.least(func.coalesce(Member.coverage_end, func.current_date()), func.current_date()),
+                            func.greatest(func.coalesce(Member.coverage_start, year_start), year_start),
+                        ),
+                    ) * 12
+                    + func.extract(
                         "month",
                         func.age(
                             func.least(func.coalesce(Member.coverage_end, func.current_date()), func.current_date()),
@@ -99,7 +101,21 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
             or_(Member.coverage_end.is_(None), Member.coverage_end >= year_start)
         )
     )
-    member_months = max(_safe_int(member_months_result.scalar()), 1)
+    return max(_safe_int(result.scalar()), 1)
+
+
+# ---------------------------------------------------------------------------
+# Overview
+# ---------------------------------------------------------------------------
+
+async def get_expenditure_overview(db: AsyncSession) -> dict:
+    """Total spend, PMPM, MLR, and per-category breakdown."""
+
+    # Total member months (from active members' actual coverage periods)
+    from datetime import date as _date
+    today = _date.today()
+    year_start = _date(today.year, 1, 1)
+    member_months = await _compute_member_months(db, year_start)
 
     member_count_result = await db.execute(
         select(func.count(Member.id)).where(
@@ -226,9 +242,11 @@ async def get_category_drilldown(db: AsyncSession, category: str) -> dict:
         where type is 'table' or 'insights'
     """
 
+    from datetime import date as _date
+    _year_start = _date(_date.today().year, 1, 1)
     member_count_result = await db.execute(select(func.count(Member.id)))
     member_count = max(_safe_int(member_count_result.scalar()), 1)
-    member_months = member_count * 12
+    member_months = await _compute_member_months(db, _year_start)
 
     base_filter = Claim.service_category == category
 

@@ -142,7 +142,7 @@ async def patch_case(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update a case assignment."""
-    data = {k: v for k, v in body.model_dump().items() if v is not None}
+    data = body.model_dump(exclude_unset=True)
     result = await update_case(db, case_id, data)
     if not result:
         raise HTTPException(status_code=404, detail="Case not found")

@@ -8,7 +8,7 @@ quality measure evidence, RADV audit packages.
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -99,7 +99,7 @@ async def generate_evidence(
         return await clinical_exchange_service.generate_audit_package(
             db, body.member_id,
         )
-    return {"error": "Invalid request type or missing parameters"}
+    raise HTTPException(status_code=400, detail="Invalid request type or missing parameters")
 
 
 @router.post("/auto-respond/{request_id}")

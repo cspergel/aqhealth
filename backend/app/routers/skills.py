@@ -104,7 +104,7 @@ async def create_new_skill(
 ):
     """Create a new skill."""
     skill_data = body.model_dump()
-    skill_data["created_by"] = current_user.get("id")
+    skill_data["created_by"] = current_user["user_id"]
     return await create_skill(db, skill_data)
 
 
@@ -139,7 +139,7 @@ async def update_existing_skill(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update a skill."""
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    updates = body.model_dump(exclude_unset=True)
     result = await update_skill(db, skill_id, updates)
     if not result:
         raise HTTPException(status_code=404, detail="Skill not found")
@@ -173,7 +173,7 @@ async def run_skill(
             db,
             skill_id,
             triggered_by=triggered_by,
-            executed_by=current_user.get("id"),
+            executed_by=current_user["user_id"],
         )
         return result
     except ValueError as e:

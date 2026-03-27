@@ -361,30 +361,8 @@ async def get_surplus_deficit_by_group(db: AsyncSession) -> list[dict[str, Any]]
 
 async def get_risk_corridor_analysis(db: AsyncSession) -> dict[str, Any]:
     """
-    Are we in the corridor?  What's the shared risk exposure?
-    What's the stop-loss position?
+    Delegate to stoploss_service which has the full corridor band logic
+    (shared savings, neutral, shared risk, stop-loss trigger).
     """
-    dashboard = await get_risk_dashboard(db)
-    actual_mlr = dashboard.get("mlr")
-    target_mlr = 0.85  # Standard target
-
-    if actual_mlr is not None:
-        if actual_mlr <= target_mlr:
-            corridor_position = "below_target"
-        elif actual_mlr <= target_mlr + 0.03:
-            corridor_position = "within"
-        else:
-            corridor_position = "above_corridor"
-    else:
-        corridor_position = "no_data"
-
-    shared_risk_exposure = max(0, dashboard.get("total_medical_spend", 0) - dashboard.get("total_cap_revenue", 0))
-
-    return {
-        "target_mlr": target_mlr,
-        "actual_mlr": actual_mlr,
-        "corridor_position": corridor_position,
-        "shared_risk_exposure": shared_risk_exposure,
-        "bands": [],
-        "has_data": dashboard.get("has_data", False),
-    }
+    from app.services.stoploss_service import get_risk_corridor_analysis as _stoploss_corridor
+    return await _stoploss_corridor(db)

@@ -105,7 +105,7 @@ async def update_existing_interface(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update an existing interface configuration."""
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    updates = body.model_dump(exclude_unset=True)
     return await update_interface(db, interface_id, updates)
 
 

@@ -103,7 +103,7 @@ async def get_auth_requests(
         # Escape SQL LIKE wildcards in user input
         escaped_provider = provider.replace("%", r"\%").replace("_", r"\_")
         query = query.where(
-            PriorAuth.requesting_provider_name.ilike(f"%{escaped_provider}%")
+            PriorAuth.requesting_provider_name.ilike(f"%{escaped_provider}%", escape="\\")
         )
     result = await db.execute(query)
     auths = result.scalars().all()

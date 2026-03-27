@@ -109,10 +109,10 @@ def get_current_payment_year() -> int:
 # ---------------------------------------------------------------------------
 
 MED_DX_MAPPINGS: list[tuple[str, str, str, int, str, Decimal]] = [
-    ("metformin", "Type 2 diabetes mellitus", "E11.9", 37, "Diabetes without Complication", Decimal("0.105")),
+    ("metformin", "Type 2 diabetes mellitus", "E11.9", 37, "Diabetes without Complication", Decimal("0.166")),
     ("insulin", "Type 2 diabetes with complications", "E11.65", 37, "Diabetes with Complications", Decimal("0.166")),
-    ("glipizide", "Type 2 diabetes mellitus", "E11.9", 37, "Diabetes without Complication", Decimal("0.105")),
-    ("semaglutide", "Type 2 diabetes mellitus", "E11.9", 37, "Diabetes without Complication", Decimal("0.105")),
+    ("glipizide", "Type 2 diabetes mellitus", "E11.9", 37, "Diabetes without Complication", Decimal("0.166")),
+    ("semaglutide", "Type 2 diabetes mellitus", "E11.9", 37, "Diabetes without Complication", Decimal("0.166")),
     ("lisinopril", "Essential hypertension", "I10", 0, "Hypertension (non-HCC)", Decimal("0.000")),
     ("amlodipine", "Essential hypertension", "I10", 0, "Hypertension (non-HCC)", Decimal("0.000")),
     ("losartan", "Essential hypertension", "I10", 0, "Hypertension (non-HCC)", Decimal("0.000")),
@@ -444,27 +444,30 @@ def _detect_historical_dropoffs(
     for y in recent_years:
         recent_codes.update(yearly_codes.get(y, set()))
 
-    recent_normalized = {c.upper().replace(".", "") for c in recent_codes}
+    # Build set of recent HCCs for HCC-level comparison (matches recapture logic)
+    recent_hccs: set[int] = set()
+    for code in recent_codes:
+        entry = lookup_hcc_for_icd10(code)
+        if entry and entry.get("hcc"):
+            recent_hccs.add(int(entry["hcc"]))
 
     dropoffs: list[dict[str, Any]] = []
-    seen_families: set[str] = set()
+    seen_hccs: set[int] = set()
 
     for code in sorted(historical_codes):
-        code_clean = code.upper().replace(".", "")
-        family = code_clean[:3]
+        # Resolve actual HCC code; only create suspect if valid HCC found
+        entry = lookup_hcc_for_icd10(code)
+        if not entry or not entry.get("hcc"):
+            continue
+        hcc_code = int(entry["hcc"])
 
-        if family in seen_families:
+        if hcc_code in seen_hccs:
             continue
 
-        if not any(c.startswith(family) for c in recent_normalized):
-            seen_families.add(family)
-
-            # Resolve actual HCC code; only create suspect if valid HCC found
-            entry = lookup_hcc_for_icd10(code)
-            if not entry or not entry.get("hcc"):
-                continue
-            hcc_code = int(entry["hcc"])
-            hcc_label = entry.get("description", f"Historical code family {family}")
+        # Check drop-off at HCC level: HCC present historically but absent recently
+        if hcc_code not in recent_hccs:
+            seen_hccs.add(hcc_code)
+            hcc_label = entry.get("description", f"HCC {hcc_code}")
             raf_value = Decimal(str(entry.get("raf", 0.1)))
 
             dropoffs.append({
@@ -555,16 +558,26 @@ async def analyze_member(
                 "confidence": 75,
                 "evidence_summary": opt.get("evidence", opt.get("reason", "")),
             })
-        # Med-dx gaps from SNF
+        # Med-dx gaps from SNF — enrich with real HCC/RAF via lookup
         for gap in optimize_result.get("med_dx_gaps", []):
             suggested = gap.get("suggested_codes", [])
+            icd10_code = suggested[0] if suggested else None
+            hcc_code = 0
+            hcc_label = ""
+            raf_value = Decimal("0.100")
+            if icd10_code:
+                hcc_entry = lookup_hcc_for_icd10(icd10_code)
+                if hcc_entry and hcc_entry.get("hcc"):
+                    hcc_code = int(hcc_entry["hcc"])
+                    hcc_label = hcc_entry.get("description", "")
+                    raf_value = Decimal(str(hcc_entry.get("raf", 0.1)))
             suspects.append({
                 "suspect_type": SuspectType.med_dx_gap,
-                "hcc_code": 0,
-                "hcc_label": "",
-                "icd10_code": suggested[0] if suggested else None,
+                "hcc_code": hcc_code,
+                "hcc_label": hcc_label,
+                "icd10_code": icd10_code,
                 "icd10_label": gap.get("missing_diagnosis", ""),
-                "raf_value": Decimal("0.100"),
+                "raf_value": raf_value,
                 "confidence": 65,
                 "evidence_summary": gap.get("evidence", ""),
             })

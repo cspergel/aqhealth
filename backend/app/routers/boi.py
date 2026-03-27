@@ -106,7 +106,7 @@ async def update_intervention(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update an existing intervention."""
-    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    data = payload.model_dump(exclude_unset=True)
     result = await boi_service.update_intervention(db, intervention_id, data)
     if not result:
         raise HTTPException(status_code=404, detail="Intervention not found")

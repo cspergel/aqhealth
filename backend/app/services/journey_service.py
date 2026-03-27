@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.member import Member
 from app.models.claim import Claim, ClaimType
 from app.models.hcc import HccSuspect, SuspectStatus, RafHistory
-from app.models.care_gap import MemberGap, GapStatus
+from app.models.care_gap import MemberGap, GapStatus, GapMeasure
 from app.models.provider import Provider
 
 
@@ -200,20 +200,24 @@ async def get_member_journey(
     member_summary["open_suspects"] = open_suspects
 
     # ---- 4. Care gap events ----
+    # Join MemberGap with GapMeasure to get the measure code (MemberGap only
+    # has measure_id FK, not measure_code directly).
     gaps_q = await db.execute(
-        select(MemberGap).where(
+        select(MemberGap, GapMeasure.code).join(
+            GapMeasure, MemberGap.measure_id == GapMeasure.id
+        ).where(
             MemberGap.member_id == member_id
         )
     )
-    gaps = gaps_q.scalars().all()
+    gap_rows = gaps_q.all()
 
     open_gaps = 0
-    for g in gaps:
+    for g, measure_code in gap_rows:
         if g.status == GapStatus.closed.value and g.closed_date:
             events.append({
                 "date": g.closed_date.isoformat(),
                 "type": "gap_closed",
-                "title": f"Care Gap Closed — {g.measure_code}",
+                "title": f"Care Gap Closed — {measure_code}",
                 "provider": "",
                 "facility": "",
                 "diagnoses": [],
@@ -221,7 +225,7 @@ async def get_member_journey(
                 "description": "",
                 "flags": [{
                     "type": "success",
-                    "message": f"{g.measure_code} gap closed"
+                    "message": f"{measure_code} gap closed"
                 }],
             })
         elif g.status == GapStatus.open.value:

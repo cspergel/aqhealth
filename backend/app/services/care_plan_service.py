@@ -14,25 +14,29 @@ logger = logging.getLogger(__name__)
 
 
 async def get_care_plans(db: AsyncSession, member_id: int | None = None) -> list[dict]:
-    """Return care plans, optionally filtered by member."""
-    query = select(CarePlan).order_by(CarePlan.created_at.desc())
+    """Return care plans, optionally filtered by member.
+
+    Uses a single query with outerjoin + GROUP BY to avoid N+1 per-plan goal fetches.
+    """
+    query = (
+        select(
+            CarePlan,
+            func.count(CarePlanGoal.id).label("total_goals"),
+            func.sum(case((CarePlanGoal.status == "met", 1), else_=0)).label("met_goals"),
+        )
+        .outerjoin(CarePlanGoal, CarePlanGoal.care_plan_id == CarePlan.id)
+        .group_by(CarePlan.id)
+        .order_by(CarePlan.created_at.desc())
+    )
     if member_id is not None:
         query = query.where(CarePlan.member_id == member_id)
     result = await db.execute(query)
-    plans = result.scalars().all()
 
     out = []
-    for p in plans:
-        # Count goals and completion
-        goals_q = await db.execute(
-            select(
-                func.count(CarePlanGoal.id).label("total"),
-                func.sum(case((CarePlanGoal.status == "met", 1), else_=0)).label("met"),
-            ).where(CarePlanGoal.care_plan_id == p.id)
-        )
-        row = goals_q.one()
-        total_goals = row.total or 0
-        met_goals = row.met or 0
+    for row in result.all():
+        p = row[0]
+        total_goals = row.total_goals or 0
+        met_goals = int(row.met_goals or 0)
         completion_pct = round((met_goals / total_goals * 100) if total_goals > 0 else 0, 1)
 
         out.append({
@@ -47,7 +51,7 @@ async def get_care_plans(db: AsyncSession, member_id: int | None = None) -> list
             "actual_end_date": str(p.actual_end_date) if p.actual_end_date else None,
             "notes": p.notes,
             "goals_count": total_goals,
-            "goals_met": int(met_goals),
+            "goals_met": met_goals,
             "completion_pct": completion_pct,
         })
     return out
@@ -65,12 +69,19 @@ async def get_care_plan_detail(db: AsyncSession, plan_id: int) -> dict | None:
     )
     goals = goals_result.scalars().all()
 
+    # Batch-fetch all interventions for this plan's goals in one query
+    goal_ids = [g.id for g in goals]
+    interventions_by_goal: dict[int, list] = {gid: [] for gid in goal_ids}
+    if goal_ids:
+        intv_result = await db.execute(
+            select(CarePlanIntervention).where(CarePlanIntervention.goal_id.in_(goal_ids))
+        )
+        for i in intv_result.scalars().all():
+            interventions_by_goal.setdefault(i.goal_id, []).append(i)
+
     goals_out = []
     for g in goals:
-        interventions_result = await db.execute(
-            select(CarePlanIntervention).where(CarePlanIntervention.goal_id == g.id)
-        )
-        interventions = interventions_result.scalars().all()
+        interventions = interventions_by_goal.get(g.id, [])
 
         goals_out.append({
             "id": g.id,

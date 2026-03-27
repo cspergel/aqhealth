@@ -1,6 +1,6 @@
 """Flexible tagging system — attach custom labels to any entity."""
 
-from sqlalchemy import String, Integer, ForeignKey
+from sqlalchemy import Index, String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -26,3 +26,7 @@ class EntityTag(Base, TimestampMixin):
     entity_type: Mapped[str] = mapped_column(String(50))  # "member", "provider", "group", "claim", "insight", "action"
     entity_id: Mapped[int] = mapped_column(Integer)
     applied_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index("ix_entity_tags_entity", "entity_type", "entity_id"),
+    )

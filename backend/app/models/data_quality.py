@@ -5,7 +5,7 @@ Tracks quality reports, quarantined records, and data lineage
 for full traceability of every record in the platform.
 """
 
-from sqlalchemy import String, Integer, Text
+from sqlalchemy import Index, String, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -62,3 +62,7 @@ class DataLineage(Base, TimestampMixin):
 
     field_changes: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # e.g., {"current_raf": {"old": 1.2, "new": 1.5, "reason": "hcc_capture", "timestamp": "..."}}
+
+    __table_args__ = (
+        Index("ix_data_lineage_entity", "entity_type", "entity_id"),
+    )

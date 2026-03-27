@@ -11,7 +11,7 @@ class CarePlan(Base, TimestampMixin):
     __tablename__ = "care_plans"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    member_id: Mapped[int]
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
     title: Mapped[str] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(20), default="active")  # "draft", "active", "completed", "discontinued"
     created_by: Mapped[int]

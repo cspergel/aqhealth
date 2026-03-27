@@ -95,7 +95,7 @@ async def list_saved_filters(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Return saved filters for a page (user's own + shared + system)."""
-    user_id = current_user.get("user_id", 1)
+    user_id = current_user["user_id"]
     return await get_saved_filters(db, context, user_id)
 
 
@@ -110,7 +110,7 @@ async def create_filter(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Save a new custom filter."""
-    user_id = current_user.get("user_id", 1)
+    user_id = current_user["user_id"]
     data = body.model_dump()
     data["created_by"] = user_id
     sf = await save_filter(db, data)
@@ -139,7 +139,7 @@ async def remove_filter(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Delete a user-created filter (system filters are protected)."""
-    user_id = current_user.get("user_id", 1)
+    user_id = current_user["user_id"]
     deleted = await delete_filter(db, filter_id, user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Filter not found or cannot be deleted")

@@ -141,7 +141,6 @@ async def get_patient_context(db: AsyncSession, member_id: int) -> dict[str, Any
         )
     )
     current_claims = claims_result.scalars().all()
-    current_codes = _extract_current_year_codes(current_claims)
 
     # Build confirmed HCC list from captured suspects
     confirmed_result = await db.execute(

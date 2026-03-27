@@ -79,8 +79,10 @@ def _parse_date(value: Any, field_name: str) -> tuple[date | None, str | None]:
 
 
 def _luhn_check(number: str) -> bool:
-    """Validate a number string using the Luhn algorithm."""
-    digits = [int(d) for d in number]
+    """Validate an NPI using the NPI-specific Luhn algorithm (80840 prefix)."""
+    # NPI validation prepends the constant 80840 before the Luhn check
+    prefixed = "80840" + number
+    digits = [int(d) for d in prefixed]
     odd_digits = digits[-1::-2]
     even_digits = digits[-2::-2]
     total = sum(odd_digits)
@@ -114,8 +116,8 @@ async def validate_roster_row(row: dict) -> dict:
         if err:
             errors.append(err)
         elif dob:
-            if dob.year < 1920 or dob.year > 2010:
-                errors.append(f"date_of_birth: year {dob.year} outside valid range 1920-2010")
+            if dob.year < 1920 or dob.year > date.today().year:
+                errors.append(f"date_of_birth: year {dob.year} outside valid range 1920-{date.today().year}")
             cleaned["date_of_birth"] = dob.isoformat()
 
     # gender
@@ -181,8 +183,8 @@ async def validate_claim_row(row: dict) -> dict:
         elif sd:
             if sd > date.today():
                 errors.append(f"service_date: {sd.isoformat()} is in the future")
-            elif sd.year < 2020:
-                errors.append(f"service_date: {sd.isoformat()} is before 2020")
+            elif sd.year < 2018:
+                errors.append(f"service_date: {sd.isoformat()} is before 2018")
             cleaned["service_date"] = sd.isoformat()
 
     # At least one diagnosis code

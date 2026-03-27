@@ -95,6 +95,10 @@ async def capture_suspect(
     if suspect.status != SuspectStatus.open.value:
         raise HTTPException(status_code=400, detail=f"Suspect is already {suspect.status}")
 
+    # NOTE: No SELECT FOR UPDATE here — concurrent captures of the same suspect
+    # could race. Acceptable for now because duplicate captures are idempotent
+    # (status is set to the same value). If this becomes a problem, add
+    # `with_for_update()` to the db.get() call above.
     suspect.status = SuspectStatus.captured.value
     suspect.captured_date = date.today()
     await db.commit()

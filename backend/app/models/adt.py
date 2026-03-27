@@ -76,7 +76,7 @@ class ADTEvent(Base, TimestampMixin):
     # --- Dual Data Tier: cost estimation ---
     estimated_total_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)  # estimated cost based on DRG averages
     estimated_daily_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
-    actual_claim_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # linked when actual claim arrives
+    actual_claim_id: Mapped[int | None] = mapped_column(ForeignKey("claims.id"), nullable=True)  # linked when actual claim arrives
     estimation_accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)  # calculated after reconciliation
 
 

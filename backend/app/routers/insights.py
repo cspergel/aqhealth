@@ -100,7 +100,9 @@ async def member_insights(
     current_user: dict = Depends(get_current_user),
 ) -> list[dict]:
     """Generate on-demand member-specific insights via LLM."""
-    results = await insight_service.generate_member_insights(db, member_id)
+    results = await insight_service.generate_member_insights(
+        db, member_id, tenant_schema=current_user["tenant_schema"]
+    )
     return results
 
 
@@ -111,7 +113,9 @@ async def provider_insights(
     current_user: dict = Depends(get_current_user),
 ) -> list[dict]:
     """Generate on-demand provider coaching insights via LLM."""
-    results = await insight_service.generate_provider_insights(db, provider_id)
+    results = await insight_service.generate_provider_insights(
+        db, provider_id, tenant_schema=current_user["tenant_schema"]
+    )
     return results
 
 
@@ -144,7 +148,9 @@ async def regenerate_insights(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Force re-run of population insight generation."""
-    results = await insight_service.generate_insights(db)
+    results = await insight_service.generate_insights(
+        db, tenant_schema=current_user["tenant_schema"]
+    )
     return {"insights_created": len(results), "insights": results}
 
 

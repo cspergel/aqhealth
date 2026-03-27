@@ -55,7 +55,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = localStorage.getItem("access_token");
     const userData = localStorage.getItem("user");
     if (token && userData) {
-      setUser(JSON.parse(userData));
+      try {
+        const parsed = JSON.parse(userData);
+        // Validate expected shape before trusting localStorage data
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          typeof parsed.id === "number" &&
+          typeof parsed.email === "string" &&
+          typeof parsed.role === "string"
+        ) {
+          setUser(parsed as User);
+        } else {
+          // Corrupted data — clear it
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          localStorage.removeItem("user");
+        }
+      } catch {
+        // Malformed JSON — clear corrupted data
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user");
+      }
     }
     setIsLoading(false);
   }, []);
@@ -73,6 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
     localStorage.removeItem("demo_mode");
+    // Clear global filter state so the next user session starts clean
+    localStorage.removeItem("global_filter_group_id");
+    localStorage.removeItem("global_filter_provider_id");
     setUser(null);
     setIsDemo(false);
   };

@@ -167,7 +167,7 @@ async def patch_auth(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update an auth request (approve, deny, appeal, etc.)."""
-    data = {k: v for k, v in body.model_dump().items() if v is not None}
+    data = body.model_dump(exclude_unset=True)
     result = await update_auth_request(db, auth_id, data)
     if not result:
         raise HTTPException(status_code=404, detail="Auth request not found")

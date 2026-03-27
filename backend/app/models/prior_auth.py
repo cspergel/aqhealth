@@ -1,7 +1,7 @@
 """Prior Authorization / Utilization Management models."""
 
 from datetime import date
-from sqlalchemy import String, Text
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -12,7 +12,7 @@ class PriorAuth(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     auth_number: Mapped[str | None] = mapped_column(String(50))
-    member_id: Mapped[int]
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
 
     # Request details
     service_type: Mapped[str] = mapped_column(String(100))  # "inpatient", "outpatient_surgery", "imaging", "DME", "home_health", "SNF", "specialist_referral", "medication"

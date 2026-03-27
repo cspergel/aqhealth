@@ -146,7 +146,7 @@ async def update_action(
     current_user: dict = Depends(get_current_user),
 ) -> dict:
     """Update an action item."""
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    updates = body.model_dump(exclude_unset=True)
     try:
         return await action_service.update_action(db, action_id, updates)
     except ValueError as e:

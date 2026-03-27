@@ -384,19 +384,6 @@ Return a JSON array of 8-15 insights. Prioritize cross_module insights.
 Return ONLY valid JSON — no markdown, no explanation outside the array."""
 
 
-def _get_anthropic_client():
-    """Create an async Anthropic client, returning None if unavailable."""
-    if not settings.anthropic_api_key:
-        logger.warning("ANTHROPIC_API_KEY not set — skipping LLM call")
-        return None
-    try:
-        import anthropic
-        return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    except ImportError:
-        logger.warning("anthropic SDK not installed — skipping LLM call")
-        return None
-
-
 def _parse_llm_json(raw_text: str) -> list[dict] | None:
     """Parse LLM response text, stripping markdown fences if present."""
     text = raw_text.strip()
@@ -435,8 +422,8 @@ async def generate_insights(db: AsyncSession, tenant_schema: str = "default") ->
         logger.error("Discovery engine failed, continuing with LLM-only: %s", e)
         discoveries = []
 
-    client = _get_anthropic_client()
-    if client is None:
+    if not settings.anthropic_api_key:
+        logger.warning("ANTHROPIC_API_KEY not set — skipping LLM insight generation")
         # If no LLM available, persist discovery results directly
         if discoveries:
             return await _persist_insights(db, discoveries)
@@ -602,8 +589,7 @@ Return ONLY a JSON array."""
 
 async def generate_member_insights(db: AsyncSession, member_id: int, tenant_schema: str = "default") -> list[dict]:
     """Build patient-level context and generate insights via LLM."""
-    client = _get_anthropic_client()
-    if client is None:
+    if not settings.anthropic_api_key:
         return []
 
     member = await db.get(Member, member_id)
@@ -737,8 +723,7 @@ Return ONLY a JSON array."""
 
 async def generate_provider_insights(db: AsyncSession, provider_id: int, tenant_schema: str = "default") -> list[dict]:
     """Build provider-level context and generate coaching insights via LLM."""
-    client = _get_anthropic_client()
-    if client is None:
+    if not settings.anthropic_api_key:
         return []
 
     provider = await db.get(Provider, provider_id)

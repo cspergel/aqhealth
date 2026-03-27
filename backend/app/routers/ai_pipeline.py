@@ -137,7 +137,7 @@ async def update_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
 
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    updates = body.model_dump(exclude_unset=True)
     for key, val in updates.items():
         setattr(rule, key, val)
     await db.flush()

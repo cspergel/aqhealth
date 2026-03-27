@@ -760,36 +760,38 @@ def _star_level_for_rate(rate: float, measure: GapMeasure) -> int:
 
 
 async def get_gap_population_summary(db: AsyncSession) -> list[dict[str, Any]]:
-    """Per-measure summary: eligible, open, closed, closure rate, star level, weight."""
+    """Per-measure summary: eligible, open, closed, closure rate, star level, weight.
+
+    Uses a single GROUP BY query to avoid N+1 per-measure gap count fetches.
+    """
     measurement_year = date.today().year
 
+    # Single query: join measures with gap counts grouped by measure
     result = await db.execute(
-        select(GapMeasure).where(GapMeasure.is_active == True).order_by(GapMeasure.code)  # noqa: E712
+        select(
+            GapMeasure,
+            func.sum(case((MemberGap.status == "open", 1), else_=0)).label("open_count"),
+            func.sum(case((MemberGap.status == "closed", 1), else_=0)).label("closed_count"),
+            func.sum(case((MemberGap.status == "excluded", 1), else_=0)).label("excluded_count"),
+        )
+        .outerjoin(
+            MemberGap,
+            and_(
+                MemberGap.measure_id == GapMeasure.id,
+                MemberGap.measurement_year == measurement_year,
+            ),
+        )
+        .where(GapMeasure.is_active.is_(True))
+        .group_by(GapMeasure.id)
+        .order_by(GapMeasure.code)
     )
-    measures = result.scalars().all()
 
     summaries = []
-    for measure in measures:
-        # Count gaps by status for this measure in measurement year
-        counts = await db.execute(
-            select(
-                MemberGap.status,
-                func.count(MemberGap.id),
-            )
-            .where(
-                MemberGap.measure_id == measure.id,
-                MemberGap.measurement_year == measurement_year,
-            )
-            .group_by(MemberGap.status)
-        )
-
-        status_counts: dict[str, int] = {}
-        for row in counts.all():
-            status_counts[str(row[0])] = row[1]
-
-        open_count = status_counts.get("open", 0)
-        closed_count = status_counts.get("closed", 0)
-        excluded_count = status_counts.get("excluded", 0)
+    for row in result.all():
+        measure = row[0]
+        open_count = int(row.open_count or 0)
+        closed_count = int(row.closed_count or 0)
+        excluded_count = int(row.excluded_count or 0)
         total_eligible = open_count + closed_count + excluded_count
 
         closure_rate = (closed_count / total_eligible * 100) if total_eligible > 0 else 0.0
@@ -1003,20 +1005,35 @@ async def _auto_create_actions_for_critical_gaps(
     )
     rows = result.all()
 
+    if not rows:
+        return 0
+
+    # Batch-fetch existing open/in_progress action items for care_gap source_type
+    # to avoid N+1 queries checking each gap individually
+    all_member_ids = list({member.id for _, _, member in rows})
+    existing_actions_result = await db.execute(
+        select(ActionItem.member_id, ActionItem.title).where(
+            ActionItem.source_type == "care_gap",
+            ActionItem.member_id.in_(all_member_ids),
+            ActionItem.status.in_(["open", "in_progress"]),
+        )
+    )
+    # Build set of (member_id, measure_code) that already have action items
+    existing_action_keys: set[tuple[int, str]] = set()
+    for row in existing_actions_result.all():
+        # Extract measure code from title by checking known codes
+        existing_action_keys.add((row.member_id, row.title))
+
     created = 0
     for gap, measure, member in rows:
         member_name = f"{member.first_name} {member.last_name}".strip()
 
-        # Check if an action item already exists for this gap
-        existing = await db.execute(
-            select(ActionItem.id).where(
-                ActionItem.source_type == "care_gap",
-                ActionItem.member_id == member.id,
-                ActionItem.title.ilike(f"%{measure.code}%"),
-                ActionItem.status.in_(["open", "in_progress"]),
-            )
+        # Check if an action item already exists for this member + measure
+        has_existing = any(
+            mid == member.id and measure.code.lower() in title.lower()
+            for mid, title in existing_action_keys
         )
-        if existing.scalar_one_or_none() is not None:
+        if has_existing:
             continue
 
         action = ActionItem(

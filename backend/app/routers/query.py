@@ -51,7 +51,10 @@ async def ask(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Answer a natural-language question about the population data."""
-    result = await answer_question(db, body.question, body.page_context)
+    result = await answer_question(
+        db, body.question, body.page_context,
+        tenant_schema=current_user["tenant_schema"],
+    )
     return AskResponse(**result)
 
 

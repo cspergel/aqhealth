@@ -30,6 +30,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Shared promise mutex to prevent concurrent token refresh requests.
+// When multiple 401s arrive simultaneously, only one refresh call is made
+// and all waiting requests share the same result.
+let refreshPromise: Promise<any> | null = null;
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -40,10 +45,16 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem("refresh_token");
       if (refresh) {
         try {
-          const res = await axios.post(
-            `${api.defaults.baseURL}/api/auth/refresh`,
-            { refresh_token: refresh }
-          );
+          if (!refreshPromise) {
+            refreshPromise = axios
+              .post(`${api.defaults.baseURL}/api/auth/refresh`, {
+                refresh_token: refresh,
+              })
+              .finally(() => {
+                refreshPromise = null;
+              });
+          }
+          const res = await refreshPromise;
           localStorage.setItem("access_token", res.data.access_token);
           localStorage.setItem("refresh_token", res.data.refresh_token);
           originalRequest.headers.Authorization = `Bearer ${res.data.access_token}`;

@@ -212,7 +212,7 @@ async def get_active_tcm_cases(db: AsyncSession) -> list[dict[str, Any]]:
 
 async def update_tcm_status(
     db: AsyncSession,
-    member_id: str,
+    member_id: int,
     updates: dict[str, Any],
 ) -> dict[str, Any]:
     """

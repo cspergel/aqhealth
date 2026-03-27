@@ -147,7 +147,7 @@ async def update_plan(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update a care plan."""
-    data = {k: v for k, v in body.model_dump().items() if v is not None}
+    data = body.model_dump(exclude_unset=True)
     result = await update_care_plan(db, plan_id, data)
     if not result:
         raise HTTPException(status_code=404, detail="Care plan not found")
@@ -196,7 +196,7 @@ async def patch_intervention(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update an intervention status."""
-    data = {k: v for k, v in body.model_dump().items() if v is not None}
+    data = body.model_dump(exclude_unset=True)
     result = await update_intervention(db, intervention_id, data)
     if not result:
         raise HTTPException(status_code=404, detail="Intervention not found")

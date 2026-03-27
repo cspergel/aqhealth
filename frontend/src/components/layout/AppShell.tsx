@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { tokens, fonts } from "../../lib/tokens";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -142,6 +142,7 @@ export function AppShell() {
             <Route path="/ai-pipeline" element={<AIPipelinePage />} />
             <Route path="/automation" element={<SkillsPage />} />
             <Route path="/data-protection" element={<DataProtectionPage />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
 

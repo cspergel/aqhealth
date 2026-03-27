@@ -95,6 +95,8 @@ async def get_population_snapshot(db: AsyncSession, as_of_date: str) -> dict:
     avg_raf = round(_safe_float(avg_raf_val), 3)
 
     # Suspects identified before that date
+    # NOTE: HccSuspect.created_at is a DateTime column while cutoff is a date.
+    # PostgreSQL handles this implicitly by casting the date to midnight timestamp.
     suspect_q = select(func.count(HccSuspect.id)).where(
         HccSuspect.created_at <= cutoff,
     )
@@ -115,7 +117,7 @@ async def get_population_snapshot(db: AsyncSession, as_of_date: str) -> dict:
     closed_gaps_q = select(func.count(MemberGap.id)).where(
         and_(
             MemberGap.created_at <= cutoff,
-            MemberGap.status == GapStatus.closed,
+            MemberGap.status == GapStatus.closed.value,
         )
     )
     closed_gaps = _safe_int((await db.execute(closed_gaps_q)).scalar())
@@ -295,7 +297,7 @@ async def get_change_log(db: AsyncSession, start_date: str, end_date: str) -> li
     # HCC captures
     captures_q = select(func.count(HccSuspect.id)).where(
         and_(
-            HccSuspect.status == SuspectStatus.captured,
+            HccSuspect.status == SuspectStatus.captured.value,
             HccSuspect.updated_at >= start,
             HccSuspect.updated_at <= end,
         )
@@ -329,7 +331,7 @@ async def get_change_log(db: AsyncSession, start_date: str, end_date: str) -> li
     # Gap closures
     gap_closures_q = select(func.count(MemberGap.id)).where(
         and_(
-            MemberGap.status == GapStatus.closed,
+            MemberGap.status == GapStatus.closed.value,
             MemberGap.updated_at >= start,
             MemberGap.updated_at <= end,
         )

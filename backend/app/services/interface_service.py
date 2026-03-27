@@ -63,6 +63,9 @@ def parse_hl7v2_message(raw: str) -> dict:
     }
 
     # MSH — Message Header
+    # NOTE: HL7v2 MSH is special — MSH-1 is the field separator "|" itself,
+    # so when splitting on "|" the indices are offset by 1 from the HL7 spec.
+    # E.g. MSH-9 (message type) is at Python index 8 after split("|").
     msh = segments.get("MSH", [[]])[0]
     if len(msh) > 8:
         result["message_type"] = _safe_get(msh, 8)  # e.g. "ADT^A01"
@@ -424,6 +427,11 @@ def parse_cda_document(xml_str: str) -> dict:
     }
 
     try:
+        # Security note: Python 3.8+ xml.etree.ElementTree does not resolve
+        # external entities by default, so this is safe for untrusted input.
+        # For defence-in-depth in production, consider using the `defusedxml`
+        # package (defusedxml.ElementTree.fromstring) which also blocks
+        # entity expansion, DTD retrieval, and billion-laughs attacks.
         root = ET.fromstring(xml_str)
     except ET.ParseError as e:
         logger.error("Failed to parse CDA XML: %s", e)

@@ -24,7 +24,12 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 async def create_rule(db: AsyncSession, rule_data: dict) -> AlertRule:
-    """Create a new alert rule."""
+    """Create a new alert rule.
+
+    Commits immediately (not just flush) because alert rules are standalone
+    entities that should be visible to other sessions right away — unlike
+    care plans / gaps which may be part of a larger transactional workflow.
+    """
     rule = AlertRule(**rule_data)
     db.add(rule)
     await db.commit()
@@ -102,9 +107,11 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
             .join(Claim, Claim.member_id == Member.id)
             .where(Claim.service_date >= twelve_months_ago)
             .group_by(Member.id, Member.first_name, Member.last_name)
-            .having(func.sum(Claim.paid_amount) > threshold if rule.operator in ("gt", "gte")
-                    else func.sum(Claim.paid_amount) < threshold if rule.operator in ("lt", "lte")
-                    else func.sum(Claim.paid_amount) == threshold)
+            .having(
+                func.sum(Claim.paid_amount) > threshold if rule.operator in ("gt", "gte", "change_gt")
+                else func.sum(Claim.paid_amount) < threshold if rule.operator in ("lt", "lte", "change_lt")
+                else func.sum(Claim.paid_amount) == threshold
+            )
         )
         for row in result.all():
             value = float(row.spend or 0)
@@ -118,19 +125,31 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
                 })
 
     elif rule.metric == "raf_score":
+        # Push comparison to SQL WHERE to avoid full table scan
+        raf_filter = Member.current_raf.isnot(None)
+        if rule.operator in ("gt", "change_gt"):
+            raf_filter = Member.current_raf > threshold
+        elif rule.operator == "gte":
+            raf_filter = Member.current_raf >= threshold
+        elif rule.operator in ("lt", "change_lt"):
+            raf_filter = Member.current_raf < threshold
+        elif rule.operator == "lte":
+            raf_filter = Member.current_raf <= threshold
+        elif rule.operator == "eq":
+            raf_filter = Member.current_raf == threshold
+
         result = await db.execute(
-            select(Member).where(Member.current_raf != None)  # noqa: E711
+            select(Member).where(raf_filter)
         )
         for m in result.scalars().all():
             value = float(m.current_raf) if m.current_raf else 0
-            if _compare(value, rule.operator, threshold):
-                triggers.append({
-                    "entity_type": "member",
-                    "entity_id": m.id,
-                    "entity_name": f"{m.first_name} {m.last_name}",
-                    "metric_value": value,
-                    "message": f"Member {m.first_name} {m.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
-                })
+            triggers.append({
+                "entity_type": "member",
+                "entity_id": m.id,
+                "entity_name": f"{m.first_name} {m.last_name}",
+                "metric_value": value,
+                "message": f"Member {m.first_name} {m.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+            })
 
     elif rule.metric == "er_visits":
         result = await db.execute(
@@ -242,85 +261,113 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
 
 
 async def _evaluate_provider_metric(db: AsyncSession, rule: AlertRule) -> list[dict]:
-    """Evaluate provider-level metrics."""
+    """Evaluate provider-level metrics using aggregate queries (no per-provider loop)."""
     triggers = []
-    providers = (await db.execute(select(Provider))).scalars().all()
+    threshold = float(rule.threshold)
 
-    for p in providers:
-        value = None
-        if rule.metric in ("capture_rate", "recapture_rate"):
-            from app.models.hcc import HccSuspect
-            total = (await db.execute(
-                select(func.count(HccSuspect.id))
-                .join(Member, HccSuspect.member_id == Member.id)
-                .where(Member.pcp_provider_id == p.id)
-            )).scalar() or 0
-            captured = (await db.execute(
-                select(func.count(HccSuspect.id))
-                .join(Member, HccSuspect.member_id == Member.id)
-                .where(Member.pcp_provider_id == p.id, HccSuspect.status == "captured")
-            )).scalar() or 0
+    if rule.metric in ("capture_rate", "recapture_rate"):
+        from app.models.hcc import HccSuspect
+        result = await db.execute(
+            select(
+                Provider.id, Provider.first_name, Provider.last_name,
+                func.count(HccSuspect.id).label("total"),
+                func.sum(case((HccSuspect.status == "captured", 1), else_=0)).label("captured"),
+            )
+            .join(Member, Member.pcp_provider_id == Provider.id)
+            .join(HccSuspect, HccSuspect.member_id == Member.id)
+            .group_by(Provider.id, Provider.first_name, Provider.last_name)
+        )
+        for row in result.all():
+            total = row.total or 0
+            captured = int(row.captured or 0)
             value = (captured / total * 100) if total > 0 else 0
-        elif rule.metric == "panel_pmpm":
-            panel = (await db.execute(
-                select(func.count()).select_from(Member)
-                .where(Member.pcp_provider_id == p.id)
-            )).scalar() or 0
-            total_spend = (await db.execute(
-                select(func.coalesce(func.sum(Claim.paid_amount), 0))
-                .select_from(Claim)
-                .join(Member, Claim.member_id == Member.id)
-                .where(Member.pcp_provider_id == p.id)
-            )).scalar() or 0
-            value = float(total_spend) / max(panel, 1) / 12
-        elif rule.metric == "gap_closure":
-            total = (await db.execute(
-                select(func.count()).select_from(MemberGap)
-                .join(Member, MemberGap.member_id == Member.id)
-                .where(Member.pcp_provider_id == p.id)
-            )).scalar() or 0
-            closed = (await db.execute(
-                select(func.count()).select_from(MemberGap)
-                .join(Member, MemberGap.member_id == Member.id)
-                .where(Member.pcp_provider_id == p.id, MemberGap.status == "closed")
-            )).scalar() or 0
-            value = (closed / total * 100) if total > 0 else 0
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "provider",
+                    "entity_id": row.id,
+                    "entity_name": f"Dr. {row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Provider Dr. {row.last_name}: {rule.metric}={value:.1f} {rule.operator} {rule.threshold}",
+                })
 
-        if value is not None and _compare(value, rule.operator, float(rule.threshold)):
-            triggers.append({
-                "entity_type": "provider",
-                "entity_id": p.id,
-                "entity_name": f"Dr. {p.first_name} {p.last_name}",
-                "metric_value": value,
-                "message": f"Provider Dr. {p.last_name}: {rule.metric}={value:.1f} {rule.operator} {rule.threshold}",
-            })
+    elif rule.metric == "panel_pmpm":
+        result = await db.execute(
+            select(
+                Provider.id, Provider.first_name, Provider.last_name,
+                func.count(func.distinct(Member.id)).label("panel"),
+                func.coalesce(func.sum(Claim.paid_amount), 0).label("total_spend"),
+            )
+            .join(Member, Member.pcp_provider_id == Provider.id)
+            .outerjoin(Claim, Claim.member_id == Member.id)
+            .group_by(Provider.id, Provider.first_name, Provider.last_name)
+        )
+        for row in result.all():
+            panel = row.panel or 0
+            value = float(row.total_spend) / max(panel, 1) / 12
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "provider",
+                    "entity_id": row.id,
+                    "entity_name": f"Dr. {row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Provider Dr. {row.last_name}: {rule.metric}={value:.1f} {rule.operator} {rule.threshold}",
+                })
+
+    elif rule.metric == "gap_closure":
+        result = await db.execute(
+            select(
+                Provider.id, Provider.first_name, Provider.last_name,
+                func.count(MemberGap.id).label("total"),
+                func.sum(case((MemberGap.status == "closed", 1), else_=0)).label("closed"),
+            )
+            .join(Member, Member.pcp_provider_id == Provider.id)
+            .join(MemberGap, MemberGap.member_id == Member.id)
+            .group_by(Provider.id, Provider.first_name, Provider.last_name)
+        )
+        for row in result.all():
+            total = row.total or 0
+            closed = int(row.closed or 0)
+            value = (closed / total * 100) if total > 0 else 0
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "provider",
+                    "entity_id": row.id,
+                    "entity_name": f"Dr. {row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Provider Dr. {row.last_name}: {rule.metric}={value:.1f} {rule.operator} {rule.threshold}",
+                })
+
     return triggers
 
 
 async def _evaluate_measure_metric(db: AsyncSession, rule: AlertRule) -> list[dict]:
-    """Evaluate measure-level metrics (closure_rate)."""
+    """Evaluate measure-level metrics (closure_rate) using a single GROUP BY query."""
     triggers = []
-    measures = (await db.execute(select(GapMeasure).where(GapMeasure.is_active == True))).scalars().all()
 
-    for measure in measures:
-        if rule.metric == "closure_rate":
-            total = (await db.execute(
-                select(func.count()).select_from(MemberGap)
-                .where(MemberGap.measure_id == measure.id)
-            )).scalar() or 0
-            closed = (await db.execute(
-                select(func.count()).select_from(MemberGap)
-                .where(MemberGap.measure_id == measure.id, MemberGap.status == "closed")
-            )).scalar() or 0
+    if rule.metric == "closure_rate":
+        from sqlalchemy import case as sa_case
+        result = await db.execute(
+            select(
+                GapMeasure.id, GapMeasure.code, GapMeasure.name,
+                func.count(MemberGap.id).label("total"),
+                func.sum(case((MemberGap.status == "closed", 1), else_=0)).label("closed"),
+            )
+            .join(MemberGap, MemberGap.measure_id == GapMeasure.id)
+            .where(GapMeasure.is_active.is_(True))
+            .group_by(GapMeasure.id, GapMeasure.code, GapMeasure.name)
+        )
+        for row in result.all():
+            total = row.total or 0
+            closed = int(row.closed or 0)
             value = (closed / total * 100) if total > 0 else 0
 
             if _compare(value, rule.operator, float(rule.threshold)):
                 triggers.append({
                     "entity_type": "measure",
-                    "entity_id": measure.id,
-                    "entity_name": measure.name,
+                    "entity_id": row.id,
+                    "entity_name": row.name,
                     "metric_value": value,
-                    "message": f"Measure {measure.code}: closure_rate={value:.1f}% {rule.operator} {rule.threshold}",
+                    "message": f"Measure {row.code}: closure_rate={value:.1f}% {rule.operator} {rule.threshold}",
                 })
     return triggers
 

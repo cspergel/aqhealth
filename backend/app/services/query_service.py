@@ -124,15 +124,19 @@ async def answer_question(
     try:
         from app.services.dashboard_service import get_dashboard_metrics
         metrics = await get_dashboard_metrics(db)
+        rev_opp = metrics.get('total_revenue_opportunity')
+        rev_opp_str = f"${rev_opp:,}" if isinstance(rev_opp, (int, float)) else "N/A"
+        pmpm_val = metrics.get('pmpm')
+        pmpm_str = f"${pmpm_val}" if isinstance(pmpm_val, (int, float)) else "N/A"
         data_context = (
             "\n\nCurrent Population Data:\n"
             f"- Total Members: {metrics.get('total_members', 'N/A')}\n"
             f"- Average RAF Score: {metrics.get('avg_raf', 'N/A')}\n"
-            f"- Total Revenue Opportunity: ${metrics.get('total_revenue_opportunity', 'N/A'):,}\n"
+            f"- Total Revenue Opportunity: {rev_opp_str}\n"
             f"- Open HCC Suspects: {metrics.get('open_suspects', 'N/A')}\n"
             f"- Capture Rate: {metrics.get('capture_rate', 'N/A')}%\n"
             f"- Care Gap Closure Rate: {metrics.get('gap_closure_rate', 'N/A')}%\n"
-            f"- Total PMPM: ${metrics.get('pmpm', 'N/A')}\n"
+            f"- Total PMPM: {pmpm_str}\n"
             f"- High-Risk Members: {metrics.get('high_risk_count', 'N/A')}\n"
         )
     except Exception as e:

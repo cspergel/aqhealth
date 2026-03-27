@@ -9,7 +9,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,8 +56,9 @@ class TenantUserCreateRequest(BaseModel):
     full_name: str
     role: UserRole = UserRole.analyst
 
-    @validator("password")
-    def validate_password_complexity(cls, v):
+    @field_validator("password")
+    @classmethod
+    def validate_password_complexity(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
         if not any(c.isupper() for c in v):

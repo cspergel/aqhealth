@@ -98,7 +98,9 @@ async def receive_webhook(
     Receive real-time webhook from Bamboo Health, Collective Medical, etc.
     Authenticated via webhook secret in header (not JWT).
     """
-    expected_secret = getattr(settings, "adt_webhook_secret", "adt-webhook-secret-dev")
+    expected_secret = getattr(settings, "adt_webhook_secret", None)
+    if not expected_secret:
+        raise HTTPException(status_code=503, detail="Webhook secret not configured")
     if x_webhook_secret != expected_secret:
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
 
@@ -106,7 +108,9 @@ async def receive_webhook(
     source_name = payload.source or "webhook"
     sources = await get_sources(db)
     source = next((s for s in sources if s["name"].lower() == source_name.lower()), None)
-    source_id = source["id"] if source else 1
+    if not source:
+        raise HTTPException(status_code=400, detail=f"No ADT source matching '{source_name}'")
+    source_id = source["id"]
 
     # Merge event data
     event_data = {**payload.data}

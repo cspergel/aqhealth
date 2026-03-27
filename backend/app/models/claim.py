@@ -60,10 +60,10 @@ class Claim(Base, TimestampMixin):
     extra: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # --- Dual Data Tier fields ---
-    data_tier: Mapped[str] = mapped_column(String(10), default="record")  # "signal" or "record"
+    data_tier: Mapped[str] = mapped_column(String(10), default="record", index=True)  # "signal" or "record"
     is_estimated: Mapped[bool] = mapped_column(default=False)
     estimated_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)  # signal-tier estimate
     signal_source: Mapped[str | None] = mapped_column(String(50), nullable=True)  # "adt_event", "census", "prediction"
-    signal_event_id: Mapped[int | None] = mapped_column(ForeignKey("adt_events.id"), nullable=True)  # FK to ADT event
+    signal_event_id: Mapped[int | None] = mapped_column(ForeignKey("adt_events.id"), nullable=True, index=True)  # FK to ADT event
     reconciled: Mapped[bool] = mapped_column(default=False)  # has this signal been matched to a record?
-    reconciled_claim_id: Mapped[int | None] = mapped_column(ForeignKey("claims.id"), nullable=True)  # record-tier claim that replaced this signal
+    reconciled_claim_id: Mapped[int | None] = mapped_column(ForeignKey("claims.id"), nullable=True, index=True)  # record-tier claim that replaced this signal

@@ -555,14 +555,15 @@ async def _upsert_claims(
         return 0
 
     # Batch-resolve all member IDs upfront instead of one-by-one
-    raw_mids = [r["_member_id_raw"] for r in valid_rows if r.get("_member_id_raw")]
+    raw_mids = [r.get("_member_id_raw") for r in valid_rows if r.get("_member_id_raw")]
     member_lookup = await _resolve_member_ids_batch(db, raw_mids)
 
     inserted = 0
 
     for batch in _chunks(valid_rows, 500):
         for row_data in batch:
-            raw_mid = row_data.pop("_member_id_raw", None)
+            raw_mid = row_data.get("_member_id_raw")
+            row_data.pop("_member_id_raw", None)
             if raw_mid:
                 member_pk = member_lookup.get(raw_mid)
 

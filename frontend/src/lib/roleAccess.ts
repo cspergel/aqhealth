@@ -98,7 +98,7 @@ export const ROLE_LABELS: Record<string, string> = {
  */
 export function canAccessSection(role: string, section: string): boolean {
   const config = ROLE_ACCESS[role];
-  if (!config) return true; // unknown roles get full access as a safe default
+  if (!config) return false; // unknown roles are denied access (secure default)
   if (config.sections === "*") return true;
   return config.sections.includes(section.toLowerCase());
 }
@@ -111,7 +111,7 @@ export function canAccessSection(role: string, section: string): boolean {
  */
 export function canAccessPage(role: string, path: string): boolean {
   const config = ROLE_ACCESS[role];
-  if (!config) return true;
+  if (!config) return false; // unknown roles are denied access (secure default)
   if (!config.hidePages) return true;
   // Normalise path — strip trailing slash, compare prefix
   const normalised = path.replace(/\/+$/, "") || "/";

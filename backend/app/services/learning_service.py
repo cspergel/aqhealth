@@ -561,20 +561,19 @@ async def get_provider_learning_profile(db: AsyncSession, provider_id: int) -> d
             "strengths": [],
         }
 
-    # Get all prediction outcomes where context has a member_id in our set
+    # Get prediction outcomes for this provider's members using SQL filter
     # PredictionOutcome.context is JSONB with a "member_id" key for hcc_suspect type
-    all_outcomes = (await db.execute(
+    # Use JSONB operator to filter by member_id in SQL, avoiding full table scan
+    from sqlalchemy import cast, Integer
+    member_id_set = set(member_ids)
+    provider_outcomes = (await db.execute(
         select(PredictionOutcome).where(
             PredictionOutcome.context.isnot(None),
+            cast(
+                PredictionOutcome.context["member_id"].astext, Integer
+            ).in_(member_ids),
         )
     )).scalars().all()
-
-    # Filter to outcomes for this provider's members
-    provider_outcomes = []
-    for outcome in all_outcomes:
-        ctx = outcome.context
-        if isinstance(ctx, dict) and ctx.get("member_id") in member_ids:
-            provider_outcomes.append(outcome)
 
     if not provider_outcomes:
         return {

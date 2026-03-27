@@ -495,8 +495,8 @@ async def get_reconciliation_report(db: AsyncSession) -> dict:
         "overall_accuracy": overall_accuracy,
         "total_reconciled": total_reconciled,
         "avg_bias_pct": round(avg_bias * 100, 1),
-        "trend": "improving",  # Would calculate from time-series data in production
-        "trend_pct": 2.0,
+        "trend": None,  # Not computed — requires time-series analysis
+        "trend_pct": None,
         "by_facility": by_facility,
         "by_patient_class": by_patient_class,
         "by_service_category": by_service_category,

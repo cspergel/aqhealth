@@ -2,7 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { FilterProvider } from "./lib/filterContext";
-import { canAccessPage } from "./lib/roleAccess";
+import { canAccessPage, ROLE_LABELS } from "./lib/roleAccess";
 import { AppShell } from "./components/layout/AppShell";
 import { LoginPage } from "./pages/LoginPage";
 
@@ -100,7 +100,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
       >
         <h1 style={{ fontSize: 24, marginBottom: 8 }}>Access Denied</h1>
         <p style={{ fontSize: 14, color: "#64748b", marginBottom: 24, maxWidth: 420 }}>
-          Your role ({userRole}) does not have access to this page.
+          Your role ({ROLE_LABELS[userRole] || userRole}) does not have access to this page.
           Please contact your administrator if you believe this is an error.
         </p>
         <button

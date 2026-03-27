@@ -200,10 +200,6 @@ _HEDGING_PATTERNS = [
     r"\bI assume\b",
 ]
 
-# Dollar-amount regex
-_DOLLAR_RE = re.compile(r"\$[\d,]+(?:\.\d{1,2})?")
-
-
 def validate_llm_output(
     response: str, context_data: dict, tenant_schema: str
 ) -> dict:
@@ -220,17 +216,6 @@ def validate_llm_output(
             warnings.append(
                 f"Hedging language detected: '{matches[0]}' -- may indicate fabricated data"
             )
-
-    # --- Check dollar amounts are traceable to context ---
-    context_str = json.dumps(context_data, default=str)
-    dollar_amounts = _DOLLAR_RE.findall(response)
-    for amount in dollar_amounts:
-        # Normalise for comparison (strip $ and commas)
-        normalised = amount.replace("$", "").replace(",", "")
-        if normalised not in context_str and normalised.rstrip("0").rstrip(".") not in context_str:
-            # Not a critical failure -- some amounts are computed from context
-            # Only warn, don't fail validation
-            pass  # dollar amounts may be derived calculations
 
     # --- Check for potential tenant name leakage ---
     # Look for patterns like "tenant_" or schema names that aren't the current one

@@ -18,14 +18,15 @@ from app.models.claim import Claim
 logger = logging.getLogger(__name__)
 
 
-# Standard FHIR resource type handlers
-RESOURCE_HANDLERS = {
-    "Patient",
-    "Condition",
-    "MedicationRequest",
-    "Observation",
-    "Encounter",
-    "Procedure",
+# Standard FHIR resource type handlers — maps resource type to its ingestion function.
+# Stub handlers (value is None) are recognized but do not increment counters.
+RESOURCE_HANDLERS: dict[str, str | None] = {
+    "Patient": "_ingest_patient",
+    "Condition": "_ingest_condition",
+    "MedicationRequest": "_ingest_medication",
+    "Observation": None,       # stub — not yet implemented
+    "Encounter": None,         # stub — not yet implemented
+    "Procedure": None,         # stub — not yet implemented
 }
 
 
@@ -54,6 +55,10 @@ async def ingest_fhir_bundle(db: AsyncSession, bundle: dict) -> dict:
             continue
 
         try:
+            # Skip stub handlers — they are recognized but not yet implemented
+            if RESOURCE_HANDLERS.get(resource_type) is None:
+                continue
+
             if resource_type == "Patient":
                 await _ingest_patient(db, resource)
                 results["members_created"] += 1
@@ -82,9 +87,11 @@ async def ingest_fhir_bundle(db: AsyncSession, bundle: dict) -> dict:
 
 
 async def ingest_single_patient(db: AsyncSession, patient: dict) -> dict:
-    """Ingest a single FHIR Patient resource."""
-    await _ingest_patient(db, patient)
-    return {"status": "ok", "members_created": 1}
+    """Ingest a single FHIR Patient resource. Reports whether it was an insert or update."""
+    was_update = await _ingest_patient(db, patient)
+    if was_update:
+        return {"status": "ok", "members_updated": 1, "members_created": 0}
+    return {"status": "ok", "members_created": 1, "members_updated": 0}
 
 
 async def ingest_conditions(db: AsyncSession, conditions: list[dict]) -> dict:
@@ -128,8 +135,8 @@ def get_capability_statement() -> dict:
 # Internal helpers — map FHIR resources to platform models
 # ---------------------------------------------------------------------------
 
-async def _ingest_patient(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Patient to Member model — create or update."""
+async def _ingest_patient(db: AsyncSession, resource: dict) -> bool:
+    """Map FHIR Patient to Member model — create or update. Returns True if updated, False if created."""
     # Extract FHIR fields
     fhir_id = resource.get("id", "")
 
@@ -178,6 +185,8 @@ async def _ingest_patient(db: AsyncSession, resource: dict) -> None:
         if zip_code:
             existing.zip_code = zip_code
         logger.info("Updated existing member %s from FHIR Patient", member_id_value)
+        await db.flush()
+        return True
     else:
         member = Member(
             member_id=member_id_value,
@@ -189,8 +198,8 @@ async def _ingest_patient(db: AsyncSession, resource: dict) -> None:
         )
         db.add(member)
         logger.info("Created new member %s from FHIR Patient", member_id_value)
-
-    await db.flush()
+        await db.flush()
+        return False
 
 
 async def _ingest_condition(db: AsyncSession, resource: dict) -> None:

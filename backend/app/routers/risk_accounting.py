@@ -8,7 +8,7 @@ subcapitation, IBNR, risk pools, surplus/deficit analysis.
 import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,10 +124,14 @@ async def enter_capitation(
     _user: dict = Depends(get_current_user),
 ):
     """Enter a capitation payment."""
+    try:
+        payment_month = date.fromisoformat(body.payment_month)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid date format for payment_month: '{body.payment_month}' (expected YYYY-MM-DD)")
     record = CapitationPayment(
         plan_name=body.plan_name,
         product_type=body.product_type,
-        payment_month=date.fromisoformat(body.payment_month),
+        payment_month=payment_month,
         member_count=body.member_count,
         pmpm_rate=body.pmpm_rate,
         total_payment=body.total_payment,
@@ -147,11 +151,15 @@ async def enter_subcap(
     _user: dict = Depends(get_current_user),
 ):
     """Enter a subcapitation payment."""
+    try:
+        payment_month = date.fromisoformat(body.payment_month)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid date format for payment_month: '{body.payment_month}' (expected YYYY-MM-DD)")
     record = SubcapPayment(
         provider_id=body.provider_id,
         practice_group_id=body.practice_group_id,
         specialty=body.specialty,
-        payment_month=date.fromisoformat(body.payment_month),
+        payment_month=payment_month,
         member_count=body.member_count,
         pmpm_rate=body.pmpm_rate,
         total_payment=body.total_payment,

@@ -78,7 +78,7 @@ async def generate_report(
             db,
             template_id=body.template_id,
             period=body.period,
-            generated_by=current_user.get("id", 1),
+            generated_by=current_user["user_id"],
             params=body.params,
         )
     except ValueError as e:

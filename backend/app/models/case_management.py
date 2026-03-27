@@ -1,7 +1,7 @@
 """Case Management models — case assignments and case notes."""
 
 from datetime import date
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -11,7 +11,7 @@ class CaseAssignment(Base, TimestampMixin):
     __tablename__ = "case_assignments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    member_id: Mapped[int]
+    member_id: Mapped[int] = mapped_column(ForeignKey("members.id"))
     care_manager_id: Mapped[int]  # staff user ID
     care_manager_name: Mapped[str] = mapped_column(String(200))
     assignment_date: Mapped[date]

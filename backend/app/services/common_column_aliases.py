@@ -258,7 +258,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
     ],
     "diagnosis_1": [
         "diagnosis_1", "diag_1", "diag1", "dx1", "dx_1",
-        "primary_diagnosis", "principal_dx", "principal_diagnosis",
+        "principal_dx", "principal_diagnosis",
         "icd10_1", "icd_1", "admit_diagnosis", "admitting_diagnosis",
         "diag_cd_1", "diagnosis_code_1", "dx_cd_1", "primary_dx",
     ],
@@ -527,7 +527,6 @@ COLUMN_ALIASES: dict[str, list[str]] = {
     ],
     "requesting_provider_npi": [
         "requesting_provider_npi", "requesting_npi",
-        "ordering_npi",
     ],
     "servicing_provider_npi": [
         "servicing_provider_npi", "servicing_npi",

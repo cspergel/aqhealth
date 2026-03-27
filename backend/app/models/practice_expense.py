@@ -6,7 +6,7 @@ Used for MSO operational cost tracking: staffing, supplies, rent, software, etc.
 
 from datetime import date
 
-from sqlalchemy import Numeric, String, Text
+from sqlalchemy import ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -20,7 +20,7 @@ class StaffMember(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(100))  # "physician", "np", "ma", "front_desk", "biller", "coder", "care_manager", "admin"
-    practice_group_id: Mapped[int | None]
+    practice_group_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True)
     salary: Mapped[float] = mapped_column(Numeric(10, 2))
     benefits_cost: Mapped[float | None] = mapped_column(Numeric(10, 2))  # annual benefits
     fte: Mapped[float] = mapped_column(Numeric(3, 2), default=1.0)  # 1.0 = full time, 0.5 = part time
@@ -45,7 +45,7 @@ class ExpenseEntry(Base, TimestampMixin):
     __tablename__ = "expense_entries"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    category_id: Mapped[int]
+    category_id: Mapped[int] = mapped_column(ForeignKey("expense_categories.id"))
     description: Mapped[str] = mapped_column(String(500))
     amount: Mapped[float] = mapped_column(Numeric(12, 2))
     expense_date: Mapped[date]

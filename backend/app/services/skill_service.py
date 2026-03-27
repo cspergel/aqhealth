@@ -6,7 +6,7 @@ Manages skill CRUD, execution, and AI-powered skill suggestions.
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -185,8 +185,14 @@ async def update_skill(db: AsyncSession, skill_id: int, updates: dict) -> dict |
     if not skill:
         return None
 
+    # Allowlist of fields that callers may update — prevents overwriting
+    # internal bookkeeping fields like times_executed, created_at, etc.
+    UPDATABLE_FIELDS = {
+        "name", "description", "trigger_type", "trigger_config",
+        "steps", "is_active", "scope",
+    }
     for key, val in updates.items():
-        if hasattr(skill, key) and val is not None:
+        if key in UPDATABLE_FIELDS and val is not None:
             setattr(skill, key, val)
     await db.flush()
     return _skill_to_dict(skill)
@@ -275,7 +281,7 @@ async def execute_skill(
 
     # Update skill metadata
     skill.times_executed = (skill.times_executed or 0) + 1
-    skill.last_executed = datetime.utcnow()
+    skill.last_executed = datetime.now(timezone.utc)
     # Rolling average duration
     if skill.avg_duration_seconds:
         skill.avg_duration_seconds = int(

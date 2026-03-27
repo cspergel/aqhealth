@@ -38,7 +38,7 @@ async def trigger_full_discovery(
     Runs all 6 scans, synthesizes, and persists as Insight records.
     """
     # Run full discovery + insight generation pipeline
-    results = await generate_insights(db)
+    results = await generate_insights(db, tenant_schema=current_user["tenant_schema"])
     return {
         "discoveries_created": len(results),
         "discoveries": results,

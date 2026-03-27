@@ -12,7 +12,7 @@ class WatchlistItem(Base, TimestampMixin):
     __tablename__ = "watchlist_items"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
 
     # What's being watched
     entity_type: Mapped[str] = mapped_column(String(50))

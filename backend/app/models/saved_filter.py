@@ -6,7 +6,7 @@ across any page context in the platform.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Text, Integer, Boolean, DateTime, func
+from sqlalchemy import Index, String, Text, Integer, Boolean, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,4 +38,8 @@ class SavedFilter(Base, TimestampMixin):
     use_count: Mapped[int] = mapped_column(Integer, default=0)
     last_used: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        Index("ix_saved_filters_context_user", "page_context", "created_by"),
     )
