@@ -166,7 +166,7 @@ async def evaluate_predictions(db: AsyncSession) -> dict[str, Any]:
 # Learning report generation
 # ---------------------------------------------------------------------------
 
-async def generate_learning_report(db: AsyncSession) -> dict[str, Any]:
+async def generate_learning_report(db: AsyncSession, tenant_schema: str = "default") -> dict[str, Any]:
     """
     Generate an AI learning report: accuracy trends, blind spots,
     improving areas, and AI-generated lessons.
@@ -272,7 +272,7 @@ async def generate_learning_report(db: AsyncSession) -> dict[str, Any]:
     ]
 
     # Generate AI lessons from patterns
-    lessons = await _generate_ai_lessons(db, by_type, blind_spot_list, strength_list)
+    lessons = await _generate_ai_lessons(db, by_type, blind_spot_list, strength_list, tenant_schema=tenant_schema)
 
     return {
         "generated_date": date.today().isoformat(),

@@ -132,7 +132,9 @@ async def create_plan(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Create a new care plan."""
-    return await create_care_plan(db, body.model_dump())
+    data = body.model_dump()
+    data["created_by"] = current_user["user_id"]  # Override client-supplied value
+    return await create_care_plan(db, data)
 
 
 # ---------------------------------------------------------------------------

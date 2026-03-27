@@ -57,7 +57,7 @@ async def learning_report(
     current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """AI-generated learning report with accuracy trends and lessons."""
-    return await learning_service.generate_learning_report(db)
+    return await learning_service.generate_learning_report(db, tenant_schema=current_user["tenant_schema"])
 
 
 @router.get("/interactions")

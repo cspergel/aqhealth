@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     llm_primary: str = "anthropic"  # "anthropic" or "openai"
 
+    # ADT webhook
+    adt_webhook_secret: str = ""
+
     # File uploads
     uploads_dir: str = "uploads"
 
