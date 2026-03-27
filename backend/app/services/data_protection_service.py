@@ -400,23 +400,20 @@ async def cross_validate(db: AsyncSession, member_id: int) -> dict:
     confirmations: list[dict] = []
 
     try:
-        # Get member diagnoses from claims
+        # Get member diagnoses from claims (diagnosis_codes is an array column)
         claims_result = await db.execute(
             text("""
-                SELECT DISTINCT primary_dx, secondary_dx
+                SELECT DISTINCT unnest(diagnosis_codes) as dx_code
                 FROM claims
-                WHERE member_id = :mid
+                WHERE member_id = :mid AND diagnosis_codes IS NOT NULL
             """),
             {"mid": member_id},
         )
         claim_rows = claims_result.fetchall()
         claim_dx_codes = set()
         for r in claim_rows:
-            if r.primary_dx:
-                claim_dx_codes.add(r.primary_dx)
-            if r.secondary_dx:
-                for dx in (r.secondary_dx if isinstance(r.secondary_dx, list) else [r.secondary_dx]):
-                    claim_dx_codes.add(dx)
+            if r.dx_code:
+                claim_dx_codes.add(r.dx_code)
 
         # Get member demographics
         member_result = await db.execute(
@@ -764,8 +761,18 @@ async def rollback_batch(db: AsyncSession, batch_id: int) -> dict:
             affected_tables.add(table_name)
 
             if field_changes:
+                # Validate table_name against known entity types
+                valid_tables = set(_entity_type_to_table(et) for et in ("member", "claim", "provider", "care_gap", "hcc_suspect"))
+                if table_name not in valid_tables:
+                    logger.warning("Skipping rollback for unknown table: %s", table_name)
+                    continue
+
                 # Restore old values
                 for field, change in field_changes.items():
+                    # Validate field name to prevent SQL injection
+                    if not re.match(r'^[a-z_][a-z0-9_]*$', field):
+                        logger.warning("Skipping invalid field name in rollback: %s", field)
+                        continue
                     old_val = change.get("old")
                     if old_val is not None:
                         await db.execute(
@@ -778,6 +785,10 @@ async def rollback_batch(db: AsyncSession, batch_id: int) -> dict:
                         pass
             else:
                 # No field changes means this was an insert — delete the record
+                valid_tables = set(_entity_type_to_table(et) for et in ("member", "claim", "provider", "care_gap", "hcc_suspect"))
+                if table_name not in valid_tables:
+                    logger.warning("Skipping rollback delete for unknown table: %s", table_name)
+                    continue
                 await db.execute(
                     text(f"DELETE FROM {table_name} WHERE id = :eid"),
                     {"eid": entity_id},

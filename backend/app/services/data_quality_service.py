@@ -392,9 +392,9 @@ async def run_quality_checks(db: AsyncSession, ingestion_job_id: int) -> dict:
     try:
         result = await db.execute(text("""
             SELECT COUNT(*) as dup_count FROM (
-                SELECT member_id, service_date, diagnosis_code, provider_npi
+                SELECT member_id, service_date, diagnosis_codes::text, rendering_provider_id
                 FROM claims
-                GROUP BY member_id, service_date, diagnosis_code, provider_npi
+                GROUP BY member_id, service_date, diagnosis_codes::text, rendering_provider_id
                 HAVING COUNT(*) > 1
             ) dups
         """))
@@ -416,11 +416,14 @@ async def run_quality_checks(db: AsyncSession, ingestion_job_id: int) -> dict:
     # 4. Distribution check: flag if >20% of claims have same diagnosis
     try:
         result = await db.execute(text("""
-            SELECT diagnosis_code, COUNT(*) as cnt,
-                   ROUND(100.0 * COUNT(*) / NULLIF((SELECT COUNT(*) FROM claims), 0), 1) as pct
-            FROM claims
-            WHERE diagnosis_code IS NOT NULL
-            GROUP BY diagnosis_code
+            SELECT dx_code, COUNT(*) as cnt,
+                   ROUND(100.0 * COUNT(*) / NULLIF((SELECT COUNT(*) FROM claims WHERE diagnosis_codes IS NOT NULL), 0), 1) as pct
+            FROM (
+                SELECT unnest(diagnosis_codes) as dx_code
+                FROM claims
+                WHERE diagnosis_codes IS NOT NULL
+            ) expanded
+            GROUP BY dx_code
             ORDER BY cnt DESC
             LIMIT 1
         """))
@@ -431,7 +434,7 @@ async def run_quality_checks(db: AsyncSession, ingestion_job_id: int) -> dict:
             checks.append({
                 "name": "Diagnosis Distribution",
                 "status": status,
-                "details": f"Code {row.diagnosis_code} appears in {row.pct}% of claims (threshold: 20%)",
+                "details": f"Code {row.dx_code} appears in {row.pct}% of claims (threshold: 20%)",
                 "severity": "high",
             })
         else:

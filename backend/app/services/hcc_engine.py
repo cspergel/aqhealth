@@ -227,7 +227,7 @@ def _extract_current_year_codes(claims: list[Claim]) -> set[str]:
     codes: set[str] = set()
     year_start = date(get_current_payment_year(), 1, 1)
     for c in claims:
-        if c.service_date >= year_start and c.diagnosis_codes:
+        if c.service_date and c.diagnosis_codes and c.service_date >= year_start:
             codes.update(c.diagnosis_codes)
     return codes
 
@@ -243,7 +243,7 @@ def _extract_medications(claims: list[Claim]) -> list[str]:
 def _codes_by_year(claims: list[Claim]) -> dict[int, set[str]]:
     result: dict[int, set[str]] = {}
     for c in claims:
-        if c.diagnosis_codes:
+        if c.service_date and c.diagnosis_codes:
             result.setdefault(c.service_date.year, set()).update(c.diagnosis_codes)
     return result
 

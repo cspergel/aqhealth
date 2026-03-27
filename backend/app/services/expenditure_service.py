@@ -88,9 +88,19 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
 
     pmpm = round(total_spend / member_months, 2)
 
-    # MLR = medical spend / premium revenue (approximate as 85% standard)
-    # In a real system this would come from premium data; we use a placeholder
-    mlr = 0.85
+    # MLR = medical spend / capitation revenue
+    mlr = None
+    try:
+        from sqlalchemy import text as sa_text
+        cap_result = await db.execute(
+            sa_text("SELECT COALESCE(SUM(payment_amount), 0) as cap_revenue FROM capitation_payments")
+        )
+        cap_revenue = float(cap_result.scalar() or 0)
+        if cap_revenue > 0:
+            mlr = round(total_spend / cap_revenue, 4)
+    except Exception:
+        # capitation_payments table may not exist; leave mlr as None
+        pass
 
     # Per-category aggregation
     cat_query = (
@@ -105,6 +115,39 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
     cat_result = await db.execute(cat_query)
     cat_rows = cat_result.all()
 
+    # Calculate actual trend: compare current period (last 3 months) vs prior period (3-6 months ago)
+    from datetime import date as date_cls, timedelta as td
+    today = date_cls.today()
+    current_period_start = today - td(days=90)
+    prior_period_start = today - td(days=180)
+    prior_period_end = current_period_start - td(days=1)
+
+    # Query spend by category for current and prior periods
+    trend_query = (
+        select(
+            Claim.service_category,
+            func.sum(case(
+                (and_(Claim.service_date >= current_period_start, Claim.service_date <= today), Claim.paid_amount),
+                else_=0,
+            )).label("current_spend"),
+            func.sum(case(
+                (and_(Claim.service_date >= prior_period_start, Claim.service_date <= prior_period_end), Claim.paid_amount),
+                else_=0,
+            )).label("prior_spend"),
+        )
+        .where(Claim.service_category.isnot(None))
+        .group_by(Claim.service_category)
+    )
+    trend_result = await db.execute(trend_query)
+    trend_by_cat: dict[str, float] = {}
+    for trow in trend_result.all():
+        prior = _safe_float(trow.prior_spend)
+        current = _safe_float(trow.current_spend)
+        if prior > 0:
+            trend_by_cat[trow.service_category] = round((current - prior) / prior * 100, 1)
+        else:
+            trend_by_cat[trow.service_category] = 0.0
+
     categories = []
     for row in cat_rows:
         cat_spend = _safe_float(row.total_spend)
@@ -115,7 +158,7 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
             "pmpm": round(cat_spend / member_months, 2),
             "pct_of_total": _pct(cat_spend, total_spend),
             "claim_count": _safe_int(row.claim_count),
-            "trend_vs_prior": round((cat_spend * 0.03) / max(cat_spend, 1) * 100, 1),  # placeholder trend
+            "trend_vs_prior": trend_by_cat.get(row.service_category, 0.0),
         })
 
     # Ensure all categories are represented

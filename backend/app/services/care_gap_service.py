@@ -9,7 +9,7 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import select, func, and_, case, update
+from sqlalchemy import select, func, and_, case, update, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
@@ -405,13 +405,22 @@ async def _get_eligible_members(
             .distinct()
         )
         # Check if any diagnosis code starts with the eligible prefixes
+        # Use EXISTS + unnest for proper array-element prefix matching
+        from sqlalchemy import literal_column
         dx_filters = []
         for dx in eligible_dx:
-            dx_filters.append(func.array_to_string(Claim.diagnosis_codes, ",").ilike(f"%{dx}%"))
+            # Match array elements that start with the dx prefix (e.g., "E11" matches "E11.65")
+            dx_filters.append(
+                text(f"EXISTS (SELECT 1 FROM unnest(diagnosis_codes) AS dx_val WHERE dx_val LIKE :dx_prefix_{dx})")
+            )
 
         if dx_filters:
-            from sqlalchemy import or_
-            dx_query = dx_query.where(or_(*dx_filters))
+            from sqlalchemy import or_, bindparam
+            combined = or_(*dx_filters)
+            dx_query = dx_query.where(combined)
+            # Bind the prefix parameters
+            dx_params = {f"dx_prefix_{dx}": f"{dx}%" for dx in eligible_dx}
+            dx_query = dx_query.params(**dx_params)
 
         dx_result = await db.execute(dx_query)
         eligible_ids = {row[0] for row in dx_result.all()}
@@ -453,18 +462,23 @@ async def _detect_screening_gaps(
     compliant_result = await db.execute(compliant_query)
     compliant_ids = {row[0] for row in compliant_result.all()}
 
+    # Batch-fetch existing gaps for all eligible members to avoid N+1 queries
+    existing_gaps_result = await db.execute(
+        select(MemberGap).where(
+            MemberGap.member_id.in_(member_ids),
+            MemberGap.measure_id == measure.id,
+            MemberGap.measurement_year == measurement_year,
+        )
+    )
+    existing_gaps_by_member: dict[int, MemberGap] = {
+        g.member_id: g for g in existing_gaps_result.scalars().all()
+    }
+
     created = 0
     closed = 0
 
     for member in members:
-        existing = await db.execute(
-            select(MemberGap).where(
-                MemberGap.member_id == member.id,
-                MemberGap.measure_id == measure.id,
-                MemberGap.measurement_year == measurement_year,
-            )
-        )
-        existing_gap = existing.scalar_one_or_none()
+        existing_gap = existing_gaps_by_member.get(member.id)
 
         if member.id in compliant_ids:
             # Member is compliant — close any open gap
@@ -574,18 +588,31 @@ def _calculate_pdc(
     period_end: date,
     period_days: int,
 ) -> float:
-    """Calculate Proportion of Days Covered from fill records."""
+    """Calculate Proportion of Days Covered from fill records.
+
+    Uses date range arithmetic instead of day-by-day iteration for performance.
+    """
     if not fills or period_days <= 0:
         return 0.0
 
-    covered = set()
-    for fill_date, days_supply in fills:
-        for d in range(days_supply):
-            covered_date = fill_date + timedelta(days=d)
-            if period_start <= covered_date <= period_end:
-                covered.add(covered_date)
+    # Sort fills by date
+    sorted_fills = sorted(fills, key=lambda f: f[0])
 
-    return len(covered) / period_days
+    # Merge overlapping coverage intervals, clipped to the measurement period
+    intervals: list[tuple[date, date]] = []
+    for fill_date, days_supply in sorted_fills:
+        start = max(fill_date, period_start)
+        end = min(fill_date + timedelta(days=days_supply - 1), period_end)
+        if start > end:
+            continue
+        if intervals and start <= intervals[-1][1] + timedelta(days=1):
+            # Merge with previous interval
+            intervals[-1] = (intervals[-1][0], max(intervals[-1][1], end))
+        else:
+            intervals.append((start, end))
+
+    total_days_covered = sum((end - start).days + 1 for start, end in intervals)
+    return total_days_covered / period_days
 
 
 async def _detect_followup_gaps(
@@ -617,9 +644,14 @@ async def _detect_followup_gaps(
         from sqlalchemy import or_
         dx_filters = []
         for dx in trigger_dx:
-            dx_filters.append(func.array_to_string(Claim.diagnosis_codes, ",").ilike(f"%{dx}%"))
+            dx_filters.append(
+                text(f"EXISTS (SELECT 1 FROM unnest(diagnosis_codes) AS dx_val WHERE dx_val LIKE :tdx_prefix_{dx})")
+            )
         if dx_filters:
-            trigger_query = trigger_query.where(or_(*dx_filters))
+            combined = or_(*dx_filters)
+            trigger_query = trigger_query.where(combined)
+            dx_params = {f"tdx_prefix_{dx}": f"{dx}%" for dx in trigger_dx}
+            trigger_query = trigger_query.params(**dx_params)
 
     trigger_result = await db.execute(trigger_query)
     trigger_claims = trigger_result.scalars().all()

@@ -214,24 +214,24 @@ async def ai_match_member(
         try:
             extra = await db.execute(
                 text("""
-                    SELECT gender, plan_name, pcp_name, address_line1, city,
-                           state, zip_code
-                    FROM members WHERE id = :mid
+                    SELECT m.gender, m.health_plan, m.zip_code,
+                           p.first_name as pcp_first_name, p.last_name as pcp_last_name
+                    FROM members m
+                    LEFT JOIN providers p ON m.pcp_provider_id = p.id
+                    WHERE m.id = :mid
                 """),
                 {"mid": c["id"]},
             )
             row = extra.fetchone()
             if row:
+                pcp_name = None
+                if getattr(row, "pcp_first_name", None) and getattr(row, "pcp_last_name", None):
+                    pcp_name = f"Dr. {row.pcp_first_name} {row.pcp_last_name}"
                 enriched.update({
-                    "gender": row.gender if hasattr(row, "gender") else None,
-                    "plan": row.plan_name if hasattr(row, "plan_name") else None,
-                    "pcp": row.pcp_name if hasattr(row, "pcp_name") else None,
-                    "address": ", ".join(filter(None, [
-                        getattr(row, "address_line1", None),
-                        getattr(row, "city", None),
-                        getattr(row, "state", None),
-                        getattr(row, "zip_code", None),
-                    ])),
+                    "gender": getattr(row, "gender", None),
+                    "plan": getattr(row, "health_plan", None),
+                    "pcp": pcp_name,
+                    "address": getattr(row, "zip_code", None) or "",
                 })
         except Exception:
             pass  # extra context is best-effort
@@ -240,15 +240,15 @@ async def ai_match_member(
         try:
             dx = await db.execute(
                 text("""
-                    SELECT DISTINCT diagnosis_code
+                    SELECT DISTINCT unnest(diagnosis_codes) as dx_code
                     FROM claims
-                    WHERE member_id = :mid
-                    ORDER BY diagnosis_code
+                    WHERE member_id = :mid AND diagnosis_codes IS NOT NULL
+                    ORDER BY dx_code
                     LIMIT 10
                 """),
                 {"mid": c["id"]},
             )
-            enriched["recent_diagnoses"] = [r.diagnosis_code for r in dx.fetchall()]
+            enriched["recent_diagnoses"] = [r.dx_code for r in dx.fetchall()]
         except Exception:
             enriched["recent_diagnoses"] = []
 
@@ -714,7 +714,7 @@ async def match_member(db: AsyncSession, incoming: dict) -> dict:
     if member_id_val:
         try:
             result = await db.execute(
-                text("SELECT id, first_name, last_name, date_of_birth FROM members WHERE member_external_id = :mid LIMIT 5"),
+                text("SELECT id, first_name, last_name, date_of_birth FROM members WHERE member_id = :mid LIMIT 5"),
                 {"mid": str(member_id_val)},
             )
             rows = result.fetchall()
@@ -892,13 +892,16 @@ async def match_provider(db: AsyncSession, incoming: dict) -> dict:
     # Also try Soundex on last_name for fuzzy candidates
     if last_name:
         soundex_code = _soundex(last_name)
+        first_letter = last_name[0].upper() if last_name else ""
         try:
             result = await db.execute(
                 text("""
                     SELECT id, first_name, last_name, npi, specialty
                     FROM providers
-                    LIMIT 100
+                    WHERE UPPER(LEFT(last_name, 1)) = :first_letter
+                    LIMIT 500
                 """),
+                {"first_letter": first_letter},
             )
             for r in result.fetchall():
                 if _soundex(r.last_name) == soundex_code:

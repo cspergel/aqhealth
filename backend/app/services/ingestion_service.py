@@ -419,6 +419,40 @@ def _process_provider_row(
 # Bulk insert helpers
 # ---------------------------------------------------------------------------
 
+ALLOWED_MEMBER_COLUMNS = {
+    "member_id", "first_name", "last_name", "date_of_birth", "gender",
+    "zip_code", "health_plan", "plan_product", "coverage_start",
+    "coverage_end", "pcp_provider_id", "medicaid_status",
+    "disability_status", "institutional", "current_raf", "projected_raf",
+    "risk_tier", "extra",
+}
+
+ALLOWED_CLAIM_COLUMNS = {
+    "member_id", "claim_id", "claim_type", "service_date", "paid_date",
+    "diagnosis_codes", "procedure_code", "drg_code", "ndc_code",
+    "rendering_provider_id", "facility_name", "facility_npi",
+    "billed_amount", "allowed_amount", "paid_amount", "member_liability",
+    "service_category", "pos_code", "drug_name", "drug_class",
+    "quantity", "days_supply", "extra", "data_tier", "is_estimated",
+}
+
+ALLOWED_PROVIDER_COLUMNS = {
+    "npi", "first_name", "last_name", "specialty", "practice_name",
+    "tin", "extra",
+}
+
+
+def _filter_allowed_columns(row_data: dict, allowed: set[str]) -> dict:
+    """Filter row_data keys against allowlist, logging unknown columns."""
+    filtered = {}
+    for k, v in row_data.items():
+        if k in allowed:
+            filtered[k] = v
+        else:
+            logger.warning("Skipping unknown column during ingestion: %s", k)
+    return filtered
+
+
 async def _upsert_members(
     db: AsyncSession, valid_rows: list[dict]
 ) -> int:
@@ -428,28 +462,31 @@ async def _upsert_members(
 
     inserted = 0
     for row_data in valid_rows:
+        # Filter against allowlist to prevent SQL injection
+        safe_data = _filter_allowed_columns(row_data, ALLOWED_MEMBER_COLUMNS)
+
         # Check if member already exists by member_id
         result = await db.execute(
             text("SELECT id FROM members WHERE member_id = :mid"),
-            {"mid": row_data["member_id"]},
+            {"mid": safe_data["member_id"]},
         )
         existing = result.scalar_one_or_none()
 
         if existing:
-            # Update existing member
-            sets = ", ".join(
-                f"{k} = :{k}" for k in row_data if k != "member_id"
-            )
-            await db.execute(
-                text(f"UPDATE members SET {sets}, updated_at = NOW() WHERE member_id = :member_id"),
-                row_data,
-            )
+            # Update existing member — only use allowed columns
+            update_cols = [k for k in safe_data if k != "member_id"]
+            if update_cols:
+                sets = ", ".join(f"{k} = :{k}" for k in update_cols)
+                await db.execute(
+                    text(f"UPDATE members SET {sets}, updated_at = NOW() WHERE member_id = :member_id"),
+                    safe_data,
+                )
         else:
-            cols = ", ".join(row_data.keys())
-            vals = ", ".join(f":{k}" for k in row_data.keys())
+            cols = ", ".join(safe_data.keys())
+            vals = ", ".join(f":{k}" for k in safe_data.keys())
             await db.execute(
                 text(f"INSERT INTO members ({cols}) VALUES ({vals})"),
-                row_data,
+                safe_data,
             )
             inserted += 1
 
@@ -457,13 +494,27 @@ async def _upsert_members(
     return inserted if inserted > 0 else len(valid_rows)
 
 
-async def _resolve_member_id(db: AsyncSession, raw_member_id: str) -> int | None:
-    """Look up the internal member PK from the health-plan member_id string."""
-    result = await db.execute(
-        text("SELECT id FROM members WHERE member_id = :mid"),
-        {"mid": raw_member_id},
-    )
-    return result.scalar_one_or_none()
+async def _resolve_member_ids_batch(
+    db: AsyncSession, raw_member_ids: list[str]
+) -> dict[str, int]:
+    """Batch-resolve health-plan member_id strings to internal PKs."""
+    if not raw_member_ids:
+        return {}
+    unique_ids = list(set(raw_member_ids))
+    lookup: dict[str, int] = {}
+    # Process in chunks to avoid overly large IN clauses
+    chunk_size = 500
+    for i in range(0, len(unique_ids), chunk_size):
+        chunk = unique_ids[i : i + chunk_size]
+        params = {f"mid_{j}": mid for j, mid in enumerate(chunk)}
+        placeholders = ", ".join(f":mid_{j}" for j in range(len(chunk)))
+        result = await db.execute(
+            text(f"SELECT id, member_id FROM members WHERE member_id IN ({placeholders})"),
+            params,
+        )
+        for row in result.fetchall():
+            lookup[row.member_id] = row.id
+    return lookup
 
 
 async def _upsert_claims(
@@ -473,33 +524,40 @@ async def _upsert_claims(
     if not valid_rows:
         return 0
 
+    # Batch-resolve all member IDs upfront instead of one-by-one
+    raw_mids = [r["_member_id_raw"] for r in valid_rows if r.get("_member_id_raw")]
+    member_lookup = await _resolve_member_ids_batch(db, raw_mids)
+
     inserted = 0
     for row_data in valid_rows:
         raw_mid = row_data.pop("_member_id_raw", None)
         if raw_mid:
-            member_pk = await _resolve_member_id(db, raw_mid)
+            member_pk = member_lookup.get(raw_mid)
             if member_pk is None:
                 # Skip claims with unknown members — they can be re-processed later
                 continue
             row_data["member_id"] = member_pk
 
-        # Remove None values for cleaner insert
-        clean_data = {k: v for k, v in row_data.items() if v is not None}
+        # Filter against allowlist to prevent SQL injection
+        safe_data = _filter_allowed_columns(
+            {k: v for k, v in row_data.items() if v is not None},
+            ALLOWED_CLAIM_COLUMNS,
+        )
         # Handle array for diagnosis_codes — use parameterized binding
-        dx_codes = clean_data.pop("diagnosis_codes", None)
+        dx_codes = safe_data.pop("diagnosis_codes", None)
 
-        cols = list(clean_data.keys())
+        cols = list(safe_data.keys())
         if dx_codes:
             cols.append("diagnosis_codes")
 
-        vals_parts = [f":{k}" for k in clean_data.keys()]
+        vals_parts = [f":{k}" for k in safe_data.keys()]
         if dx_codes:
             # Use parameterized array binding to prevent SQL injection
             dx_params = []
             for i, code in enumerate(dx_codes):
                 param_name = f"_dx_{i}"
                 dx_params.append(f":{param_name}")
-                clean_data[param_name] = code
+                safe_data[param_name] = code
             vals_parts.append(f"ARRAY[{', '.join(dx_params)}]::varchar[]")
 
         cols_str = ", ".join(cols)
@@ -507,7 +565,7 @@ async def _upsert_claims(
 
         await db.execute(
             text(f"INSERT INTO claims ({cols_str}) VALUES ({vals_str})"),
-            clean_data,
+            safe_data,
         )
         inserted += 1
 
@@ -524,25 +582,29 @@ async def _upsert_providers(
 
     inserted = 0
     for row_data in valid_rows:
+        # Filter against allowlist to prevent SQL injection
+        safe_data = _filter_allowed_columns(row_data, ALLOWED_PROVIDER_COLUMNS)
+
         result = await db.execute(
             text("SELECT id FROM providers WHERE npi = :npi"),
-            {"npi": row_data["npi"]},
+            {"npi": safe_data["npi"]},
         )
         existing = result.scalar_one_or_none()
 
         if existing:
-            sets = ", ".join(f"{k} = :{k}" for k in row_data if k != "npi")
-            if sets:
+            update_cols = [k for k in safe_data if k != "npi"]
+            if update_cols:
+                sets = ", ".join(f"{k} = :{k}" for k in update_cols)
                 await db.execute(
                     text(f"UPDATE providers SET {sets}, updated_at = NOW() WHERE npi = :npi"),
-                    row_data,
+                    safe_data,
                 )
         else:
-            cols = ", ".join(row_data.keys())
-            vals = ", ".join(f":{k}" for k in row_data.keys())
+            cols = ", ".join(safe_data.keys())
+            vals = ", ".join(f":{k}" for k in safe_data.keys())
             await db.execute(
                 text(f"INSERT INTO providers ({cols}) VALUES ({vals})"),
-                row_data,
+                safe_data,
             )
             inserted += 1
 
@@ -583,30 +645,52 @@ async def process_upload(
     """
     logger.info(f"Processing upload: {file_path} as {data_type}")
 
-    df = _read_full_file(file_path)
-    total_rows = len(df)
-
     reverse_map = _build_reverse_mapping(column_mapping)
     all_errors: list[dict] = []
     valid_rows: list[dict] = []
+    total_rows = 0
 
-    for idx, pandas_row in df.iterrows():
-        row_dict = {col: pandas_row[col] for col in df.columns}
-        row_num = int(idx) + 2  # +2 for 1-based + header row
+    # Use chunked reading for CSV to avoid loading entire file into memory
+    file_type = detect_file_type(file_path)
+    if file_type == "csv":
+        chunk_iter = None
+        for encoding in ("utf-8", "latin-1", "cp1252"):
+            try:
+                chunk_iter = pd.read_csv(
+                    file_path, dtype=str, encoding=encoding, chunksize=5000
+                )
+                break
+            except UnicodeDecodeError:
+                continue
+        if chunk_iter is None:
+            chunk_iter = pd.read_csv(
+                file_path, dtype=str, encoding="utf-8", errors="replace",
+                chunksize=5000,
+            )
+        chunks = chunk_iter
+    else:
+        # Excel files: read fully (no chunksize support), wrap in list
+        chunks = [pd.read_excel(file_path, dtype=str)]
 
-        if data_type in ("roster", "eligibility"):
-            record, errors = _process_member_row(row_dict, reverse_map, row_num)
-        elif data_type in ("claims", "pharmacy"):
-            record, errors = _process_claim_row(row_dict, column_mapping, reverse_map, row_num)
-        elif data_type == "providers":
-            record, errors = _process_provider_row(row_dict, reverse_map, row_num)
-        else:
-            # Unknown type — try roster as default
-            record, errors = _process_member_row(row_dict, reverse_map, row_num)
+    for df_chunk in chunks:
+        total_rows += len(df_chunk)
+        for idx, pandas_row in df_chunk.iterrows():
+            row_dict = {col: pandas_row[col] for col in df_chunk.columns}
+            row_num = int(idx) + 2  # +2 for 1-based + header row
 
-        all_errors.extend(errors)
-        if record is not None:
-            valid_rows.append(record)
+            if data_type in ("roster", "eligibility"):
+                record, errors = _process_member_row(row_dict, reverse_map, row_num)
+            elif data_type in ("claims", "pharmacy"):
+                record, errors = _process_claim_row(row_dict, column_mapping, reverse_map, row_num)
+            elif data_type == "providers":
+                record, errors = _process_provider_row(row_dict, reverse_map, row_num)
+            else:
+                # Unknown type — try roster as default
+                record, errors = _process_member_row(row_dict, reverse_map, row_num)
+
+            all_errors.extend(errors)
+            if record is not None:
+                valid_rows.append(record)
 
     # Bulk insert based on data type
     try:
