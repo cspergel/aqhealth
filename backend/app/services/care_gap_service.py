@@ -548,18 +548,23 @@ async def _detect_medication_gaps(
     if period_days <= 0:
         period_days = 365
 
+    # Batch-fetch existing gaps for all eligible members to avoid N+1 queries
+    existing_gaps_result = await db.execute(
+        select(MemberGap).where(
+            MemberGap.member_id.in_(member_ids),
+            MemberGap.measure_id == measure.id,
+            MemberGap.measurement_year == measurement_year,
+        )
+    )
+    existing_gaps_by_member: dict[int, MemberGap] = {
+        g.member_id: g for g in existing_gaps_result.scalars().all()
+    }
+
     for member in members:
         fills = member_fills.get(member.id, [])
         pdc = _calculate_pdc(fills, year_start, min(today, year_end), period_days)
 
-        existing = await db.execute(
-            select(MemberGap).where(
-                MemberGap.member_id == member.id,
-                MemberGap.measure_id == measure.id,
-                MemberGap.measurement_year == measurement_year,
-            )
-        )
-        existing_gap = existing.scalar_one_or_none()
+        existing_gap = existing_gaps_by_member.get(member.id)
 
         if pdc >= pdc_threshold:
             if existing_gap and existing_gap.status == GapStatus.open.value:

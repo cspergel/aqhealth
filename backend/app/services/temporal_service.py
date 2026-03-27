@@ -5,6 +5,7 @@ Reconstructs population snapshots at any point in time, compares periods,
 generates metric timelines, and produces chronological change logs.
 """
 
+import calendar
 import logging
 from datetime import date, timedelta
 from decimal import Decimal
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member
 from app.models.claim import Claim
-from app.models.hcc import HccSuspect, SuspectStatus
+from app.models.hcc import HccSuspect, RafHistory, SuspectStatus
 from app.models.care_gap import MemberGap, GapStatus, GapMeasure
 
 logger = logging.getLogger(__name__)
@@ -63,14 +64,35 @@ async def get_population_snapshot(db: AsyncSession, as_of_date: str) -> dict:
     )
     member_count = _safe_int((await db.execute(member_q)).scalar())
 
-    # Average RAF from raf_history closest to that date
-    avg_raf_q = select(func.avg(Member.current_raf)).where(
-        and_(
-            or_(Member.coverage_start <= cutoff, Member.coverage_start.is_(None)),
-            or_(Member.coverage_end >= cutoff, Member.coverage_end.is_(None)),
+    # Average RAF from raf_history — find the most recent calculation_date <= cutoff per member
+    # Use a subquery to get the latest raf_history entry per active member before the cutoff
+    latest_raf_sub = (
+        select(
+            RafHistory.member_id,
+            func.max(RafHistory.calculation_date).label("max_date"),
         )
+        .where(RafHistory.calculation_date <= cutoff)
+        .group_by(RafHistory.member_id)
+        .subquery()
     )
-    avg_raf = round(_safe_float((await db.execute(avg_raf_q)).scalar()), 3)
+    avg_raf_q = select(func.avg(RafHistory.total_raf)).join(
+        latest_raf_sub,
+        and_(
+            RafHistory.member_id == latest_raf_sub.c.member_id,
+            RafHistory.calculation_date == latest_raf_sub.c.max_date,
+        ),
+    )
+    avg_raf_val = (await db.execute(avg_raf_q)).scalar()
+    # Fallback to current_raf if no raf_history rows exist yet
+    if avg_raf_val is None:
+        fallback_q = select(func.avg(Member.current_raf)).where(
+            and_(
+                or_(Member.coverage_start <= cutoff, Member.coverage_start.is_(None)),
+                or_(Member.coverage_end >= cutoff, Member.coverage_end.is_(None)),
+            )
+        )
+        avg_raf_val = (await db.execute(fallback_q)).scalar()
+    avg_raf = round(_safe_float(avg_raf_val), 3)
 
     # Suspects identified before that date
     suspect_q = select(func.count(HccSuspect.id)).where(
@@ -198,7 +220,8 @@ async def get_metric_timeline(db: AsyncSession, metric: str, months: int = 12) -
         while m <= 0:
             m += 12
             y -= 1
-        month_end = date(y, m, 28)  # approximate month end
+        _, last_day = calendar.monthrange(y, m)
+        month_end = date(y, m, last_day)
         month_label = f"{y}-{m:02d}"
 
         snapshot = await get_population_snapshot(db, month_end.isoformat())

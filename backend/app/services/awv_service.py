@@ -201,6 +201,9 @@ async def get_members_due_awv(
     if provider_id is not None:
         query = query.where(Member.pcp_provider_id == provider_id)
 
+    if risk_tier is not None:
+        query = query.where(Member.risk_tier == risk_tier)
+
     # Sort by RAF descending (highest value first)
     query = query.order_by(Member.current_raf.desc().nullslast())
     offset = (page - 1) * page_size

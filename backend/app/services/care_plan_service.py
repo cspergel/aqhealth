@@ -122,6 +122,7 @@ async def get_care_plan_detail(db: AsyncSession, plan_id: int) -> dict | None:
 
 async def create_care_plan(db: AsyncSession, data: dict) -> dict:
     """Create a new care plan."""
+    data.pop("id", None)
     plan = CarePlan(**data)
     db.add(plan)
     await db.flush()

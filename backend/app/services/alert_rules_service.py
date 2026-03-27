@@ -3,7 +3,7 @@ Alert Rules Engine — create, manage, and evaluate user-defined alerting rules.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import select, update, func
@@ -89,69 +89,155 @@ def _compare(value: float, operator: str, threshold: float) -> bool:
 
 
 async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dict]:
-    """Evaluate member-level metrics."""
+    """Evaluate member-level metrics using aggregate queries (no per-member loop)."""
     triggers = []
-    members = (await db.execute(select(Member))).scalars().all()
+    threshold = float(rule.threshold)
+    today = datetime.now(timezone.utc).date()
 
-    for m in members:
-        value = None
-        if rule.metric == "spend_12mo":
-            # Sum claims for this member
-            result = await db.execute(
-                select(func.coalesce(func.sum(Claim.paid_amount), 0))
-                .where(Claim.member_id == m.id)
-            )
-            value = float(result.scalar() or 0)
-        elif rule.metric == "raf_score":
+    if rule.metric == "spend_12mo":
+        twelve_months_ago = today - timedelta(days=365)
+        result = await db.execute(
+            select(Member.id, Member.first_name, Member.last_name,
+                   func.sum(Claim.paid_amount).label("spend"))
+            .join(Claim, Claim.member_id == Member.id)
+            .where(Claim.service_date >= twelve_months_ago)
+            .group_by(Member.id, Member.first_name, Member.last_name)
+            .having(func.sum(Claim.paid_amount) > threshold if rule.operator in ("gt", "gte")
+                    else func.sum(Claim.paid_amount) < threshold if rule.operator in ("lt", "lte")
+                    else func.sum(Claim.paid_amount) == threshold)
+        )
+        for row in result.all():
+            value = float(row.spend or 0)
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "member",
+                    "entity_id": row.id,
+                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                })
+
+    elif rule.metric == "raf_score":
+        result = await db.execute(
+            select(Member).where(Member.current_raf != None)  # noqa: E711
+        )
+        for m in result.scalars().all():
             value = float(m.current_raf) if m.current_raf else 0
-        elif rule.metric == "er_visits":
-            result = await db.execute(
-                select(func.count())
-                .select_from(Claim)
-                .where(Claim.member_id == m.id, Claim.service_category == "ed_observation")
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "member",
+                    "entity_id": m.id,
+                    "entity_name": f"{m.first_name} {m.last_name}",
+                    "metric_value": value,
+                    "message": f"Member {m.first_name} {m.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                })
+
+    elif rule.metric == "er_visits":
+        result = await db.execute(
+            select(Member.id, Member.first_name, Member.last_name,
+                   func.count(Claim.id).label("er_count"))
+            .join(Claim, Claim.member_id == Member.id)
+            .where(Claim.service_category == "ed_observation")
+            .group_by(Member.id, Member.first_name, Member.last_name)
+        )
+        for row in result.all():
+            value = int(row.er_count or 0)
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "member",
+                    "entity_id": row.id,
+                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                })
+
+    elif rule.metric == "admissions":
+        result = await db.execute(
+            select(Member.id, Member.first_name, Member.last_name,
+                   func.count(Claim.id).label("admit_count"))
+            .join(Claim, Claim.member_id == Member.id)
+            .where(Claim.service_category == "inpatient")
+            .group_by(Member.id, Member.first_name, Member.last_name)
+        )
+        for row in result.all():
+            value = int(row.admit_count or 0)
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "member",
+                    "entity_id": row.id,
+                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                })
+
+    elif rule.metric == "days_since_visit":
+        # Members with their last claim date
+        last_visit_sq = (
+            select(
+                Claim.member_id,
+                func.max(Claim.service_date).label("last_visit"),
             )
-            value = int(result.scalar() or 0)
-        elif rule.metric == "admissions":
-            result = await db.execute(
-                select(func.count())
-                .select_from(Claim)
-                .where(Claim.member_id == m.id, Claim.service_category == "inpatient")
-            )
-            value = int(result.scalar() or 0)
-        elif rule.metric == "days_since_visit":
-            result = await db.execute(
-                select(func.max(Claim.service_date))
-                .where(Claim.member_id == m.id)
-            )
-            last_visit = result.scalar()
-            if last_visit:
-                value = (datetime.now(timezone.utc).date() - last_visit).days
+            .group_by(Claim.member_id)
+            .subquery()
+        )
+        result = await db.execute(
+            select(Member.id, Member.first_name, Member.last_name,
+                   last_visit_sq.c.last_visit)
+            .outerjoin(last_visit_sq, Member.id == last_visit_sq.c.member_id)
+        )
+        for row in result.all():
+            if row.last_visit:
+                value = (today - row.last_visit).days
             else:
                 value = 9999
-        elif rule.metric == "gap_count":
-            result = await db.execute(
-                select(func.count())
-                .select_from(MemberGap)
-                .where(MemberGap.member_id == m.id, MemberGap.status == "open")
-            )
-            value = int(result.scalar() or 0)
-        elif rule.metric == "suspect_count":
-            from app.models.hcc import HccSuspect
-            result = await db.execute(
-                select(func.count())
-                .select_from(HccSuspect)
-                .where(HccSuspect.member_id == m.id, HccSuspect.status == "open")
-            )
-            value = int(result.scalar() or 0)
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "member",
+                    "entity_id": row.id,
+                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                })
 
-        if value is not None and _compare(value, rule.operator, float(rule.threshold)):
-            triggers.append({
-                "entity_type": "member",
-                "entity_id": m.id,
-                "entity_name": f"{m.first_name} {m.last_name}",
-                "metric_value": value,
-                "message": f"Member {m.first_name} {m.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
-            })
+    elif rule.metric == "gap_count":
+        result = await db.execute(
+            select(Member.id, Member.first_name, Member.last_name,
+                   func.count(MemberGap.id).label("gap_count"))
+            .join(MemberGap, MemberGap.member_id == Member.id)
+            .where(MemberGap.status == "open")
+            .group_by(Member.id, Member.first_name, Member.last_name)
+        )
+        for row in result.all():
+            value = int(row.gap_count or 0)
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "member",
+                    "entity_id": row.id,
+                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                })
+
+    elif rule.metric == "suspect_count":
+        from app.models.hcc import HccSuspect
+        result = await db.execute(
+            select(Member.id, Member.first_name, Member.last_name,
+                   func.count(HccSuspect.id).label("suspect_count"))
+            .join(HccSuspect, HccSuspect.member_id == Member.id)
+            .where(HccSuspect.status == "open")
+            .group_by(Member.id, Member.first_name, Member.last_name)
+        )
+        for row in result.all():
+            value = int(row.suspect_count or 0)
+            if _compare(value, rule.operator, threshold):
+                triggers.append({
+                    "entity_type": "member",
+                    "entity_id": row.id,
+                    "entity_name": f"{row.first_name} {row.last_name}",
+                    "metric_value": value,
+                    "message": f"Member {row.first_name} {row.last_name}: {rule.metric}={value} {rule.operator} {rule.threshold}",
+                })
+
     return triggers
 
 
@@ -165,12 +251,14 @@ async def _evaluate_provider_metric(db: AsyncSession, rule: AlertRule) -> list[d
         if rule.metric in ("capture_rate", "recapture_rate"):
             from app.models.hcc import HccSuspect
             total = (await db.execute(
-                select(func.count()).select_from(HccSuspect)
-                .where(HccSuspect.provider_id == p.id)
+                select(func.count(HccSuspect.id))
+                .join(Member, HccSuspect.member_id == Member.id)
+                .where(Member.pcp_provider_id == p.id)
             )).scalar() or 0
             captured = (await db.execute(
-                select(func.count()).select_from(HccSuspect)
-                .where(HccSuspect.provider_id == p.id, HccSuspect.status == "captured")
+                select(func.count(HccSuspect.id))
+                .join(Member, HccSuspect.member_id == Member.id)
+                .where(Member.pcp_provider_id == p.id, HccSuspect.status == "captured")
             )).scalar() or 0
             value = (captured / total * 100) if total > 0 else 0
         elif rule.metric == "panel_pmpm":

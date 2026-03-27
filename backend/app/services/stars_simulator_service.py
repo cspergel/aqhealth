@@ -16,6 +16,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
+from app.models.member import Member
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,8 @@ logger = logging.getLogger(__name__)
 QUALITY_BONUS_THRESHOLD = 4.0
 # Per-member quality bonus (approximate CMS benchmark)
 QUALITY_BONUS_PER_MEMBER = 248.0
-# Approximate total membership for bonus calculation
-DEFAULT_MEMBERSHIP = 4832
+# Fallback membership if query returns zero
+_FALLBACK_MEMBERSHIP = 1
 
 
 # ---------------------------------------------------------------------------
@@ -165,9 +166,16 @@ async def get_current_star_projection(db: AsyncSession) -> dict[str, Any]:
     part_c_rating = _round_half_up(part_c_avg)
     part_d_rating = _round_half_up(part_d_avg)
 
-    # Quality bonus
+    # Quality bonus — use real member count
+    member_count_q = await db.execute(
+        select(func.count(Member.id)).where(
+            (Member.coverage_end.is_(None)) | (Member.coverage_end >= __import__("datetime").date.today())
+        )
+    )
+    member_count = max(member_count_q.scalar() or 0, _FALLBACK_MEMBERSHIP)
+
     qualifies_bonus = overall_rating >= QUALITY_BONUS_THRESHOLD
-    bonus_amount = round(QUALITY_BONUS_PER_MEMBER * DEFAULT_MEMBERSHIP * 12) if qualifies_bonus else 0
+    bonus_amount = round(QUALITY_BONUS_PER_MEMBER * member_count * 12) if qualifies_bonus else 0
 
     return {
         "overall_rating": overall_rating,
@@ -244,8 +252,16 @@ async def simulate_scenario(
                 "new_rate": sim["current_rate"],
             })
 
+    # Real member count for bonus calculation
+    member_count_q = await db.execute(
+        select(func.count(Member.id)).where(
+            (Member.coverage_end.is_(None)) | (Member.coverage_end >= __import__("datetime").date.today())
+        )
+    )
+    member_count = max(member_count_q.scalar() or 0, _FALLBACK_MEMBERSHIP)
+
     qualifies_bonus = new_overall >= QUALITY_BONUS_THRESHOLD
-    bonus = round(QUALITY_BONUS_PER_MEMBER * DEFAULT_MEMBERSHIP * 12) if qualifies_bonus else 0
+    bonus = round(QUALITY_BONUS_PER_MEMBER * member_count * 12) if qualifies_bonus else 0
     bonus_change = bonus - current.get("quality_bonus_amount", 0)
 
     return {

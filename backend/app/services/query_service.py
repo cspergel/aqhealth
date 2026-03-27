@@ -118,9 +118,31 @@ async def answer_question(
 
     # ----- build context summary from DB (best-effort) -----
     ctx_label = _resolve_context(page_context)
+
+    # Fetch real population metrics to give the LLM actual data
+    data_context = ""
+    try:
+        from app.services.dashboard_service import get_dashboard_metrics
+        metrics = await get_dashboard_metrics(db)
+        data_context = (
+            "\n\nCurrent Population Data:\n"
+            f"- Total Members: {metrics.get('total_members', 'N/A')}\n"
+            f"- Average RAF Score: {metrics.get('avg_raf', 'N/A')}\n"
+            f"- Total Revenue Opportunity: ${metrics.get('total_revenue_opportunity', 'N/A'):,}\n"
+            f"- Open HCC Suspects: {metrics.get('open_suspects', 'N/A')}\n"
+            f"- Capture Rate: {metrics.get('capture_rate', 'N/A')}%\n"
+            f"- Care Gap Closure Rate: {metrics.get('gap_closure_rate', 'N/A')}%\n"
+            f"- Total PMPM: ${metrics.get('pmpm', 'N/A')}\n"
+            f"- High-Risk Members: {metrics.get('high_risk_count', 'N/A')}\n"
+        )
+    except Exception as e:
+        logger.warning("Could not fetch dashboard metrics for query context: %s", e)
+        data_context = "\n\n(Population data unavailable — answer based on general knowledge.)\n"
+
     context_block = (
         f"The user is currently viewing the '{ctx_label}' page. "
         "Answer with data relevant to that context when possible."
+        f"{data_context}"
     )
 
     system_prompt = (

@@ -366,25 +366,28 @@ async def _execute_step(
             return {"status": "failed", "error": str(e)}
 
     elif action == "generate_chase_list":
-        return {"status": "completed", "items_generated": 0, "message": "Chase list generated"}
+        logger.info("STUB: %s — not yet wired", action)
+        return {"status": "stub", "message": "Not yet wired — generate_chase_list"}
 
     elif action == "create_action_items":
-        return {"status": "completed", "items_created": 0, "message": "Action items created"}
+        logger.info("STUB: %s — not yet wired", action)
+        return {"status": "stub", "message": "Not yet wired — create_action_items"}
 
     elif action == "send_notification":
-        logger.info("STUB: %s — wire to real service when ready", action)
-        return {"status": "completed", "notifications_sent": 0, "message": "Notifications sent"}
+        logger.info("STUB: %s — not yet wired", action)
+        return {"status": "stub", "message": "Not yet wired — send_notification"}
 
     elif action == "generate_report":
-        logger.info("STUB: %s — wire to real service when ready", action)
-        return {"status": "completed", "report_id": None, "message": "Report generated"}
+        logger.info("STUB: %s — not yet wired", action)
+        return {"status": "stub", "message": "Not yet wired — generate_report"}
 
     elif action == "refresh_dashboard":
-        logger.info("STUB: %s — wire to real service when ready", action)
-        return {"status": "completed", "message": "Dashboard metrics refreshed"}
+        logger.info("STUB: %s — not yet wired", action)
+        return {"status": "stub", "message": "Not yet wired — refresh_dashboard"}
 
     elif action == "calculate_stars":
-        return {"status": "completed", "projected_rating": None, "message": "Stars calculation completed"}
+        logger.info("STUB: %s — not yet wired", action)
+        return {"status": "stub", "message": "Not yet wired — calculate_stars"}
 
     else:
         return {"status": "skipped", "message": f"Unknown action: {action}"}

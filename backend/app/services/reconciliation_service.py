@@ -6,6 +6,7 @@ Signal tier: Real-time estimates from ADT events, census, predictions.
 Record tier: Adjudicated claims from payers (final, authoritative).
 """
 
+import json
 import logging
 from datetime import timedelta
 from decimal import Decimal
@@ -234,11 +235,11 @@ async def reconcile_signals(db: AsyncSession) -> dict:
                     "outcome": "confirmed" if abs(accuracy) <= 0.15 else "partial",
                     "actual": str(actual_paid),
                     "was_correct": abs(accuracy) <= 0.15,
-                    "context": str({
+                    "context": json.dumps({
                         "category": category,
                         "facility": facility,
                         "accuracy_pct": round(accuracy * 100, 1),
-                    }).replace("'", '"'),
+                    }),
                 },
             )
 

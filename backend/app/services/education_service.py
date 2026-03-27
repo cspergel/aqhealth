@@ -21,24 +21,24 @@ logger = logging.getLogger(__name__)
 async def get_education_recommendations(
     db: AsyncSession,
     provider_id: int,
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     """
     AI-generated targeted education modules based on the provider's
     specific coding gaps and performance patterns.
     """
-    return []
+    return {"stub": True, "recommendations": [], "message": "Education recommendations not yet implemented"}
 
 
 # ---------------------------------------------------------------------------
 # Education Library
 # ---------------------------------------------------------------------------
 
-async def get_education_library(db: AsyncSession) -> list[dict[str, Any]]:
+async def get_education_library(db: AsyncSession) -> dict[str, Any]:
     """
     All available education modules with metadata: title, description,
     estimated time, category, relevance scores.
     """
-    return []
+    return {"stub": True, "modules": [], "message": "Education library not yet implemented"}
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +54,9 @@ async def track_completion(
     Record that a provider has completed an education module.
     """
     return {
+        "stub": True,
         "provider_id": provider_id,
         "module_id": module_id,
-        "completed": True,
+        "completed": False,
+        "message": "Completion tracking not yet persisted",
     }

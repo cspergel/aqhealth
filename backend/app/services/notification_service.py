@@ -18,9 +18,9 @@ async def send_notification(
 ) -> dict:
     """Send a notification. Currently stubs external channels, in_app works."""
     if channel == "in_app":
-        # Create an in-app notification (store in DB)
+        # STUB: log the intent but not yet persisted to DB
         logger.info(f"In-app notification to {recipient}: {subject}")
-        return {"sent": True, "channel": "in_app"}
+        return {"sent": False, "channel": "in_app", "stub": True, "message": "In-app notifications not yet persisted"}
     else:
         # STUB: log the intent, don't actually send
         logger.info(f"STUB: Would send {channel} to {recipient}: {subject}")

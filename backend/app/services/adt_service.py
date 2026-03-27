@@ -8,6 +8,7 @@ live census computation, and source configuration.
 
 import csv
 import io
+import json
 import logging
 import re
 from datetime import datetime, timedelta, date
@@ -122,7 +123,7 @@ async def process_adt_event(
             "discharge_date": discharge_date,
             "admit_source": event_data.get("admit_source"),
             "discharge_disposition": event_data.get("discharge_disposition"),
-            "diagnosis_codes": str(event_data.get("diagnosis_codes", "[]")).replace("'", '"'),
+            "diagnosis_codes": json.dumps(event_data.get("diagnosis_codes", [])),
             "facility_name": event_data.get("facility_name"),
             "facility_npi": event_data.get("facility_npi"),
             "facility_type": event_data.get("facility_type"),
@@ -695,7 +696,7 @@ async def configure_source(db: AsyncSession, source_data: dict) -> dict:
                 "id": source_id,
                 "name": source_data["name"],
                 "source_type": source_data["source_type"],
-                "config": str(source_data.get("config", {})).replace("'", '"'),
+                "config": json.dumps(source_data.get("config", {})),
                 "is_active": source_data.get("is_active", True),
             },
         )
@@ -709,7 +710,7 @@ async def configure_source(db: AsyncSession, source_data: dict) -> dict:
             {
                 "name": source_data["name"],
                 "source_type": source_data["source_type"],
-                "config": str(source_data.get("config", {})).replace("'", '"'),
+                "config": json.dumps(source_data.get("config", {})),
                 "is_active": source_data.get("is_active", True),
             },
         )

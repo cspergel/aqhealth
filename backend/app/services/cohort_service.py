@@ -5,380 +5,214 @@ All queries are tenant-scoped (session is already bound to the tenant schema).
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import date
 from typing import Any
 
+from sqlalchemy import select, func, and_, or_, exists
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.member import Member
+from app.models.claim import Claim
+from app.models.hcc import HccSuspect
+from app.models.care_gap import MemberGap, GapStatus
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# In-memory cohort store (replaced by DB in production)
-# ---------------------------------------------------------------------------
-
-_saved_cohorts: dict[int, dict] = {}
-_next_cohort_id = 1
-
-
-# ---------------------------------------------------------------------------
-# Build Cohort
+# Build Cohort — queries real DB
 # ---------------------------------------------------------------------------
 
 async def build_cohort(db: AsyncSession, filters: dict) -> dict:
     """
-    Build a cohort from filter criteria.
+    Build a cohort from filter criteria by querying the Members table.
 
     Supported filter keys:
     - age_min, age_max: int
     - gender: str ("M", "F")
-    - diagnoses_include: list[str]  (ICD-10 codes the member MUST have)
+    - diagnoses_include: list[str]  (ICD-10 codes the member MUST have via claims)
     - diagnoses_exclude: list[str]  (ICD-10 codes the member must NOT have)
-    - medications: list[str]
-    - risk_tier: str ("high", "medium", "low")
-    - provider_id: int
-    - group_id: int
-    - er_visits_min: int
-    - admissions_min: int
+    - risk_tier: str ("high", "medium", "low", "rising", "complex")
+    - provider_id: int  (PCP provider ID)
     - raf_min: float
     - raf_max: float
-    - care_gaps: list[str]  (measure codes with open gaps)
-    - suspect_hccs: list[str]  (HCC codes that are suspects)
+    - has_suspects: bool  (members with open HCC suspects)
+    - has_gaps: bool  (members with open care gaps)
 
     Returns cohort results with aggregate stats.
     """
-    # In production, this dynamically builds SQL from filters.
-    # For now, return shaped mock data for the "Diabetic 65+ with 2+ ER" cohort.
+    today = date.today()
+    query = select(Member).where(
+        # Only active members (coverage overlaps today)
+        or_(Member.coverage_start <= today, Member.coverage_start.is_(None)),
+        or_(Member.coverage_end >= today, Member.coverage_end.is_(None)),
+    )
 
-    members = [
-        {
-            "id": "M1001",
-            "name": "Margaret Chen",
-            "age": 72,
-            "gender": "F",
-            "raf": 1.847,
-            "risk_tier": "high",
-            "provider": "Dr. Sarah Patel",
-            "group": "ISG Tampa",
-            "er_visits": 3,
-            "admissions": 1,
-            "total_spend": 34_200,
-            "top_diagnoses": ["E11.65", "I10", "N18.3"],
-            "open_gaps": 2,
-            "suspect_hccs": ["HCC 37", "HCC 226"],
-        },
-        {
-            "id": "M1047",
-            "name": "Robert Williams",
-            "age": 68,
-            "gender": "M",
-            "raf": 2.134,
-            "risk_tier": "high",
-            "provider": "Dr. James Rivera",
-            "group": "ISG Tampa",
-            "er_visits": 4,
-            "admissions": 2,
-            "total_spend": 52_800,
-            "top_diagnoses": ["E11.22", "I50.9", "J44.1"],
-            "open_gaps": 3,
-            "suspect_hccs": ["HCC 37", "HCC 280"],
-        },
-        {
-            "id": "M1123",
-            "name": "Dorothy Jackson",
-            "age": 78,
-            "gender": "F",
-            "raf": 1.623,
-            "risk_tier": "high",
-            "provider": "Dr. Lisa Chen",
-            "group": "FMG St. Pete",
-            "er_visits": 2,
-            "admissions": 1,
-            "total_spend": 28_900,
-            "top_diagnoses": ["E11.9", "E78.5", "M81.0"],
-            "open_gaps": 1,
-            "suspect_hccs": ["HCC 37"],
-        },
-        {
-            "id": "M1089",
-            "name": "James Thompson",
-            "age": 71,
-            "gender": "M",
-            "raf": 1.956,
-            "risk_tier": "high",
-            "provider": "Dr. Michael Torres",
-            "group": "ISG Tampa",
-            "er_visits": 3,
-            "admissions": 1,
-            "total_spend": 41_300,
-            "top_diagnoses": ["E11.65", "I25.10", "N18.4"],
-            "open_gaps": 2,
-            "suspect_hccs": ["HCC 37", "HCC 329"],
-        },
-        {
-            "id": "M1201",
-            "name": "Patricia Davis",
-            "age": 66,
-            "gender": "F",
-            "raf": 1.478,
-            "risk_tier": "medium",
-            "provider": "Dr. Angela Brooks",
-            "group": "FMG St. Pete",
-            "er_visits": 2,
-            "admissions": 0,
-            "total_spend": 22_100,
-            "top_diagnoses": ["E11.40", "I10", "E78.0"],
-            "open_gaps": 1,
-            "suspect_hccs": ["HCC 37"],
-        },
-        {
-            "id": "M1156",
-            "name": "William Harris",
-            "age": 74,
-            "gender": "M",
-            "raf": 2.312,
-            "risk_tier": "high",
-            "provider": "Dr. Sarah Patel",
-            "group": "ISG Tampa",
-            "er_visits": 5,
-            "admissions": 3,
-            "total_spend": 67_400,
-            "top_diagnoses": ["E11.65", "I50.22", "N18.5", "J44.1"],
-            "open_gaps": 4,
-            "suspect_hccs": ["HCC 37", "HCC 226", "HCC 329"],
-        },
-        {
-            "id": "M1278",
-            "name": "Barbara Martinez",
-            "age": 69,
-            "gender": "F",
-            "raf": 1.589,
-            "risk_tier": "high",
-            "provider": "Dr. James Rivera",
-            "group": "ISG Brandon",
-            "er_visits": 2,
-            "admissions": 1,
-            "total_spend": 31_600,
-            "top_diagnoses": ["E11.9", "G47.33", "E66.01"],
-            "open_gaps": 2,
-            "suspect_hccs": ["HCC 37", "HCC 48"],
-        },
-        {
-            "id": "M1334",
-            "name": "Charles Anderson",
-            "age": 76,
-            "gender": "M",
-            "raf": 1.734,
-            "risk_tier": "high",
-            "provider": "Dr. Lisa Chen",
-            "group": "FMG St. Pete",
-            "er_visits": 3,
-            "admissions": 1,
-            "total_spend": 38_200,
-            "top_diagnoses": ["E11.22", "I48.91", "N18.3"],
-            "open_gaps": 2,
-            "suspect_hccs": ["HCC 37", "HCC 238"],
-        },
-    ]
+    # --- Apply filters ---
 
-    total_spend = sum(m["total_spend"] for m in members)
-    avg_raf = round(sum(m["raf"] for m in members) / len(members), 3)
+    # Age filters (computed from date_of_birth)
+    if filters.get("age_min") is not None:
+        max_dob = date(today.year - int(filters["age_min"]), today.month, today.day)
+        query = query.where(Member.date_of_birth <= max_dob)
+    if filters.get("age_max") is not None:
+        min_dob = date(today.year - int(filters["age_max"]) - 1, today.month, today.day)
+        query = query.where(Member.date_of_birth >= min_dob)
 
-    # Aggregate top diagnoses
-    diag_counts: dict[str, int] = {}
-    suspect_counts: dict[str, int] = {}
-    for m in members:
-        for d in m["top_diagnoses"]:
-            diag_counts[d] = diag_counts.get(d, 0) + 1
-        for s in m["suspect_hccs"]:
-            suspect_counts[s] = suspect_counts.get(s, 0) + 1
+    # Gender
+    if filters.get("gender"):
+        query = query.where(Member.gender == filters["gender"])
 
-    top_diagnoses = sorted(diag_counts.items(), key=lambda x: -x[1])[:5]
-    top_suspects = sorted(suspect_counts.items(), key=lambda x: -x[1])[:5]
+    # Risk tier
+    if filters.get("risk_tier"):
+        query = query.where(Member.risk_tier == filters["risk_tier"])
+
+    # Provider (PCP)
+    if filters.get("provider_id") is not None:
+        query = query.where(Member.pcp_provider_id == int(filters["provider_id"]))
+
+    # RAF range
+    if filters.get("raf_min") is not None:
+        query = query.where(Member.current_raf >= float(filters["raf_min"]))
+    if filters.get("raf_max") is not None:
+        query = query.where(Member.current_raf <= float(filters["raf_max"]))
+
+    # Diagnoses include — member must have at least one claim with each code
+    for code in (filters.get("diagnoses_include") or []):
+        query = query.where(
+            exists(
+                select(Claim.id).where(
+                    Claim.member_id == Member.id,
+                    Claim.diagnosis_codes.any(code),
+                )
+            )
+        )
+
+    # Diagnoses exclude — member must NOT have claims with these codes
+    for code in (filters.get("diagnoses_exclude") or []):
+        query = query.where(
+            ~exists(
+                select(Claim.id).where(
+                    Claim.member_id == Member.id,
+                    Claim.diagnosis_codes.any(code),
+                )
+            )
+        )
+
+    # Has open suspects
+    if filters.get("has_suspects"):
+        query = query.where(
+            exists(
+                select(HccSuspect.id).where(
+                    HccSuspect.member_id == Member.id,
+                    HccSuspect.status == "open",
+                )
+            )
+        )
+
+    # Has open care gaps
+    if filters.get("has_gaps"):
+        query = query.where(
+            exists(
+                select(MemberGap.id).where(
+                    MemberGap.member_id == Member.id,
+                    MemberGap.status == GapStatus.open,
+                )
+            )
+        )
+
+    # Execute
+    result = await db.execute(query)
+    members_raw = result.scalars().all()
+
+    # Build response
+    members = []
+    total_raf = 0.0
+    for m in members_raw:
+        age = (today - m.date_of_birth).days // 365 if m.date_of_birth else None
+        raf = float(m.current_raf) if m.current_raf is not None else 0.0
+        total_raf += raf
+        members.append({
+            "id": m.id,
+            "member_id": m.member_id,
+            "first_name": m.first_name,
+            "last_name": m.last_name,
+            "age": age,
+            "gender": m.gender,
+            "raf": raf,
+            "risk_tier": m.risk_tier,
+            "pcp_provider_id": m.pcp_provider_id,
+        })
+
+    count = len(members)
+    avg_raf = round(total_raf / count, 3) if count > 0 else 0.0
+    ages = [m["age"] for m in members if m["age"] is not None]
+    avg_age = round(sum(ages) / len(ages), 1) if ages else 0.0
+    pct_high = round(sum(1 for m in members if m["risk_tier"] == "high") / count * 100, 1) if count > 0 else 0.0
 
     return {
-        "member_count": len(members),
+        "member_count": count,
         "filters_applied": filters,
         "aggregate_stats": {
             "avg_raf": avg_raf,
-            "total_spend": total_spend,
-            "avg_spend": round(total_spend / len(members), 2),
-            "avg_age": round(sum(m["age"] for m in members) / len(members), 1),
-            "avg_er_visits": round(
-                sum(m["er_visits"] for m in members) / len(members), 1
-            ),
-            "avg_admissions": round(
-                sum(m["admissions"] for m in members) / len(members), 1
-            ),
-            "pct_high_risk": round(
-                sum(1 for m in members if m["risk_tier"] == "high") / len(members) * 100, 1
-            ),
-            "total_open_gaps": sum(m["open_gaps"] for m in members),
+            "avg_age": avg_age,
+            "pct_high_risk": pct_high,
         },
-        "top_diagnoses": [{"code": c, "count": n} for c, n in top_diagnoses],
-        "top_suspects": [{"code": c, "count": n} for c, n in top_suspects],
         "members": members,
     }
 
 
 # ---------------------------------------------------------------------------
-# Save Cohort
+# Save Cohort  (planned — needs Cohort DB model)
 # ---------------------------------------------------------------------------
 
 async def save_cohort(db: AsyncSession, name: str, filters: dict) -> dict:
-    """Save a named cohort definition for tracking over time."""
-    global _next_cohort_id
-    cohort_id = _next_cohort_id
-    _next_cohort_id += 1
+    """Save a named cohort definition for tracking over time.
 
-    cohort = {
-        "id": cohort_id,
+    PLANNED: Requires a Cohort DB model (not yet created). Currently returns
+    a stub response so callers know this is not persisted.
+    """
+    logger.warning("save_cohort is a stub — Cohort model not yet created")
+    return {
+        "stub": True,
+        "message": "Cohort saving not yet persisted — Cohort DB model planned",
         "name": name,
         "filters": filters,
-        "created_at": date.today().isoformat(),
-        "member_count": 8,  # Would be computed from filters
-        "last_run": date.today().isoformat(),
     }
-    _saved_cohorts[cohort_id] = cohort
-    return cohort
 
 
 # ---------------------------------------------------------------------------
-# List / Get Cohorts
+# List / Get Cohorts  (planned — needs Cohort DB model)
 # ---------------------------------------------------------------------------
 
 async def list_cohorts(db: AsyncSession) -> list[dict]:
-    """Return all saved cohorts."""
-    # Include pre-seeded cohorts plus any saved during this session
-    seeded: list[dict] = [
-        {
-            "id": 100,
-            "name": "Diabetic 65+ with 2+ ER Visits",
-            "filters": {
-                "age_min": 65,
-                "diagnoses_include": ["E11"],
-                "er_visits_min": 2,
-            },
-            "created_at": "2026-01-15",
-            "member_count": 8,
-            "last_run": "2026-03-24",
-            "trend_sparkline": [6, 7, 7, 8, 8, 8],
-        },
-        {
-            "id": 101,
-            "name": "High-Risk CHF Patients",
-            "filters": {
-                "risk_tier": "high",
-                "diagnoses_include": ["I50"],
-            },
-            "created_at": "2026-02-01",
-            "member_count": 42,
-            "last_run": "2026-03-24",
-            "trend_sparkline": [38, 40, 41, 42, 42, 42],
-        },
-        {
-            "id": 102,
-            "name": "Rising Risk — RAF 1.0-1.5",
-            "filters": {
-                "raf_min": 1.0,
-                "raf_max": 1.5,
-                "risk_tier": "medium",
-            },
-            "created_at": "2026-02-10",
-            "member_count": 312,
-            "last_run": "2026-03-24",
-            "trend_sparkline": [290, 298, 305, 308, 310, 312],
-        },
-        {
-            "id": 103,
-            "name": "Uncontrolled Diabetes — Open Gaps",
-            "filters": {
-                "diagnoses_include": ["E11"],
-                "care_gaps": ["CDC-HbA1c"],
-            },
-            "created_at": "2026-02-20",
-            "member_count": 127,
-            "last_run": "2026-03-24",
-            "trend_sparkline": [142, 138, 134, 131, 129, 127],
-        },
-    ]
+    """Return all saved cohorts.
 
-    saved_list = list(_saved_cohorts.values())
-    return seeded + saved_list
+    PLANNED: Requires a Cohort DB model (not yet created). Returns empty list.
+    """
+    logger.warning("list_cohorts is a stub — Cohort model not yet created")
+    return []
 
 
 async def get_cohort_detail(db: AsyncSession, cohort_id: int) -> dict | None:
-    """Return cohort detail with members."""
-    # For pre-seeded cohorts, return mock data
-    if cohort_id in (100, 101, 102, 103):
-        cohorts = await list_cohorts(db)
-        cohort = next((c for c in cohorts if c["id"] == cohort_id), None)
-        if cohort:
-            result = await build_cohort(db, cohort["filters"])
-            return {**cohort, **result}
-    # Check in-memory saved cohorts
-    if cohort_id in _saved_cohorts:
-        result = await build_cohort(db, _saved_cohorts[cohort_id]["filters"])
-        return {**_saved_cohorts[cohort_id], **result}
+    """Return cohort detail with members.
+
+    PLANNED: Requires a Cohort DB model. Returns None.
+    """
     return None
 
 
 # ---------------------------------------------------------------------------
-# Cohort Trends
+# Cohort Trends  (planned — needs Cohort DB model + historical snapshots)
 # ---------------------------------------------------------------------------
 
 async def get_cohort_trends(db: AsyncSession, cohort_id: int) -> dict:
-    """Return monthly metric trends for a saved cohort."""
+    """Return monthly metric trends for a saved cohort.
+
+    PLANNED: Requires Cohort model with stored snapshots.
+    """
     return {
+        "stub": True,
         "cohort_id": cohort_id,
-        "months": [
-            {
-                "month": "2025-10",
-                "member_count": 6,
-                "avg_raf": 1.712,
-                "total_spend": 178_400,
-                "avg_spend": 29_733,
-                "gap_closure_rate": 42.1,
-            },
-            {
-                "month": "2025-11",
-                "member_count": 7,
-                "avg_raf": 1.734,
-                "total_spend": 201_200,
-                "avg_spend": 28_743,
-                "gap_closure_rate": 45.8,
-            },
-            {
-                "month": "2025-12",
-                "member_count": 7,
-                "avg_raf": 1.756,
-                "total_spend": 215_800,
-                "avg_spend": 30_829,
-                "gap_closure_rate": 48.3,
-            },
-            {
-                "month": "2026-01",
-                "member_count": 8,
-                "avg_raf": 1.789,
-                "total_spend": 242_100,
-                "avg_spend": 30_263,
-                "gap_closure_rate": 51.2,
-            },
-            {
-                "month": "2026-02",
-                "member_count": 8,
-                "avg_raf": 1.821,
-                "total_spend": 268_300,
-                "avg_spend": 33_538,
-                "gap_closure_rate": 55.6,
-            },
-            {
-                "month": "2026-03",
-                "member_count": 8,
-                "avg_raf": 1.834,
-                "total_spend": 316_500,
-                "avg_spend": 39_563,
-                "gap_closure_rate": 58.9,
-            },
-        ],
+        "message": "Cohort trends not yet implemented — Cohort DB model planned",
+        "months": [],
     }

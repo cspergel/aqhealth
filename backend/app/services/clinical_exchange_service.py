@@ -40,11 +40,11 @@ async def generate_hcc_evidence_package(
     try:
         # 1. Find diagnosis codes associated with this HCC
         suspects_q = await db.execute(
-            select(HccSuspect.icd_code, HccSuspect.hcc_label, HccSuspect.evidence_summary)
+            select(HccSuspect.icd10_code, HccSuspect.hcc_label, HccSuspect.evidence_summary)
             .where(HccSuspect.member_id == member_id, HccSuspect.hcc_code == hcc_code)
         )
         suspects = suspects_q.all()
-        dx_codes = [s.icd_code for s in suspects if s.icd_code]
+        dx_codes = [s.icd10_code for s in suspects if s.icd10_code]
         evidence["hcc_label"] = suspects[0].hcc_label if suspects else None
         evidence["diagnosis_codes"] = dx_codes
         evidence["suspect_evidence"] = [s.evidence_summary for s in suspects if s.evidence_summary]
@@ -53,11 +53,11 @@ async def generate_hcc_evidence_package(
         if dx_codes:
             claims_q = await db.execute(
                 select(
-                    Claim.claim_id, Claim.service_date, Claim.primary_dx,
-                    Claim.rendering_provider_name, Claim.facility_name,
+                    Claim.claim_id, Claim.service_date, Claim.diagnosis_codes,
+                    Claim.rendering_provider_id, Claim.facility_name,
                     Claim.paid_amount,
                 )
-                .where(Claim.member_id == member_id, Claim.primary_dx.in_(dx_codes))
+                .where(Claim.member_id == member_id, Claim.diagnosis_codes.overlap(dx_codes))
                 .order_by(Claim.service_date.desc())
                 .limit(20)
             )
@@ -65,8 +65,8 @@ async def generate_hcc_evidence_package(
                 {
                     "claim_id": r.claim_id,
                     "service_date": str(r.service_date) if r.service_date else None,
-                    "diagnosis": r.primary_dx,
-                    "provider": r.rendering_provider_name,
+                    "diagnosis_codes": r.diagnosis_codes,
+                    "rendering_provider_id": r.rendering_provider_id,
                     "facility": r.facility_name,
                     "paid": float(r.paid_amount) if r.paid_amount else None,
                 }
@@ -94,7 +94,7 @@ async def generate_hcc_evidence_package(
         # 4. Recent encounters (dates, providers, facilities)
         encounters_q = await db.execute(
             select(
-                Claim.service_date, Claim.rendering_provider_name,
+                Claim.service_date, Claim.rendering_provider_id,
                 Claim.facility_name, Claim.service_category,
             )
             .where(Claim.member_id == member_id)
@@ -104,7 +104,7 @@ async def generate_hcc_evidence_package(
         evidence["recent_encounters"] = [
             {
                 "date": str(r.service_date) if r.service_date else None,
-                "provider": r.rendering_provider_name,
+                "rendering_provider_id": r.rendering_provider_id,
                 "facility": r.facility_name,
                 "service_category": r.service_category,
             }

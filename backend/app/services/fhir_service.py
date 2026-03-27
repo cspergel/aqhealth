@@ -6,7 +6,16 @@ AQSoft data model: Patient -> Member, Condition -> diagnoses, Encounter -> visit
 MedicationRequest -> pharmacy, Observation -> labs, Procedure -> procedures.
 """
 
+import logging
+from datetime import date
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.member import Member
+from app.models.claim import Claim
+
+logger = logging.getLogger(__name__)
 
 
 # Standard FHIR resource type handlers
@@ -120,31 +129,177 @@ def get_capability_statement() -> dict:
 # ---------------------------------------------------------------------------
 
 async def _ingest_patient(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Patient to Member model (stub)."""
-    # Extract: id, name, birthDate, gender, address, identifier (MBI)
-    pass
+    """Map FHIR Patient to Member model — create or update."""
+    # Extract FHIR fields
+    fhir_id = resource.get("id", "")
+
+    # Name
+    names = resource.get("name", [])
+    first_name = ""
+    last_name = ""
+    if names:
+        name_obj = names[0]
+        first_name = " ".join(name_obj.get("given", []))
+        last_name = name_obj.get("family", "")
+
+    # Demographics
+    birth_date_str = resource.get("birthDate")
+    birth_date = date.fromisoformat(birth_date_str) if birth_date_str else None
+    gender_raw = resource.get("gender", "")
+    gender = gender_raw[0].upper() if gender_raw else "U"
+
+    # Identifier — look for MBI or member ID
+    member_id_value = fhir_id
+    for ident in resource.get("identifier", []):
+        system = ident.get("system", "")
+        if "mbi" in system.lower() or "member" in system.lower():
+            member_id_value = ident.get("value", fhir_id)
+            break
+
+    # Address / zip
+    zip_code = None
+    for addr in resource.get("address", []):
+        zip_code = addr.get("postalCode")
+        if zip_code:
+            break
+
+    # Check if member already exists by member_id
+    existing_q = await db.execute(
+        select(Member).where(Member.member_id == member_id_value)
+    )
+    existing = existing_q.scalar_one_or_none()
+
+    if existing:
+        existing.first_name = first_name or existing.first_name
+        existing.last_name = last_name or existing.last_name
+        if birth_date:
+            existing.date_of_birth = birth_date
+        existing.gender = gender
+        if zip_code:
+            existing.zip_code = zip_code
+        logger.info("Updated existing member %s from FHIR Patient", member_id_value)
+    else:
+        member = Member(
+            member_id=member_id_value,
+            first_name=first_name,
+            last_name=last_name,
+            date_of_birth=birth_date or date(1900, 1, 1),
+            gender=gender,
+            zip_code=zip_code,
+        )
+        db.add(member)
+        logger.info("Created new member %s from FHIR Patient", member_id_value)
+
+    await db.flush()
 
 
 async def _ingest_condition(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Condition coding to ICD-10 diagnoses (stub)."""
-    pass
+    """Map FHIR Condition coding to ICD-10 — creates a claim-like record."""
+    # Extract ICD-10 codes from coding
+    icd_codes: list[str] = []
+    code_block = resource.get("code", {})
+    for coding in code_block.get("coding", []):
+        system = coding.get("system", "")
+        if "icd" in system.lower() or "icd-10" in system.lower():
+            code_val = coding.get("code")
+            if code_val:
+                icd_codes.append(code_val)
+    # Fallback: take any code present
+    if not icd_codes:
+        for coding in code_block.get("coding", []):
+            code_val = coding.get("code")
+            if code_val:
+                icd_codes.append(code_val)
+
+    if not icd_codes:
+        logger.warning("FHIR Condition has no extractable codes: %s", resource.get("id"))
+        return
+
+    # Resolve member from subject reference
+    subject_ref = resource.get("subject", {}).get("reference", "")
+    # e.g. "Patient/12345"
+    patient_id = subject_ref.split("/")[-1] if "/" in subject_ref else subject_ref
+
+    member_q = await db.execute(
+        select(Member).where(Member.member_id == patient_id)
+    )
+    member = member_q.scalar_one_or_none()
+    if not member:
+        logger.warning("FHIR Condition references unknown patient: %s", patient_id)
+        return
+
+    # Onset / recorded date
+    onset_str = resource.get("onsetDateTime") or resource.get("recordedDate")
+    service_date = date.fromisoformat(onset_str[:10]) if onset_str else date.today()
+
+    # Create a professional claim record with the diagnosis codes
+    claim = Claim(
+        member_id=member.id,
+        claim_type="professional",
+        service_date=service_date,
+        diagnosis_codes=icd_codes,
+        service_category="professional",
+        data_tier="signal",
+        is_estimated=False,
+        signal_source="fhir_condition",
+    )
+    db.add(claim)
+    await db.flush()
+    logger.info("Created claim from FHIR Condition for member %s with codes %s", patient_id, icd_codes)
 
 
 async def _ingest_medication(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR MedicationRequest to pharmacy data (stub)."""
-    pass
+    """Map FHIR MedicationRequest to pharmacy claim."""
+    # Resolve member
+    subject_ref = resource.get("subject", {}).get("reference", "")
+    patient_id = subject_ref.split("/")[-1] if "/" in subject_ref else subject_ref
+
+    member_q = await db.execute(
+        select(Member).where(Member.member_id == patient_id)
+    )
+    member = member_q.scalar_one_or_none()
+    if not member:
+        logger.warning("FHIR MedicationRequest references unknown patient: %s", patient_id)
+        return
+
+    # Extract drug name from medicationCodeableConcept or medicationReference
+    drug_name = None
+    med_concept = resource.get("medicationCodeableConcept", {})
+    if med_concept:
+        drug_name = med_concept.get("text")
+        if not drug_name:
+            codings = med_concept.get("coding", [])
+            if codings:
+                drug_name = codings[0].get("display") or codings[0].get("code")
+
+    authored_str = resource.get("authoredOn")
+    service_date = date.fromisoformat(authored_str[:10]) if authored_str else date.today()
+
+    claim = Claim(
+        member_id=member.id,
+        claim_type="pharmacy",
+        service_date=service_date,
+        drug_name=drug_name,
+        service_category="pharmacy",
+        data_tier="signal",
+        is_estimated=False,
+        signal_source="fhir_medication",
+    )
+    db.add(claim)
+    await db.flush()
+    logger.info("Created pharmacy claim from FHIR MedicationRequest for member %s", patient_id)
 
 
 async def _ingest_encounter(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Encounter to visit / claim records (stub)."""
-    pass
+    """Map FHIR Encounter to visit / claim records — not yet implemented."""
+    return {"status": "not_implemented", "resource_type": "Encounter"}
 
 
 async def _ingest_observation(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Observation to lab results (stub)."""
-    pass
+    """Map FHIR Observation to lab results — not yet implemented."""
+    return {"status": "not_implemented", "resource_type": "Observation"}
 
 
 async def _ingest_procedure(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Procedure to procedure codes (stub)."""
-    pass
+    """Map FHIR Procedure to procedure codes — not yet implemented."""
+    return {"status": "not_implemented", "resource_type": "Procedure"}

@@ -7,7 +7,7 @@ All queries are tenant-scoped (session is already bound to the tenant schema).
 import logging
 from decimal import Decimal
 
-from sqlalchemy import func, case, distinct, and_, or_, extract
+from sqlalchemy import func, case, distinct, and_, or_, extract, literal_column, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -93,7 +93,7 @@ async def get_expenditure_overview(db: AsyncSession) -> dict:
     try:
         from sqlalchemy import text as sa_text
         cap_result = await db.execute(
-            sa_text("SELECT COALESCE(SUM(payment_amount), 0) as cap_revenue FROM capitation_payments")
+            sa_text("SELECT COALESCE(SUM(total_payment), 0) as cap_revenue FROM capitation_payments")
         )
         cap_revenue = float(cap_result.scalar() or 0)
         if cap_revenue > 0:
@@ -1055,7 +1055,7 @@ async def get_part_analysis(db: AsyncSession, period: str | None = None) -> dict
 
     # Part C (MA plan admin) — from capitation payments
     cap_result = await db.execute(
-        select(func.coalesce(func.sum(CapitationPayment.amount), 0))
+        select(func.coalesce(func.sum(CapitationPayment.total_payment), 0))
     )
     cap_total = _safe_float(cap_result.scalar())
     parts["part_c"] = {
@@ -1101,8 +1101,6 @@ async def get_expenditure_by_period(
             literal_column("'-'"),
             func.lpad(func.cast(extract("month", Claim.service_date), String), 2, "0"),
         )
-
-    from sqlalchemy import String as SaString
 
     query = (
         select(

@@ -9,7 +9,7 @@ import logging
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member
