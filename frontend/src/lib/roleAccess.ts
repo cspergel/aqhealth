@@ -24,6 +24,7 @@ export const ROLE_ACCESS: Record<string, RoleConfig> = {
       "finance",
       "data",
       "population",
+      "care ops",
     ],
     hidePages: ["/clinical"],
   },
@@ -38,7 +39,7 @@ export const ROLE_ACCESS: Record<string, RoleConfig> = {
     ],
   },
   care_manager: {
-    sections: ["clinical", "overview", "population", "quality"],
+    sections: ["clinical", "overview", "population", "quality", "care ops"],
     hidePages: [
       "/financial",
       "/risk-accounting",

@@ -109,6 +109,20 @@ import {
   mockSurplusDeficitByPlan,
   mockSurplusDeficitByGroup,
   mockRiskCorridorAnalysis,
+  mockCarePlans,
+  mockCarePlanDetail,
+  mockCarePlanSummary,
+  mockCaseDashboard,
+  mockCaseAssignments,
+  mockCaseDetail,
+  mockCaseWorkload,
+  mockAuthDashboard,
+  mockAuthRequests,
+  mockAuthCompliance,
+  mockAuthOverdue,
+  mockPartAnalysis,
+  mockExpenditureByPeriod,
+  mockDashboardActions,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -1691,6 +1705,61 @@ export function enableDemoMode() {
       // Risk Accounting: risk-corridor
       else if (url.includes("/api/risk/risk-corridor")) {
         mockResponse = mockRiskCorridorAnalysis;
+      }
+
+      // Care Plans
+      else if (url.includes("/api/care-plans/summary")) {
+        mockResponse = mockCarePlanSummary;
+      }
+      else if (url.match(/\/api\/care-plans\/\d+$/)) {
+        mockResponse = mockCarePlanDetail;
+      }
+      else if (url.includes("/api/care-plans")) {
+        mockResponse = mockCarePlans;
+      }
+
+      // Case Management
+      else if (url.includes("/api/cases/dashboard")) {
+        mockResponse = mockCaseDashboard;
+      }
+      else if (url.includes("/api/cases/workload")) {
+        mockResponse = mockCaseWorkload;
+      }
+      else if (url.match(/\/api\/cases\/\d+$/)) {
+        mockResponse = mockCaseDetail;
+      }
+      else if (url.includes("/api/cases")) {
+        mockResponse = mockCaseAssignments;
+      }
+
+      // Prior Auth / UM
+      else if (url.includes("/api/auth-requests/dashboard")) {
+        mockResponse = mockAuthDashboard;
+      }
+      else if (url.includes("/api/auth-requests/compliance")) {
+        mockResponse = mockAuthCompliance;
+      }
+      else if (url.includes("/api/auth-requests/overdue")) {
+        mockResponse = mockAuthOverdue;
+      }
+      else if (url.match(/\/api\/auth-requests\/\d+$/)) {
+        mockResponse = mockAuthRequests[0];
+      }
+      else if (url.includes("/api/auth-requests")) {
+        mockResponse = mockAuthRequests;
+      }
+
+      // Expenditure: Part A/B/C/D and period
+      else if (url.includes("/api/expenditure/by-part")) {
+        mockResponse = mockPartAnalysis;
+      }
+      else if (url.includes("/api/expenditure/by-period")) {
+        mockResponse = mockExpenditureByPeriod;
+      }
+
+      // Dashboard actions
+      else if (url.includes("/api/dashboard/actions")) {
+        mockResponse = mockDashboardActions;
       }
 
       // Generic insights

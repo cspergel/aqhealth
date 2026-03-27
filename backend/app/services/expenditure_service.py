@@ -954,3 +954,155 @@ async def get_expenditure_insights(db: AsyncSession, category: str | None = None
         }
         for i in insights
     ]
+
+
+# ---------------------------------------------------------------------------
+# Medicare Part A/B/C/D Analysis
+# ---------------------------------------------------------------------------
+
+# Part mapping: service categories -> Medicare parts
+PART_MAPPING = {
+    "A": ["inpatient", "snf_postacute", "home_health"],  # Inpatient, SNF, hospice, home health
+    "B": ["professional", "ed_observation", "dme", "other"],  # Outpatient, professional, DME, lab
+    "D": ["pharmacy"],  # Pharmacy
+}
+
+
+async def get_part_analysis(db: AsyncSession, period: str | None = None) -> dict:
+    """Medicare Part A/B/C/D cost breakdown."""
+    from app.models.risk_accounting import CapitationPayment
+
+    member_count_result = await db.execute(select(func.count(Member.id)))
+    member_count = _safe_int(member_count_result.scalar())
+    member_months = max(member_count * 12, 1)
+
+    # Aggregate claims by service category
+    cat_query = select(
+        Claim.service_category,
+        func.sum(Claim.paid_amount).label("total_spend"),
+        func.count(Claim.id).label("claim_count"),
+        func.count(distinct(Claim.member_id)).label("member_count"),
+    ).where(Claim.service_category.isnot(None)).group_by(Claim.service_category)
+
+    cat_result = await db.execute(cat_query)
+    cat_data = {row.service_category: row for row in cat_result.all()}
+
+    parts = {}
+    for part_letter, categories in PART_MAPPING.items():
+        total_spend = 0.0
+        claim_count = 0
+        members = 0
+        for cat in categories:
+            row = cat_data.get(cat)
+            if row:
+                total_spend += _safe_float(row.total_spend)
+                claim_count += _safe_int(row.claim_count)
+                members += _safe_int(row.member_count)
+
+        pmpm = round(total_spend / member_months, 2) if member_months > 0 else 0
+        parts[f"part_{part_letter.lower()}"] = {
+            "part": part_letter,
+            "label": {"A": "Part A (Inpatient/SNF/Home Health)", "B": "Part B (Outpatient/Professional/DME)", "D": "Part D (Pharmacy)"}[part_letter],
+            "total_spend": round(total_spend, 2),
+            "pmpm": pmpm,
+            "claim_count": claim_count,
+            "member_count": members,
+            "trend": round(total_spend * 0.03 / max(total_spend, 1) * 100, 1),  # placeholder
+        }
+
+    # Part C (MA plan admin) — from capitation payments
+    cap_result = await db.execute(
+        select(func.coalesce(func.sum(CapitationPayment.amount), 0))
+    )
+    cap_total = _safe_float(cap_result.scalar())
+    parts["part_c"] = {
+        "part": "C",
+        "label": "Part C (Medicare Advantage Admin)",
+        "total_spend": round(cap_total, 2),
+        "pmpm": round(cap_total / member_months, 2) if member_months > 0 else 0,
+        "claim_count": 0,
+        "member_count": member_count,
+        "trend": 0.0,
+    }
+
+    total_all_parts = sum(p["total_spend"] for p in parts.values())
+
+    return {
+        "parts": parts,
+        "total_spend": round(total_all_parts, 2),
+        "member_count": member_count,
+        "member_months": member_months,
+    }
+
+
+async def get_expenditure_by_period(
+    db: AsyncSession, group_by: str = "month"
+) -> list[dict]:
+    """Group expenditure by month, quarter, or year with Part breakdown."""
+    member_count_result = await db.execute(select(func.count(Member.id)))
+    member_count = max(_safe_int(member_count_result.scalar()), 1)
+
+    if group_by == "year":
+        period_expr = extract("year", Claim.service_date)
+    elif group_by == "quarter":
+        # Format as "YYYY-QN"
+        period_expr = func.concat(
+            extract("year", Claim.service_date),
+            literal_column("'-Q'"),
+            func.ceil(extract("month", Claim.service_date) / 3),
+        )
+    else:
+        # month: "YYYY-MM"
+        period_expr = func.concat(
+            extract("year", Claim.service_date),
+            literal_column("'-'"),
+            func.lpad(func.cast(extract("month", Claim.service_date), String), 2, "0"),
+        )
+
+    from sqlalchemy import String as SaString
+
+    query = (
+        select(
+            period_expr.label("period"),
+            Claim.service_category,
+            func.sum(Claim.paid_amount).label("total_spend"),
+            func.count(Claim.id).label("claim_count"),
+        )
+        .where(Claim.service_date.isnot(None), Claim.service_category.isnot(None))
+        .group_by(period_expr, Claim.service_category)
+        .order_by(period_expr)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Aggregate into periods
+    period_data: dict[str, dict] = {}
+    for row in rows:
+        period_key = str(row.period)
+        if period_key not in period_data:
+            period_data[period_key] = {
+                "period": period_key,
+                "total_spend": 0.0,
+                "by_category": {},
+                "by_part": {"A": 0.0, "B": 0.0, "C": 0.0, "D": 0.0},
+            }
+        spend = _safe_float(row.total_spend)
+        period_data[period_key]["total_spend"] += spend
+        period_data[period_key]["by_category"][row.service_category] = spend
+
+        # Map to parts
+        for part_letter, categories in PART_MAPPING.items():
+            if row.service_category in categories:
+                period_data[period_key]["by_part"][part_letter] += spend
+
+    # Calculate PMPM for each period
+    result_list = []
+    for pd in period_data.values():
+        pd["pmpm"] = round(pd["total_spend"] / member_count, 2)
+        pd["total_spend"] = round(pd["total_spend"], 2)
+        for part in pd["by_part"]:
+            pd["by_part"][part] = round(pd["by_part"][part], 2)
+        result_list.append(pd)
+
+    return result_list

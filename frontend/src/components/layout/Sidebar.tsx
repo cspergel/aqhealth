@@ -61,6 +61,14 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: "Care Ops",
+    items: [
+      { path: "/care-plans", label: "Care Plans" },
+      { path: "/case-management", label: "Case Management" },
+      { path: "/prior-auth", label: "Prior Auth" },
+    ],
+  },
+  {
     title: "Cost",
     items: [{ path: "/expenditure", label: "Expenditure" }],
   },

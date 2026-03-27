@@ -5714,6 +5714,210 @@ export const mockRiskDashboard = {
   ],
 };
 
+// ---- Care Plans ----
+
+export const mockCarePlans = [
+  {
+    id: 1, member_id: 101, title: "Diabetes Management — Smith, John", status: "active",
+    created_by: 1, care_manager_id: 1, start_date: "2025-11-01", target_end_date: "2026-05-01",
+    actual_end_date: null, notes: "Focus on A1c reduction and medication adherence.",
+    goals_count: 3, goals_met: 1, completion_pct: 33.3,
+  },
+  {
+    id: 2, member_id: 102, title: "CHF Post-Discharge — Garcia, Maria", status: "active",
+    created_by: 1, care_manager_id: 2, start_date: "2026-01-15", target_end_date: "2026-07-15",
+    actual_end_date: null, notes: "30-day readmission prevention plan.",
+    goals_count: 2, goals_met: 0, completion_pct: 0.0,
+  },
+  {
+    id: 3, member_id: 103, title: "COPD Maintenance — Williams, Robert", status: "completed",
+    created_by: 2, care_manager_id: 1, start_date: "2025-06-01", target_end_date: "2025-12-01",
+    actual_end_date: "2025-11-20", notes: "Successfully completed pulmonary rehab.",
+    goals_count: 2, goals_met: 2, completion_pct: 100.0,
+  },
+  {
+    id: 4, member_id: 104, title: "Depression Screening — Lee, Susan", status: "draft",
+    created_by: 2, care_manager_id: null, start_date: "2026-03-20", target_end_date: null,
+    actual_end_date: null, notes: "Pending care manager assignment.",
+    goals_count: 0, goals_met: 0, completion_pct: 0.0,
+  },
+  {
+    id: 5, member_id: 105, title: "Renal Management — Chen, David", status: "discontinued",
+    created_by: 1, care_manager_id: 3, start_date: "2025-08-01", target_end_date: "2026-02-01",
+    actual_end_date: "2025-10-15", notes: "Member transferred to hospice.",
+    goals_count: 2, goals_met: 0, completion_pct: 0.0,
+  },
+];
+
+export const mockCarePlanDetail = {
+  id: 1, member_id: 101, title: "Diabetes Management — Smith, John", status: "active",
+  created_by: 1, care_manager_id: 1, start_date: "2025-11-01", target_end_date: "2026-05-01",
+  actual_end_date: null, notes: "Focus on A1c reduction and medication adherence.",
+  goals_count: 3, goals_met: 1, completion_pct: 33.3,
+  goals: [
+    {
+      id: 1, care_plan_id: 1, description: "Reduce A1c below 8%", target_metric: "hba1c",
+      target_value: "<8.0", baseline_value: "9.2", current_value: "8.4", status: "in_progress",
+      target_date: "2026-04-01",
+      interventions: [
+        { id: 1, goal_id: 1, description: "Refer to endocrinology", intervention_type: "referral", assigned_to: "Dr. Patel", due_date: "2025-12-15", completed_date: "2025-12-10", status: "completed", notes: "Appointment completed." },
+        { id: 2, goal_id: 1, description: "Start Metformin 1000mg", intervention_type: "medication", assigned_to: "Dr. Rivera", due_date: "2025-11-15", completed_date: "2025-11-14", status: "completed", notes: null },
+        { id: 3, goal_id: 1, description: "Monthly glucose monitoring education", intervention_type: "education", assigned_to: "RN Sarah", due_date: "2026-02-01", completed_date: null, status: "in_progress", notes: "2 of 4 sessions completed." },
+      ],
+    },
+    {
+      id: 2, care_plan_id: 1, description: "Achieve BMI below 30", target_metric: "bmi",
+      target_value: "<30", baseline_value: "33.1", current_value: "31.5", status: "in_progress",
+      target_date: "2026-05-01",
+      interventions: [
+        { id: 4, goal_id: 2, description: "Nutritional counseling referral", intervention_type: "referral", assigned_to: "Dietitian Kim", due_date: "2026-01-01", completed_date: null, status: "pending", notes: null },
+        { id: 5, goal_id: 2, description: "Weekly exercise program", intervention_type: "education", assigned_to: "PT Lopez", due_date: "2026-03-01", completed_date: null, status: "in_progress", notes: "Attending 2x/week." },
+      ],
+    },
+    {
+      id: 3, care_plan_id: 1, description: "Complete annual eye exam", target_metric: "screening",
+      target_value: "completed", baseline_value: "not_done", current_value: "completed", status: "met",
+      target_date: "2026-02-01",
+      interventions: [
+        { id: 6, goal_id: 3, description: "Schedule ophthalmology appointment", intervention_type: "screening", assigned_to: "MA Johnson", due_date: "2026-01-15", completed_date: "2026-01-10", status: "completed", notes: "Exam completed, no retinopathy found." },
+      ],
+    },
+  ],
+};
+
+export const mockCarePlanSummary = {
+  active_plans: 2,
+  total_goals: 5,
+  met_goals: 1,
+  past_due_goals: 1,
+  overall_completion_pct: 20.0,
+};
+
+// ---- Case Management ----
+
+export const mockCaseDashboard = {
+  total_active: 8,
+  by_manager: [
+    { care_manager_id: 1, care_manager_name: "Sarah Johnson, RN", case_count: 3 },
+    { care_manager_id: 2, care_manager_name: "Michael Torres, LCSW", case_count: 3 },
+    { care_manager_id: 3, care_manager_name: "Angela Brooks, RN", case_count: 2 },
+  ],
+  by_priority: { high: 3, medium: 3, low: 2 },
+  overdue_contacts: 2,
+};
+
+export const mockCaseAssignments = [
+  { id: 1, member_id: 101, care_manager_id: 1, care_manager_name: "Sarah Johnson, RN", assignment_date: "2025-10-01", end_date: null, reason: "chronic_disease", status: "active", priority: "high", last_contact_date: "2026-03-20", next_contact_date: "2026-04-03", contact_count: 12, notes: "Diabetes + CHF management" },
+  { id: 2, member_id: 102, care_manager_id: 1, care_manager_name: "Sarah Johnson, RN", assignment_date: "2026-01-15", end_date: null, reason: "post_discharge", status: "active", priority: "high", last_contact_date: "2026-03-18", next_contact_date: "2026-03-25", contact_count: 6, notes: "CHF readmission prevention" },
+  { id: 3, member_id: 103, care_manager_id: 1, care_manager_name: "Sarah Johnson, RN", assignment_date: "2025-08-01", end_date: null, reason: "chronic_disease", status: "active", priority: "medium", last_contact_date: "2026-02-10", next_contact_date: "2026-03-10", contact_count: 8, notes: "COPD stable, routine follow-up" },
+  { id: 4, member_id: 106, care_manager_id: 2, care_manager_name: "Michael Torres, LCSW", assignment_date: "2025-12-01", end_date: null, reason: "complex_case", status: "active", priority: "high", last_contact_date: "2026-03-22", next_contact_date: "2026-03-29", contact_count: 9, notes: "Behavioral health + substance use" },
+  { id: 5, member_id: 107, care_manager_id: 2, care_manager_name: "Michael Torres, LCSW", assignment_date: "2026-02-01", end_date: null, reason: "high_risk", status: "active", priority: "medium", last_contact_date: "2026-03-15", next_contact_date: "2026-04-01", contact_count: 3, notes: "Rising risk score, multiple comorbidities" },
+  { id: 6, member_id: 108, care_manager_id: 2, care_manager_name: "Michael Torres, LCSW", assignment_date: "2025-09-15", end_date: null, reason: "chronic_disease", status: "active", priority: "low", last_contact_date: "2026-01-20", next_contact_date: "2026-02-20", contact_count: 5, notes: "Stable hypertension management" },
+  { id: 7, member_id: 109, care_manager_id: 3, care_manager_name: "Angela Brooks, RN", assignment_date: "2026-01-01", end_date: null, reason: "post_discharge", status: "active", priority: "medium", last_contact_date: "2026-03-10", next_contact_date: "2026-03-24", contact_count: 4, notes: "Hip replacement recovery" },
+  { id: 8, member_id: 110, care_manager_id: 3, care_manager_name: "Angela Brooks, RN", assignment_date: "2025-11-01", end_date: null, reason: "high_risk", status: "active", priority: "low", last_contact_date: "2026-03-05", next_contact_date: "2026-04-05", contact_count: 6, notes: "Medication reconciliation needed" },
+];
+
+export const mockCaseDetail = {
+  id: 1, member_id: 101, care_manager_id: 1, care_manager_name: "Sarah Johnson, RN",
+  assignment_date: "2025-10-01", end_date: null, reason: "chronic_disease", status: "active",
+  priority: "high", last_contact_date: "2026-03-20", next_contact_date: "2026-04-03",
+  contact_count: 12, notes: "Diabetes + CHF management",
+  case_notes: [
+    { id: 1, note_type: "phone_call", content: "Discussed medication adherence. Patient reports taking Metformin consistently. A1c improved to 8.4. Will continue monitoring.", contact_method: "phone", duration_minutes: 15, author_id: 1, author_name: "Sarah Johnson, RN", created_at: "2026-03-20T14:30:00Z" },
+    { id: 2, note_type: "coordination", content: "Coordinated with endocrinology for follow-up visit. Appointment scheduled for April 5.", contact_method: "phone", duration_minutes: 10, author_id: 1, author_name: "Sarah Johnson, RN", created_at: "2026-03-15T10:00:00Z" },
+    { id: 3, note_type: "assessment", content: "Quarterly risk assessment completed. Risk score stable at 2.1. CHF well-managed with current regimen.", contact_method: "in_person", duration_minutes: 30, author_id: 1, author_name: "Sarah Johnson, RN", created_at: "2026-03-01T11:00:00Z" },
+  ],
+};
+
+export const mockCaseWorkload = [
+  { care_manager_id: 1, care_manager_name: "Sarah Johnson, RN", total_cases: 3, high_priority: 2, overdue_contacts: 1 },
+  { care_manager_id: 2, care_manager_name: "Michael Torres, LCSW", total_cases: 3, high_priority: 1, overdue_contacts: 1 },
+  { care_manager_id: 3, care_manager_name: "Angela Brooks, RN", total_cases: 2, high_priority: 0, overdue_contacts: 0 },
+];
+
+// ---- Prior Auth / UM ----
+
+export const mockAuthDashboard = {
+  pending_count: 4,
+  avg_turnaround_hours: 38.5,
+  approval_rate: 72.7,
+  compliance_rate: 91.3,
+  by_service_type: [
+    { service_type: "imaging", count: 4 },
+    { service_type: "specialist_referral", count: 3 },
+    { service_type: "inpatient", count: 2 },
+    { service_type: "DME", count: 1 },
+    { service_type: "home_health", count: 1 },
+    { service_type: "medication", count: 1 },
+  ],
+};
+
+export const mockAuthRequests = [
+  { id: 1, auth_number: "PA-2026-001", member_id: 101, service_type: "imaging", procedure_code: "74177", diagnosis_code: "K80.20", requesting_provider_name: "Dr. Sarah Patel", servicing_facility: "Metro Imaging Center", request_date: "2026-03-20", decision_date: null, urgency: "standard", status: "pending", turnaround_hours: null, compliant: null, notes: "CT abdomen for suspected gallstones" },
+  { id: 2, auth_number: "PA-2026-002", member_id: 102, service_type: "inpatient", procedure_code: "99223", diagnosis_code: "I50.9", requesting_provider_name: "Dr. James Rivera", servicing_facility: "Memorial Hospital", request_date: "2026-03-22", decision_date: null, urgency: "urgent", status: "pending", turnaround_hours: null, compliant: null, notes: "CHF exacerbation, needs inpatient admission" },
+  { id: 3, auth_number: "PA-2026-003", member_id: 106, service_type: "specialist_referral", procedure_code: "99205", diagnosis_code: "E11.65", requesting_provider_name: "Dr. Lisa Chen", servicing_facility: "Endocrine Associates", request_date: "2026-03-18", decision_date: null, urgency: "standard", status: "pending", turnaround_hours: null, compliant: null, notes: null },
+  { id: 4, auth_number: "PA-2026-004", member_id: 107, service_type: "DME", procedure_code: "E0601", diagnosis_code: "G47.33", requesting_provider_name: "Dr. Michael Torres", servicing_facility: "National DME Supply", request_date: "2026-03-15", decision_date: null, urgency: "standard", status: "pending", turnaround_hours: null, compliant: null, notes: "CPAP machine for OSA" },
+  { id: 5, auth_number: "PA-2026-005", member_id: 103, service_type: "imaging", procedure_code: "71250", diagnosis_code: "J44.1", requesting_provider_name: "Dr. Angela Brooks", servicing_facility: "Metro Imaging Center", request_date: "2026-03-10", decision_date: "2026-03-12", urgency: "standard", status: "approved", turnaround_hours: 48, compliant: true, notes: "CT chest for COPD exacerbation" },
+  { id: 6, auth_number: "PA-2026-006", member_id: 108, service_type: "specialist_referral", procedure_code: "99204", diagnosis_code: "M17.11", requesting_provider_name: "Dr. Robert Kim", servicing_facility: "Ortho Specialists", request_date: "2026-03-05", decision_date: "2026-03-07", urgency: "standard", status: "approved", turnaround_hours: 42, compliant: true, notes: "Knee pain evaluation" },
+  { id: 7, auth_number: "PA-2026-007", member_id: 109, service_type: "home_health", procedure_code: "99341", diagnosis_code: "Z96.641", requesting_provider_name: "Dr. David Wilson", servicing_facility: "HomeFirst Health", request_date: "2026-02-28", decision_date: "2026-03-03", urgency: "standard", status: "approved", turnaround_hours: 72, compliant: true, notes: "Post hip replacement PT" },
+  { id: 8, auth_number: "PA-2026-008", member_id: 104, service_type: "imaging", procedure_code: "70553", diagnosis_code: "R51.9", requesting_provider_name: "Dr. Karen Murphy", servicing_facility: "Advanced Imaging", request_date: "2026-02-20", decision_date: "2026-02-25", urgency: "standard", status: "denied", turnaround_hours: 120, compliant: true, denial_reason: "Does not meet medical necessity criteria. Conservative treatment not attempted.", notes: null },
+  { id: 9, auth_number: "PA-2026-009", member_id: 110, service_type: "medication", procedure_code: null, diagnosis_code: "M05.79", requesting_provider_name: "Dr. Jennifer Adams", servicing_facility: null, request_date: "2026-02-15", decision_date: "2026-02-20", urgency: "standard", status: "denied", turnaround_hours: 120, compliant: true, denial_reason: "Step therapy required. Must trial methotrexate first.", notes: "Humira prior auth request" },
+  { id: 10, auth_number: "PA-2026-010", member_id: 110, service_type: "medication", procedure_code: null, diagnosis_code: "M05.79", requesting_provider_name: "Dr. Jennifer Adams", servicing_facility: null, request_date: "2026-02-20", decision_date: null, urgency: "standard", status: "appealed", appeal_date: "2026-03-01", appeal_status: "under_review", peer_to_peer_date: "2026-03-10", turnaround_hours: null, compliant: null, notes: "Appeal of PA-009 denial. P2P completed." },
+  { id: 11, auth_number: "PA-2026-011", member_id: 106, service_type: "inpatient", procedure_code: "27447", diagnosis_code: "M17.11", requesting_provider_name: "Dr. Thomas Lee", servicing_facility: "Memorial Hospital", request_date: "2026-03-01", decision_date: null, urgency: "standard", status: "pending", turnaround_hours: null, compliant: null, notes: "OVERDUE: Total knee replacement. Submitted 25 days ago." },
+  { id: 12, auth_number: "PA-2026-012", member_id: 102, service_type: "specialist_referral", procedure_code: "99205", diagnosis_code: "I50.9", requesting_provider_name: "Dr. James Rivera", servicing_facility: "Cardiology Associates", request_date: "2026-03-19", decision_date: null, urgency: "urgent", status: "pending", turnaround_hours: null, compliant: null, notes: "OVERDUE: Urgent cardiology consult. >72 hrs pending." },
+];
+
+export const mockAuthCompliance = {
+  by_urgency: [
+    { urgency: "standard", total: 8, compliant: 7, compliance_rate: 87.5, avg_turnaround_hours: 80.4, max_allowed_hours: 336 },
+    { urgency: "urgent", total: 3, compliant: 3, compliance_rate: 100.0, avg_turnaround_hours: 28.0, max_allowed_hours: 72 },
+  ],
+};
+
+export const mockAuthOverdue = [
+  mockAuthRequests[10],  // PA-2026-011
+  mockAuthRequests[11],  // PA-2026-012
+];
+
+// ---- Medicare Part A/B/C/D ----
+
+export const mockPartAnalysis = {
+  parts: {
+    part_a: { part: "A", label: "Part A (Inpatient/SNF/Home Health)", total_spend: 7240000, pmpm: 612, claim_count: 520, member_count: 890, trend: 3.2 },
+    part_b: { part: "B", label: "Part B (Outpatient/Professional/DME)", total_spend: 4850000, pmpm: 410, claim_count: 6200, member_count: 3100, trend: 1.8 },
+    part_c: { part: "C", label: "Part C (Medicare Advantage Admin)", total_spend: 1200000, pmpm: 101, claim_count: 0, member_count: 4832, trend: 0.0 },
+    part_d: { part: "D", label: "Part D (Pharmacy)", total_spend: 2851000, pmpm: 241, claim_count: 9200, member_count: 4100, trend: 5.1 },
+  },
+  total_spend: 16141000,
+  member_count: 4832,
+  member_months: 57984,
+};
+
+export const mockExpenditureByPeriod = [
+  { period: "2025-07", total_spend: 1180000, pmpm: 1020, by_category: { inpatient: 410000, ed_observation: 135000, professional: 240000, snf_postacute: 95000, pharmacy: 200000, home_health: 50000, dme: 30000, other: 20000 }, by_part: { A: 555000, B: 425000, C: 0, D: 200000 } },
+  { period: "2025-08", total_spend: 1220000, pmpm: 1054, by_category: { inpatient: 430000, ed_observation: 140000, professional: 245000, snf_postacute: 100000, pharmacy: 205000, home_health: 48000, dme: 32000, other: 20000 }, by_part: { A: 578000, B: 437000, C: 0, D: 205000 } },
+  { period: "2025-09", total_spend: 1290000, pmpm: 1115, by_category: { inpatient: 460000, ed_observation: 150000, professional: 250000, snf_postacute: 105000, pharmacy: 215000, home_health: 52000, dme: 35000, other: 23000 }, by_part: { A: 617000, B: 458000, C: 0, D: 215000 } },
+  { period: "2025-10", total_spend: 1310000, pmpm: 1132, by_category: { inpatient: 470000, ed_observation: 148000, professional: 255000, snf_postacute: 108000, pharmacy: 218000, home_health: 55000, dme: 33000, other: 23000 }, by_part: { A: 633000, B: 459000, C: 0, D: 218000 } },
+  { period: "2025-11", total_spend: 1350000, pmpm: 1167, by_category: { inpatient: 480000, ed_observation: 155000, professional: 260000, snf_postacute: 112000, pharmacy: 225000, home_health: 58000, dme: 35000, other: 25000 }, by_part: { A: 650000, B: 475000, C: 0, D: 225000 } },
+  { period: "2025-12", total_spend: 1400000, pmpm: 1210, by_category: { inpatient: 510000, ed_observation: 160000, professional: 265000, snf_postacute: 118000, pharmacy: 228000, home_health: 60000, dme: 34000, other: 25000 }, by_part: { A: 688000, B: 484000, C: 0, D: 228000 } },
+  { period: "2026-01", total_spend: 1380000, pmpm: 1193, by_category: { inpatient: 495000, ed_observation: 158000, professional: 262000, snf_postacute: 115000, pharmacy: 230000, home_health: 62000, dme: 33000, other: 25000 }, by_part: { A: 672000, B: 478000, C: 0, D: 230000 } },
+  { period: "2026-02", total_spend: 1320000, pmpm: 1141, by_category: { inpatient: 470000, ed_observation: 150000, professional: 258000, snf_postacute: 110000, pharmacy: 222000, home_health: 55000, dme: 32000, other: 23000 }, by_part: { A: 635000, B: 463000, C: 0, D: 222000 } },
+  { period: "2026-03", total_spend: 1250000, pmpm: 1080, by_category: { inpatient: 440000, ed_observation: 142000, professional: 250000, snf_postacute: 100000, pharmacy: 210000, home_health: 52000, dme: 33000, other: 23000 }, by_part: { A: 592000, B: 448000, C: 0, D: 210000 } },
+];
+
+// ---- Dashboard Actions ----
+
+export const mockDashboardActions = {
+  pending_auths: 4,
+  overdue_auths: 2,
+  past_due_care_plan_goals: 1,
+  members_not_contacted: 2,
+  critical_care_gaps: 5,
+  unacknowledged_adt_alerts: 3,
+  triggered_alert_rules: 1,
+  total_action_items: 14,
+};
+
 export const mockRiskCorridorAnalysis = {
   target_mlr: 85.0,
   actual_mlr: 84.9,

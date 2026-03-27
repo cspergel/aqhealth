@@ -10,12 +10,19 @@ from datetime import date, datetime
 from sqlalchemy import select, func, case, and_, extract, literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from datetime import timedelta
+
 from app.models.member import Member
 from app.models.claim import Claim
 from app.models.hcc import HccSuspect, SuspectStatus
 from app.models.provider import Provider
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
 from app.models.insight import Insight, InsightStatus
+from app.models.care_plan import CarePlan, CarePlanGoal
+from app.models.case_management import CaseAssignment
+from app.models.prior_auth import PriorAuth
+from app.models.adt import CareAlert
+from app.models.alert_rule import AlertRuleTrigger
 
 
 async def get_dashboard_metrics(db: AsyncSession) -> dict:
@@ -356,3 +363,87 @@ async def get_dashboard_insights(db: AsyncSession) -> list[dict]:
         }
         for i in insights
     ]
+
+
+async def get_dashboard_actions(db: AsyncSession) -> dict:
+    """Return actionable items across all modules for the dashboard action bar."""
+    today = date.today()
+    thirty_days_ago = today - timedelta(days=30)
+
+    # 1. Pending prior auths
+    pending_auths_q = await db.execute(
+        select(func.count(PriorAuth.id)).where(PriorAuth.status == "pending")
+    )
+    pending_auths = pending_auths_q.scalar() or 0
+
+    # Overdue auths (urgent >3 days, standard >14 days)
+    from sqlalchemy import or_
+    overdue_auths_q = await db.execute(
+        select(func.count(PriorAuth.id)).where(
+            PriorAuth.status == "pending",
+            or_(
+                and_(PriorAuth.urgency == "urgent", PriorAuth.request_date <= today - timedelta(days=3)),
+                and_(PriorAuth.urgency == "standard", PriorAuth.request_date <= today - timedelta(days=14)),
+            ),
+        )
+    )
+    overdue_auths = overdue_auths_q.scalar() or 0
+
+    # 2. Care plans with past-due goals
+    past_due_goals_q = await db.execute(
+        select(func.count(CarePlanGoal.id)).where(
+            CarePlanGoal.status.in_(["in_progress", "not_started"]),
+            CarePlanGoal.target_date.isnot(None),
+            CarePlanGoal.target_date < today,
+        )
+    )
+    past_due_goals = past_due_goals_q.scalar() or 0
+
+    # 3. Caseload alerts — members with no contact in 30+ days
+    no_contact_q = await db.execute(
+        select(func.count(CaseAssignment.id)).where(
+            CaseAssignment.status == "active",
+            (CaseAssignment.last_contact_date.is_(None))
+            | (CaseAssignment.last_contact_date < thirty_days_ago),
+        )
+    )
+    no_contact_count = no_contact_q.scalar() or 0
+
+    # 4. Critical care gaps (open, triple-weighted)
+    critical_gaps_q = await db.execute(
+        select(func.count(MemberGap.id))
+        .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
+        .where(
+            MemberGap.status == GapStatus.open.value,
+            GapMeasure.stars_weight == 3,
+        )
+    )
+    critical_gaps = critical_gaps_q.scalar() or 0
+
+    # 5. Unacknowledged ADT alerts
+    unack_alerts_q = await db.execute(
+        select(func.count(CareAlert.id)).where(CareAlert.status == "open")
+    )
+    unack_alerts = unack_alerts_q.scalar() or 0
+
+    # 6. Alert rules triggered (recent)
+    triggered_rules_q = await db.execute(
+        select(func.count(AlertRuleTrigger.id)).where(
+            AlertRuleTrigger.acknowledged == False,
+        )
+    )
+    triggered_rules = triggered_rules_q.scalar() or 0
+
+    return {
+        "pending_auths": pending_auths,
+        "overdue_auths": overdue_auths,
+        "past_due_care_plan_goals": past_due_goals,
+        "members_not_contacted": no_contact_count,
+        "critical_care_gaps": critical_gaps,
+        "unacknowledged_adt_alerts": unack_alerts,
+        "triggered_alert_rules": triggered_rules,
+        "total_action_items": (
+            overdue_auths + past_due_goals + no_contact_count
+            + critical_gaps + unack_alerts + triggered_rules
+        ),
+    }

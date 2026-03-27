@@ -16,6 +16,8 @@ from app.services.expenditure_service import (
     get_expenditure_overview,
     get_category_drilldown,
     get_expenditure_insights,
+    get_part_analysis,
+    get_expenditure_by_period,
     SERVICE_CATEGORIES,
 )
 from app.services.export_service import export_to_csv
@@ -94,6 +96,33 @@ async def expenditure_overview(
     """Return expenditure overview with category breakdown."""
     data = await get_expenditure_overview(db)
     return OverviewOut(**data)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/expenditure/by-part — Medicare Part A/B/C/D breakdown
+# ---------------------------------------------------------------------------
+
+@router.get("/by-part")
+async def expenditure_by_part(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Return Medicare Part A/B/C/D cost breakdown."""
+    return await get_part_analysis(db)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/expenditure/by-period — monthly/quarterly/yearly trends
+# ---------------------------------------------------------------------------
+
+@router.get("/by-period")
+async def expenditure_by_period(
+    group_by: str = Query("month", regex="^(month|quarter|year)$"),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Return expenditure grouped by time period with Part breakdown."""
+    return await get_expenditure_by_period(db, group_by=group_by)
 
 
 # ---------------------------------------------------------------------------

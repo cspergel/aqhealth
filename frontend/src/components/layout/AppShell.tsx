@@ -39,6 +39,9 @@ import { PracticeExpensesPage } from "../../pages/PracticeExpensesPage";
 import { BOIPage } from "../../pages/BOIPage";
 import { ClinicalExchangePage } from "../../pages/ClinicalExchangePage";
 import { RiskAccountingPage } from "../../pages/RiskAccountingPage";
+import { CarePlansPage } from "../../pages/CarePlansPage";
+import { CaseManagementPage } from "../../pages/CaseManagementPage";
+import { PriorAuthPage } from "../../pages/PriorAuthPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -124,6 +127,9 @@ export function AppShell() {
             <Route path="/roi-tracker" element={<BOIPage />} />
             <Route path="/data-exchange" element={<ClinicalExchangePage />} />
             <Route path="/risk-accounting" element={<RiskAccountingPage />} />
+            <Route path="/care-plans" element={<CarePlansPage />} />
+            <Route path="/case-management" element={<CaseManagementPage />} />
+            <Route path="/prior-auth" element={<PriorAuthPage />} />
           </Routes>
         </main>
 

@@ -21,6 +21,7 @@ from app.services.dashboard_service import (
     get_provider_leaderboard,
     get_care_gap_summary,
     get_dashboard_insights,
+    get_dashboard_actions,
 )
 
 logger = logging.getLogger(__name__)
@@ -137,6 +138,23 @@ async def get_dashboard(
         provider_leaderboard=ProviderLeaderboardOut(**providers),
         care_gap_summary=[CareGapSummaryOut(**g) for g in care_gaps],
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/dashboard/insights — top 5 active insights
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# GET /api/dashboard/actions — pending action items across modules
+# ---------------------------------------------------------------------------
+
+@router.get("/actions")
+async def get_actions(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Return pending action items across all modules."""
+    return await get_dashboard_actions(db)
 
 
 # ---------------------------------------------------------------------------

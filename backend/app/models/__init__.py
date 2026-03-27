@@ -22,3 +22,6 @@ from app.models.practice_expense import StaffMember, ExpenseCategory, ExpenseEnt
 from app.models.boi import Intervention
 from app.models.clinical_exchange import DataExchangeRequest
 from app.models.risk_accounting import CapitationPayment, SubcapPayment, RiskPool
+from app.models.care_plan import CarePlan, CarePlanGoal, CarePlanIntervention
+from app.models.case_management import CaseAssignment, CaseNote
+from app.models.prior_auth import PriorAuth

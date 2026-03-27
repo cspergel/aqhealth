@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { tokens, fonts } from "../lib/tokens";
 import { MetricCard } from "../components/ui/MetricCard";
@@ -75,6 +76,17 @@ interface DashboardData {
   care_gap_summary: CareGap[];
 }
 
+interface DashboardActions {
+  pending_auths: number;
+  overdue_auths: number;
+  past_due_care_plan_goals: number;
+  members_not_contacted: number;
+  critical_care_gaps: number;
+  unacknowledged_adt_alerts: number;
+  triggered_alert_rules: number;
+  total_action_items: number;
+}
+
 interface DashboardInsight {
   id: number;
   category: "revenue" | "cost" | "quality" | "provider" | "trend" | "cross_module";
@@ -116,20 +128,24 @@ const CATEGORY_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState<DashboardData | null>(null);
   const [insights, setInsights] = useState<DashboardInsight[]>([]);
+  const [actions, setActions] = useState<DashboardActions | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
     try {
       setLoading(true);
-      const [dashRes, insightRes] = await Promise.all([
+      const [dashRes, insightRes, actionsRes] = await Promise.all([
         api.get("/api/dashboard"),
         api.get("/api/dashboard/insights"),
+        api.get("/api/dashboard/actions"),
       ]);
       setData(dashRes.data);
       setInsights(insightRes.data);
+      setActions(actionsRes.data);
       setError(null);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to load dashboard";
@@ -211,6 +227,72 @@ export function DashboardPage() {
           trend={(metrics.mlr ?? 0) > 85 ? "Above target" : "On track"}
         />
       </div>
+
+      {/* Needs Attention action bar */}
+      {actions && actions.total_action_items > 0 && (
+        <div
+          className="rounded-[10px] border p-3 flex flex-wrap items-center gap-3"
+          style={{ borderColor: tokens.amber, background: tokens.amberSoft }}
+        >
+          <span className="text-[13px] font-semibold" style={{ color: tokens.amber }}>
+            Needs Attention:
+          </span>
+          {actions.overdue_auths > 0 && (
+            <button
+              onClick={() => navigate("/prior-auth")}
+              className="text-[12px] px-2.5 py-1 rounded-md border hover:bg-white/50 transition-colors"
+              style={{ borderColor: tokens.amber, color: tokens.amber, background: "transparent", cursor: "pointer" }}
+            >
+              {actions.overdue_auths} overdue auth{actions.overdue_auths > 1 ? "s" : ""}
+            </button>
+          )}
+          {actions.past_due_care_plan_goals > 0 && (
+            <button
+              onClick={() => navigate("/care-plans")}
+              className="text-[12px] px-2.5 py-1 rounded-md border hover:bg-white/50 transition-colors"
+              style={{ borderColor: tokens.amber, color: tokens.amber, background: "transparent", cursor: "pointer" }}
+            >
+              {actions.past_due_care_plan_goals} care plan{actions.past_due_care_plan_goals > 1 ? "s" : ""} past due
+            </button>
+          )}
+          {actions.members_not_contacted > 0 && (
+            <button
+              onClick={() => navigate("/case-management")}
+              className="text-[12px] px-2.5 py-1 rounded-md border hover:bg-white/50 transition-colors"
+              style={{ borderColor: tokens.amber, color: tokens.amber, background: "transparent", cursor: "pointer" }}
+            >
+              {actions.members_not_contacted} member{actions.members_not_contacted > 1 ? "s" : ""} not contacted
+            </button>
+          )}
+          {actions.critical_care_gaps > 0 && (
+            <button
+              onClick={() => navigate("/care-gaps")}
+              className="text-[12px] px-2.5 py-1 rounded-md border hover:bg-white/50 transition-colors"
+              style={{ borderColor: tokens.amber, color: tokens.amber, background: "transparent", cursor: "pointer" }}
+            >
+              {actions.critical_care_gaps} critical gap{actions.critical_care_gaps > 1 ? "s" : ""}
+            </button>
+          )}
+          {actions.unacknowledged_adt_alerts > 0 && (
+            <button
+              onClick={() => navigate("/alerts")}
+              className="text-[12px] px-2.5 py-1 rounded-md border hover:bg-white/50 transition-colors"
+              style={{ borderColor: tokens.amber, color: tokens.amber, background: "transparent", cursor: "pointer" }}
+            >
+              {actions.unacknowledged_adt_alerts} ADT alert{actions.unacknowledged_adt_alerts > 1 ? "s" : ""}
+            </button>
+          )}
+          {actions.triggered_alert_rules > 0 && (
+            <button
+              onClick={() => navigate("/alert-rules")}
+              className="text-[12px] px-2.5 py-1 rounded-md border hover:bg-white/50 transition-colors"
+              style={{ borderColor: tokens.amber, color: tokens.amber, background: "transparent", cursor: "pointer" }}
+            >
+              {actions.triggered_alert_rules} triggered rule{actions.triggered_alert_rules > 1 ? "s" : ""}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
