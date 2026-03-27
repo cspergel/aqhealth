@@ -127,7 +127,7 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
     suspect_count_col = func.coalesce(suspect_sq.c.suspect_count, 0).label("suspect_count")
     gap_count_col = func.coalesce(gap_sq.c.gap_count, 0).label("gap_count")
     days_since_visit_col = func.coalesce(
-        func.extract("day", func.cast(func.current_date(), text("date")) - last_visit_sq.c.last_visit_date),
+        func.extract("day", func.current_date() - last_visit_sq.c.last_visit_date),
         9999
     ).label("days_since_visit")
     total_spend_col = func.coalesce(spend_sq.c.total_spend_12mo, 0).label("total_spend_12mo")
@@ -136,7 +136,20 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
 
     query = (
         select(
-            Member,
+            Member.id,
+            Member.member_id,
+            Member.first_name,
+            Member.last_name,
+            Member.date_of_birth,
+            Member.gender,
+            Member.health_plan,
+            Member.plan_product,
+            Member.coverage_start,
+            Member.coverage_end,
+            Member.pcp_provider_id,
+            Member.current_raf,
+            Member.projected_raf,
+            Member.risk_tier,
             Provider.first_name.label("pcp_first_name"),
             Provider.last_name.label("pcp_last_name"),
             PracticeGroup.name.label("group_name"),
@@ -174,7 +187,8 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
     if filters.get("plan"):
         conditions.append(Member.health_plan == filters["plan"])
     if filters.get("search"):
-        q = f"%{filters['search']}%"
+        search = filters["search"].replace("%", r"\%").replace("_", r"\_")
+        q = f"%{search}%"
         conditions.append(
             or_(
                 func.concat(Member.first_name, " ", Member.last_name).ilike(q),
@@ -362,9 +376,11 @@ async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
 
     # Calculate age
     today = date.today()
-    age = today.year - member.date_of_birth.year - (
-        (today.month, today.day) < (member.date_of_birth.month, member.date_of_birth.day)
-    )
+    age = 0
+    if member.date_of_birth:
+        age = today.year - member.date_of_birth.year - (
+            (today.month, today.day) < (member.date_of_birth.month, member.date_of_birth.day)
+        )
 
     return {
         "member_id": member.member_id,
@@ -447,7 +463,8 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
     if filters.get("plan"):
         conditions.append(Member.health_plan == filters["plan"])
     if filters.get("search"):
-        q = f"%{filters['search']}%"
+        search = filters["search"].replace("%", r"\%").replace("_", r"\_")
+        q = f"%{search}%"
         conditions.append(
             or_(
                 func.concat(Member.first_name, " ", Member.last_name).ilike(q),

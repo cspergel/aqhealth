@@ -141,6 +141,7 @@ async def update_rule(
     for key, val in updates.items():
         setattr(rule, key, val)
     await db.flush()
+    await db.commit()
 
     return {"id": rule.id, "updated": list(updates.keys())}
 

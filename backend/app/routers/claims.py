@@ -185,8 +185,9 @@ async def list_claims(
         query = query.where(Claim.rendering_provider_id == provider_id)
         count_query = count_query.where(Claim.rendering_provider_id == provider_id)
     if facility:
-        query = query.where(Claim.facility_name.ilike(f"%{facility}%"))
-        count_query = count_query.where(Claim.facility_name.ilike(f"%{facility}%"))
+        escaped_facility = facility.replace("%", r"\%").replace("_", r"\_")
+        query = query.where(Claim.facility_name.ilike(f"%{escaped_facility}%"))
+        count_query = count_query.where(Claim.facility_name.ilike(f"%{escaped_facility}%"))
     if date_from:
         query = query.where(Claim.service_date >= date_from)
         count_query = count_query.where(Claim.service_date >= date_from)

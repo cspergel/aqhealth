@@ -1,7 +1,8 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 
@@ -80,7 +81,17 @@ app.include_router(education.router)
 app.include_router(tags.router)
 
 
-# TODO: migrate to lifespan events in future FastAPI version
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+# DEPRECATED: @app.on_event is deprecated in FastAPI >= 0.103.
+# Migrate to the lifespan context manager pattern when upgrading:
+#   @asynccontextmanager
+#   async def lifespan(app): yield
+#   app = FastAPI(lifespan=lifespan)
 @app.on_event("startup")
 async def _warn_default_secrets():
     if settings.secret_key == "CHANGE-ME-IN-PRODUCTION":

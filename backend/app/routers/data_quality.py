@@ -5,6 +5,7 @@ Provides quality reports, quarantine management, entity resolution,
 and data lineage endpoints. All tenant-scoped via JWT auth.
 """
 
+import json
 import logging
 from typing import Optional
 
@@ -199,7 +200,7 @@ async def update_quarantined_record(
                 WHERE id = :rid
             """), {
                 "status": body.status,
-                "fixed_data": str(body.fixed_data),
+                "fixed_data": json.dumps(body.fixed_data),
                 "user_id": current_user["user_id"],
                 "rid": record_id,
             })

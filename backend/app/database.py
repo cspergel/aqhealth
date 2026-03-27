@@ -17,7 +17,7 @@ def validate_schema_name(name: str) -> str:
         raise ValueError(f"Invalid schema name: {name!r}")
     return name
 
-engine = create_async_engine(settings.database_url, echo=False, pool_size=20, max_overflow=10)
+engine = create_async_engine(settings.database_url, echo=False, pool_size=20, max_overflow=10, pool_pre_ping=True)
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -28,7 +28,13 @@ async def get_session() -> AsyncSession:
 
 
 async def get_tenant_session(tenant_schema: str) -> AsyncSession:
-    """Get a session scoped to a specific tenant schema."""
+    """Get a session scoped to a specific tenant schema.
+
+    Note: This creates a new session per request and sets search_path via SQL.
+    An alternative approach would be to use per-tenant engines or connection-level
+    events, but the current pattern is adequate for our request-scoped usage since
+    each session is used by a single request and disposed at the end.
+    """
     validate_schema_name(tenant_schema)
     async with async_session_factory() as session:
         await session.execute(text(f"SET search_path TO {tenant_schema}, public"))

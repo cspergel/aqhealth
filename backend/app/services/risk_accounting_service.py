@@ -27,7 +27,7 @@ async def get_risk_dashboard(db: AsyncSession) -> dict[str, Any]:
     # Query capitation revenue
     try:
         cap_result = await db.execute(
-            text("SELECT COALESCE(SUM(payment_amount), 0) as total_revenue FROM capitation_payments")
+            text("SELECT COALESCE(SUM(total_payment), 0) as total_revenue FROM capitation_payments")
         )
         total_cap_revenue = float(cap_result.scalar() or 0)
     except Exception as e:
@@ -84,9 +84,9 @@ async def get_capitation_summary(
     try:
         query = """
             SELECT
-                health_plan,
+                plan_name,
                 TO_CHAR(payment_month, 'YYYY-MM') as month,
-                SUM(payment_amount) as total,
+                SUM(total_payment) as total,
                 COUNT(*) as payment_count
             FROM capitation_payments
         """
@@ -94,7 +94,7 @@ async def get_capitation_summary(
         if period:
             query += " WHERE TO_CHAR(payment_month, 'YYYY-MM') = :period"
             params["period"] = period
-        query += " GROUP BY health_plan, TO_CHAR(payment_month, 'YYYY-MM') ORDER BY month DESC, health_plan"
+        query += " GROUP BY plan_name, TO_CHAR(payment_month, 'YYYY-MM') ORDER BY month DESC, plan_name"
 
         result = await db.execute(text(query), params)
         rows = result.fetchall()
@@ -105,7 +105,7 @@ async def get_capitation_summary(
             amount = float(row.total or 0)
             grand_total += amount
             payments.append({
-                "health_plan": row.health_plan,
+                "plan_name": row.plan_name,
                 "month": row.month,
                 "total": amount,
                 "payment_count": row.payment_count,
@@ -141,7 +141,7 @@ async def get_subcap_summary(
             SELECT
                 provider_id,
                 TO_CHAR(payment_month, 'YYYY-MM') as month,
-                SUM(payment_amount) as total,
+                SUM(total_payment) as total,
                 COUNT(*) as payment_count
             FROM subcap_payments
         """
@@ -191,22 +191,24 @@ async def get_risk_pool_status(db: AsyncSession) -> list[dict[str, Any]]:
     try:
         result = await db.execute(text("""
             SELECT
-                id, health_plan, pool_year,
-                withheld_amount, bonus_earned, surplus_deficit,
-                settlement_amount, status
+                id, plan_name, pool_year,
+                total_withheld, quality_bonus_earned,
+                surplus_share, deficit_share,
+                settlement_date, status
             FROM risk_pools
-            ORDER BY pool_year DESC, health_plan
+            ORDER BY pool_year DESC, plan_name
         """))
         rows = result.fetchall()
         return [
             {
                 "id": row.id,
-                "health_plan": row.health_plan,
+                "plan_name": row.plan_name,
                 "pool_year": row.pool_year,
-                "withheld_amount": float(row.withheld_amount or 0),
-                "bonus_earned": float(row.bonus_earned or 0),
-                "surplus_deficit": float(row.surplus_deficit or 0),
-                "settlement_amount": float(row.settlement_amount or 0),
+                "total_withheld": float(row.total_withheld or 0),
+                "quality_bonus_earned": float(row.quality_bonus_earned or 0),
+                "surplus_share": float(row.surplus_share or 0),
+                "deficit_share": float(row.deficit_share or 0),
+                "settlement_date": str(row.settlement_date) if row.settlement_date else None,
                 "status": row.status,
             }
             for row in rows
@@ -281,11 +283,11 @@ async def get_surplus_deficit_by_plan(db: AsyncSession) -> list[dict[str, Any]]:
     try:
         # Get cap revenue by plan
         cap_result = await db.execute(text("""
-            SELECT health_plan, COALESCE(SUM(payment_amount), 0) as revenue
+            SELECT plan_name, COALESCE(SUM(total_payment), 0) as revenue
             FROM capitation_payments
-            GROUP BY health_plan
+            GROUP BY plan_name
         """))
-        cap_by_plan = {row.health_plan: float(row.revenue) for row in cap_result.fetchall()}
+        cap_by_plan = {row.plan_name: float(row.revenue) for row in cap_result.fetchall()}
 
         # Get medical spend by plan (via member's health_plan)
         spend_result = await db.execute(text("""
@@ -304,7 +306,7 @@ async def get_surplus_deficit_by_plan(db: AsyncSession) -> list[dict[str, Any]]:
             spend = spend_by_plan.get(plan, 0)
             mlr = round(spend / revenue, 4) if revenue > 0 else None
             results.append({
-                "health_plan": plan,
+                "plan_name": plan,
                 "cap_revenue": revenue,
                 "medical_spend": spend,
                 "surplus_deficit": revenue - spend,

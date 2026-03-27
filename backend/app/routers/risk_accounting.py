@@ -6,12 +6,14 @@ subcapitation, IBNR, risk pools, surplus/deficit analysis.
 """
 
 import logging
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_tenant_db
+from app.models.risk_accounting import CapitationPayment, SubcapPayment
 from app.services import risk_accounting_service
 
 logger = logging.getLogger(__name__)
@@ -122,7 +124,20 @@ async def enter_capitation(
     _user: dict = Depends(get_current_user),
 ):
     """Enter a capitation payment."""
-    return {"id": 0, "status": "recorded", **body.model_dump()}
+    record = CapitationPayment(
+        plan_name=body.plan_name,
+        product_type=body.product_type,
+        payment_month=date.fromisoformat(body.payment_month),
+        member_count=body.member_count,
+        pmpm_rate=body.pmpm_rate,
+        total_payment=body.total_payment,
+        adjustment_amount=body.adjustment_amount,
+        notes=body.notes,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return {"id": record.id, "status": "recorded", **body.model_dump()}
 
 
 @router.post("/subcap")
@@ -132,4 +147,16 @@ async def enter_subcap(
     _user: dict = Depends(get_current_user),
 ):
     """Enter a subcapitation payment."""
-    return {"id": 0, "status": "recorded", **body.model_dump()}
+    record = SubcapPayment(
+        provider_id=body.provider_id,
+        practice_group_id=body.practice_group_id,
+        specialty=body.specialty,
+        payment_month=date.fromisoformat(body.payment_month),
+        member_count=body.member_count,
+        pmpm_rate=body.pmpm_rate,
+        total_payment=body.total_payment,
+    )
+    db.add(record)
+    await db.commit()
+    await db.refresh(record)
+    return {"id": record.id, "status": "recorded", **body.model_dump()}

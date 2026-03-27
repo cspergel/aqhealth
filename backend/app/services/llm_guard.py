@@ -11,7 +11,7 @@ Every LLM interaction goes through this guard to:
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.config import settings
@@ -70,7 +70,7 @@ async def guarded_llm_call(
     # 2. Add data provenance header to context
     context_data["_metadata"] = {
         "tenant": tenant_schema,
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "data_source": "tenant_database",
     }
 
