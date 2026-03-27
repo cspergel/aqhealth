@@ -42,6 +42,8 @@ import { RiskAccountingPage } from "../../pages/RiskAccountingPage";
 import { CarePlansPage } from "../../pages/CarePlansPage";
 import { CaseManagementPage } from "../../pages/CaseManagementPage";
 import { PriorAuthPage } from "../../pages/PriorAuthPage";
+import { UtilizationPage } from "../../pages/UtilizationPage";
+import { AvoidablePage } from "../../pages/AvoidablePage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -130,6 +132,8 @@ export function AppShell() {
             <Route path="/care-plans" element={<CarePlansPage />} />
             <Route path="/case-management" element={<CaseManagementPage />} />
             <Route path="/prior-auth" element={<PriorAuthPage />} />
+            <Route path="/utilization" element={<UtilizationPage />} />
+            <Route path="/avoidable" element={<AvoidablePage />} />
           </Routes>
         </main>
 

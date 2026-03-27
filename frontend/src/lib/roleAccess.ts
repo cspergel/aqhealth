@@ -25,6 +25,7 @@ export const ROLE_ACCESS: Record<string, RoleConfig> = {
       "data",
       "population",
       "care ops",
+      "operations",
     ],
     hidePages: ["/clinical"],
   },
@@ -39,7 +40,7 @@ export const ROLE_ACCESS: Record<string, RoleConfig> = {
     ],
   },
   care_manager: {
-    sections: ["clinical", "overview", "population", "quality", "care ops"],
+    sections: ["clinical", "overview", "population", "quality", "care ops", "operations"],
     hidePages: [
       "/financial",
       "/risk-accounting",
@@ -64,7 +65,7 @@ export const ROLE_ACCESS: Record<string, RoleConfig> = {
     hidePages: ["/clinical", "/alerts", "/watchlist"],
   },
   financial: {
-    sections: ["finance", "cost", "overview"],
+    sections: ["finance", "cost", "overview", "operations"],
     hidePages: [
       "/clinical",
       "/members",

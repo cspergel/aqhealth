@@ -69,6 +69,13 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    title: "Operations",
+    items: [
+      { path: "/utilization", label: "Utilization" },
+      { path: "/avoidable", label: "Avoidable Analysis" },
+    ],
+  },
+  {
     title: "Cost",
     items: [{ path: "/expenditure", label: "Expenditure" }],
   },

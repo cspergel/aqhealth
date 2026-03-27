@@ -5932,3 +5932,267 @@ export const mockRiskCorridorAnalysis = {
     { band: "Stop-Loss", range: "> 95%", description: "Plan absorbs 100% of excess above stop-loss", status: "inactive", mlr_range: [95, 100] },
   ],
 };
+
+// ==========================================================================
+// Utilization Command Center
+// ==========================================================================
+
+export const mockUtilizationDashboard = {
+  current_census: {
+    total_admitted: 18,
+    by_class: { inpatient: 8, observation: 3, snf: 5, er: 2 },
+    by_facility: [
+      { facility: "Memorial Regional Medical Center", count: 6, inpatient: 3, observation: 1, snf: 1, er: 1 },
+      { facility: "St. Luke's Community Hospital", count: 4, inpatient: 2, observation: 1, snf: 1, er: 0 },
+      { facility: "Mercy General Hospital", count: 3, inpatient: 1, observation: 1, snf: 0, er: 1 },
+      { facility: "Riverside SNF & Rehab", count: 3, inpatient: 0, observation: 0, snf: 3, er: 0 },
+      { facility: "Parkview Standalone ER", count: 2, inpatient: 2, observation: 0, snf: 0, er: 0 },
+    ],
+  },
+  recent_activity: {
+    admits_24h: 4,
+    admits_48h: 7,
+    admits_7d: 22,
+    discharges_1d: 2,
+    discharges_3d: 8,
+    discharges_7d: 19,
+  },
+  alos_by_facility: [
+    { facility: "Memorial Regional Medical Center", alos: 5.8, benchmark: 4.5, variance: 1.3, admits: 42 },
+    { facility: "St. Luke's Community Hospital", alos: 4.2, benchmark: 4.5, variance: -0.3, admits: 31 },
+    { facility: "Mercy General Hospital", alos: 5.1, benchmark: 4.5, variance: 0.6, admits: 28 },
+    { facility: "Riverside SNF & Rehab", alos: 18.4, benchmark: 20.0, variance: -1.6, admits: 15 },
+    { facility: "Parkview Standalone ER", alos: 0.3, benchmark: 0.4, variance: -0.1, admits: 38 },
+  ],
+  alos_by_diagnosis: [
+    { drg: "DRG 291", diagnosis: "Heart Failure & Shock", alos: 5.9, benchmark: 5.2, cases: 12 },
+    { drg: "DRG 190", diagnosis: "COPD w/ MCC", alos: 6.4, benchmark: 5.8, cases: 8 },
+    { drg: "DRG 683", diagnosis: "Renal Failure", alos: 4.8, benchmark: 4.5, cases: 6 },
+    { drg: "DRG 392", diagnosis: "Esophagitis & GI", alos: 3.2, benchmark: 3.5, cases: 9 },
+    { drg: "DRG 470", diagnosis: "Major Hip/Knee Joint", alos: 2.8, benchmark: 3.0, cases: 5 },
+    { drg: "DRG 871", diagnosis: "Sepsis w/o MV >96hrs", alos: 7.1, benchmark: 6.2, cases: 4 },
+  ],
+  follow_up_needed: [
+    { member_id: "M1001", name: "Robert Chen", discharged: "2026-03-25", facility: "Memorial Regional Medical Center", diagnosis: "CHF Exacerbation", pcp: "Dr. Rivera", days_since_discharge: 1, urgency: "high", follow_up_due: "2026-03-28" },
+    { member_id: "M1008", name: "Dorothy Williams", discharged: "2026-03-24", facility: "St. Luke's Community Hospital", diagnosis: "COPD Exacerbation", pcp: "Dr. Patel", days_since_discharge: 2, urgency: "high", follow_up_due: "2026-03-27" },
+    { member_id: "M1015", name: "James Thompson", discharged: "2026-03-23", facility: "Mercy General Hospital", diagnosis: "Pneumonia", pcp: "Dr. Nguyen", days_since_discharge: 3, urgency: "medium", follow_up_due: "2026-03-30" },
+  ],
+  obs_vs_inpatient: [
+    { facility: "Memorial Regional Medical Center", obs_count: 14, inpatient_count: 28, conversion_rate: 42.9, obs_alos: 1.2, inpatient_alos: 5.8 },
+    { facility: "St. Luke's Community Hospital", obs_count: 11, inpatient_count: 20, conversion_rate: 35.5, obs_alos: 1.0, inpatient_alos: 4.2 },
+    { facility: "Mercy General Hospital", obs_count: 8, inpatient_count: 20, conversion_rate: 28.6, obs_alos: 1.1, inpatient_alos: 5.1 },
+  ],
+  er_snapshot: {
+    current_er_visits: 2,
+    by_facility: [
+      { facility: "Memorial Regional Medical Center", count: 1, avg_wait_hrs: 2.3 },
+      { facility: "Mercy General Hospital", count: 1, avg_wait_hrs: 1.8 },
+    ],
+    by_diagnosis: [
+      { diagnosis: "Chest Pain", count: 1 },
+      { diagnosis: "Abdominal Pain", count: 1 },
+    ],
+    after_hours_pct: 35,
+    weekend_pct: 28,
+  },
+  facility_comparison: [
+    { facility: "Memorial Regional Medical Center", type: "acute", admits_90d: 42, alos: 5.8, cost_per_admit: 14200, readmit_rate: 12.4, hcc_capture_rate: 68.2, er_conversion_rate: 42.9 },
+    { facility: "St. Luke's Community Hospital", type: "acute", admits_90d: 31, alos: 4.2, cost_per_admit: 11800, readmit_rate: 8.1, hcc_capture_rate: 72.5, er_conversion_rate: 35.5 },
+    { facility: "Mercy General Hospital", type: "acute", admits_90d: 28, alos: 5.1, cost_per_admit: 13100, readmit_rate: 10.7, hcc_capture_rate: 65.8, er_conversion_rate: 28.6 },
+    { facility: "Riverside SNF & Rehab", type: "snf", admits_90d: 15, alos: 18.4, cost_per_admit: 22500, readmit_rate: 6.7, hcc_capture_rate: 58.3, er_conversion_rate: 0 },
+    { facility: "Parkview Standalone ER", type: "standalone_er", admits_90d: 38, alos: 0.3, cost_per_admit: 1850, readmit_rate: 0, hcc_capture_rate: 12.1, er_conversion_rate: 15.8 },
+  ],
+};
+
+export const mockFacilityIntelligence = {
+  facility_profiles: [
+    { id: "F001", name: "Memorial Regional Medical Center", type: "acute", admits_90d: 42, alos: 5.8, cost_per_admit: 14200, readmit_rate: 12.4, hcc_capture_rate: 68.2, discharge_disposition: { home: 62, snf: 18, rehab: 10, home_health: 8, deceased: 2 } },
+    { id: "F002", name: "St. Luke's Community Hospital", type: "acute", admits_90d: 31, alos: 4.2, cost_per_admit: 11800, readmit_rate: 8.1, hcc_capture_rate: 72.5, discharge_disposition: { home: 68, snf: 14, rehab: 8, home_health: 7, deceased: 3 } },
+    { id: "F003", name: "Mercy General Hospital", type: "acute", admits_90d: 28, alos: 5.1, cost_per_admit: 13100, readmit_rate: 10.7, hcc_capture_rate: 65.8, discharge_disposition: { home: 60, snf: 20, rehab: 9, home_health: 9, deceased: 2 } },
+    { id: "F004", name: "Riverside SNF & Rehab", type: "snf", admits_90d: 15, alos: 18.4, cost_per_admit: 22500, readmit_rate: 6.7, hcc_capture_rate: 58.3, discharge_disposition: { home: 45, snf: 0, rehab: 30, home_health: 20, deceased: 5 } },
+    { id: "F005", name: "Parkview Standalone ER", type: "standalone_er", admits_90d: 38, alos: 0.3, cost_per_admit: 1850, readmit_rate: 0, hcc_capture_rate: 12.1, discharge_disposition: { home: 84, snf: 0, rehab: 0, home_health: 0, admitted: 16 } },
+  ],
+  facility_types: { acute: 3, standalone_er: 1, snf: 1 },
+  facility_aliases: [
+    { canonical: "Memorial Regional Medical Center", aliases: ["Memorial Regional", "MRMC", "Memorial Hospital"] },
+    { canonical: "St. Luke's Community Hospital", aliases: ["St Lukes", "St. Luke's", "SLCH"] },
+  ],
+  cost_comparison: [
+    { drg: "DRG 291", diagnosis: "Heart Failure", memorial: 15800, st_lukes: 12400, mercy: 14100, benchmark: 13500 },
+    { drg: "DRG 190", diagnosis: "COPD", memorial: 13200, st_lukes: 11800, mercy: 12900, benchmark: 12200 },
+    { drg: "DRG 470", diagnosis: "Major Joint", memorial: 22100, st_lukes: 19800, mercy: 21500, benchmark: 20000 },
+  ],
+};
+
+// Calendar: 3 months of daily admission counts
+function generateCalendarData(): { date: string; total: number; inpatient: number; observation: number; er: number; snf: number; facility_breakdown: { facility: string; count: number }[] }[] {
+  const data: any[] = [];
+  const startDate = new Date("2026-01-01");
+  const endDate = new Date("2026-03-26");
+  const facilities = ["Memorial Regional Medical Center", "St. Luke's Community Hospital", "Mercy General Hospital", "Riverside SNF & Rehab", "Parkview Standalone ER"];
+
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dayOfWeek = d.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const baseAdmits = isWeekend ? 2 : 3;
+    const total = baseAdmits + Math.floor(Math.random() * 4);
+    const inpatient = Math.max(1, Math.floor(total * 0.45));
+    const er = Math.floor(total * 0.25);
+    const obs = Math.floor(total * 0.15);
+    const snf = total - inpatient - er - obs;
+
+    const facilityBreakdown = facilities.map((f) => ({
+      facility: f,
+      count: Math.floor(Math.random() * 3),
+    }));
+
+    data.push({
+      date: d.toISOString().slice(0, 10),
+      total,
+      inpatient,
+      observation: obs,
+      er,
+      snf,
+      facility_breakdown: facilityBreakdown,
+    });
+  }
+  return data;
+}
+
+export const mockAdmissionCalendar = generateCalendarData();
+
+export const mockAdmissionPatterns = {
+  time_of_day: [
+    { period: "Early Morning (12am-6am)", count: 18, pct: 12 },
+    { period: "Morning (6am-12pm)", count: 42, pct: 28 },
+    { period: "Afternoon (12pm-6pm)", count: 53, pct: 35 },
+    { period: "Evening (6pm-12am)", count: 37, pct: 25 },
+  ],
+  day_of_week: [
+    { day: "Monday", count: 28, pct: 18.7 },
+    { day: "Tuesday", count: 25, pct: 16.7 },
+    { day: "Wednesday", count: 22, pct: 14.7 },
+    { day: "Thursday", count: 20, pct: 13.3 },
+    { day: "Friday", count: 19, pct: 12.7 },
+    { day: "Saturday", count: 18, pct: 12.0 },
+    { day: "Sunday", count: 18, pct: 12.0 },
+  ],
+  weekend_vs_weekday: { weekday_avg: 22.8, weekend_avg: 18.0, weekend_pct: 28 },
+  after_hours_er_rate: 35,
+  seasonal_trends: [
+    { month: "Jan", admits: 52 },
+    { month: "Feb", admits: 48 },
+    { month: "Mar", admits: 50 },
+    { month: "Apr", admits: 42 },
+    { month: "May", admits: 38 },
+    { month: "Jun", admits: 35 },
+    { month: "Jul", admits: 36 },
+    { month: "Aug", admits: 34 },
+    { month: "Sep", admits: 38 },
+    { month: "Oct", admits: 44 },
+    { month: "Nov", admits: 48 },
+    { month: "Dec", admits: 55 },
+  ],
+  heatmap: [
+    // hours x days: [hour, dayIndex(0=Sun), count]
+    [0,0,1],[0,1,2],[0,2,1],[0,3,2],[0,4,1],[0,5,1],[0,6,1],
+    [6,0,2],[6,1,4],[6,2,3],[6,3,4],[6,4,3],[6,5,2],[6,6,2],
+    [8,0,3],[8,1,6],[8,2,5],[8,3,5],[8,4,5],[8,5,4],[8,6,3],
+    [10,0,3],[10,1,5],[10,2,6],[10,3,5],[10,4,5],[10,5,4],[10,6,3],
+    [12,0,4],[12,1,7],[12,2,6],[12,3,7],[12,4,6],[12,5,5],[12,6,4],
+    [14,0,3],[14,1,6],[14,2,5],[14,3,6],[14,4,5],[14,5,4],[14,6,3],
+    [16,0,3],[16,1,5],[16,2,4],[16,3,5],[16,4,4],[16,5,3],[16,6,3],
+    [18,0,2],[18,1,4],[18,2,3],[18,3,4],[18,4,3],[18,5,2],[18,6,2],
+    [20,0,2],[20,1,3],[20,2,2],[20,3,3],[20,4,2],[20,5,2],[20,6,2],
+    [22,0,1],[22,1,2],[22,2,1],[22,3,2],[22,4,1],[22,5,1],[22,6,1],
+  ],
+};
+
+// ==========================================================================
+// Avoidable Admission Analysis
+// ==========================================================================
+
+export const mockAvoidableAnalysis = {
+  summary: {
+    total_er_visits: 38,
+    avoidable_er_visits: 5,
+    potentially_avoidable_admissions: 4,
+    avoidable_readmissions: 3,
+    estimated_annual_savings: 145000,
+    avoidable_er_pct: 13.2,
+    avoidable_admission_pct: 9.5,
+  },
+  by_provider: [
+    { provider: "Dr. Rivera", pcp_id: 1, panel_size: 820, er_visits: 12, avoidable_er: 3, avoidable_rate: 25.0, access_score: "C", avg_3rd_available: 8.2 },
+    { provider: "Dr. Patel", pcp_id: 2, panel_size: 780, er_visits: 8, avoidable_er: 1, avoidable_rate: 12.5, access_score: "B", avg_3rd_available: 4.1 },
+    { provider: "Dr. Nguyen", pcp_id: 3, panel_size: 650, er_visits: 10, avoidable_er: 1, avoidable_rate: 10.0, access_score: "B+", avg_3rd_available: 3.2 },
+    { provider: "Dr. Thompson", pcp_id: 4, panel_size: 710, er_visits: 5, avoidable_er: 0, avoidable_rate: 0, access_score: "A", avg_3rd_available: 1.8 },
+    { provider: "Dr. Kim", pcp_id: 5, panel_size: 590, er_visits: 3, avoidable_er: 0, avoidable_rate: 0, access_score: "A", avg_3rd_available: 2.1 },
+  ],
+  by_facility: [
+    { facility: "Memorial Regional Medical Center", er_visits: 14, er_to_inpatient: 6, conversion_rate: 42.9 },
+    { facility: "St. Luke's Community Hospital", er_visits: 10, er_to_inpatient: 4, conversion_rate: 40.0 },
+    { facility: "Mercy General Hospital", er_visits: 8, er_to_inpatient: 2, conversion_rate: 25.0 },
+    { facility: "Parkview Standalone ER", er_visits: 6, er_to_inpatient: 1, conversion_rate: 16.7 },
+  ],
+  dollar_impact: {
+    avoidable_er_cost: 8500,
+    per_avoidable_er: 1700,
+    avoidable_admission_cost: 56800,
+    per_avoidable_admission: 14200,
+    avoidable_readmission_cost: 79700,
+    per_avoidable_readmission: 26567,
+    total_annual_impact: 145000,
+    description: "Preventing 5 avoidable ER visits, 4 avoidable admissions, and 3 avoidable readmissions saves an estimated $145K/year",
+  },
+};
+
+export const mockAvoidableERDetail = [
+  { id: "ER001", member_id: "M1003", name: "Maria Garcia", date: "2026-03-20", time: "22:15", facility: "Memorial Regional Medical Center", diagnosis: "Upper Respiratory Infection", icd10: "J06.9", avoidable: true, alternative: "Urgent Care / Telehealth", pcp: "Dr. Rivera", pcp_visit_prior_7d: false, day_of_week: "Friday", after_hours: true, cost: 1850, notes: "Low-acuity URI presenting after hours. No PCP visit in prior 7 days." },
+  { id: "ER002", member_id: "M1005", name: "James Wilson", date: "2026-03-19", time: "14:30", facility: "St. Luke's Community Hospital", diagnosis: "Acute Exacerbation of CHF", icd10: "I50.21", avoidable: false, alternative: null, pcp: "Dr. Patel", pcp_visit_prior_7d: true, day_of_week: "Thursday", after_hours: false, cost: 3200, notes: "Acute CHF exacerbation requiring IV diuretics. Appropriate ER use." },
+  { id: "ER003", member_id: "M1009", name: "Thomas Brown", date: "2026-03-18", time: "19:45", facility: "Parkview Standalone ER", diagnosis: "Low Back Pain", icd10: "M54.5", avoidable: true, alternative: "Office Visit / Urgent Care", pcp: "Dr. Rivera", pcp_visit_prior_7d: false, day_of_week: "Wednesday", after_hours: true, cost: 1650, notes: "Chronic low back pain flare. Could be managed in office setting." },
+  { id: "ER004", member_id: "M1012", name: "Susan Davis", date: "2026-03-17", time: "10:20", facility: "Mercy General Hospital", diagnosis: "Chest Pain - Ruled Out", icd10: "R07.9", avoidable: false, alternative: null, pcp: "Dr. Nguyen", pcp_visit_prior_7d: false, day_of_week: "Tuesday", after_hours: false, cost: 4100, notes: "Chest pain workup with troponin and EKG. Appropriate ER visit." },
+  { id: "ER005", member_id: "M1002", name: "Linda Johnson", date: "2026-03-16", time: "23:10", facility: "Memorial Regional Medical Center", diagnosis: "Urinary Tract Infection", icd10: "N39.0", avoidable: true, alternative: "Nurse Triage Line / Telehealth", pcp: "Dr. Rivera", pcp_visit_prior_7d: false, day_of_week: "Monday", after_hours: true, cost: 1420, notes: "Uncomplicated UTI. After-hours visit. PCP access may be an issue." },
+  { id: "ER006", member_id: "M1018", name: "Richard Martinez", date: "2026-03-15", time: "16:00", facility: "St. Luke's Community Hospital", diagnosis: "COPD Exacerbation", icd10: "J44.1", avoidable: false, alternative: null, pcp: "Dr. Patel", pcp_visit_prior_7d: true, day_of_week: "Sunday", after_hours: false, cost: 2900, notes: "Moderate COPD exacerbation requiring nebulizer and steroids." },
+  { id: "ER007", member_id: "M1006", name: "Patricia Lee", date: "2026-03-14", time: "08:30", facility: "Mercy General Hospital", diagnosis: "Fall with Minor Laceration", icd10: "W19.XXXA", avoidable: true, alternative: "Urgent Care", pcp: "Dr. Nguyen", pcp_visit_prior_7d: false, day_of_week: "Saturday", after_hours: false, cost: 1200, notes: "Minor laceration requiring 3 sutures. Urgent care appropriate." },
+  { id: "ER008", member_id: "M1020", name: "Charles Anderson", date: "2026-03-13", time: "02:45", facility: "Memorial Regional Medical Center", diagnosis: "Acute MI", icd10: "I21.9", avoidable: false, alternative: null, pcp: "Dr. Thompson", pcp_visit_prior_7d: false, day_of_week: "Friday", after_hours: true, cost: 8500, notes: "STEMI requiring emergent catheterization. Appropriate ER use." },
+  { id: "ER009", member_id: "M1014", name: "Helen Taylor", date: "2026-03-12", time: "11:15", facility: "Parkview Standalone ER", diagnosis: "Dizziness", icd10: "R42", avoidable: true, alternative: "Office Visit", pcp: "Dr. Kim", pcp_visit_prior_7d: false, day_of_week: "Thursday", after_hours: false, cost: 1580, notes: "Benign positional vertigo. Could be managed in office setting." },
+  { id: "ER010", member_id: "M1022", name: "Barbara White", date: "2026-03-11", time: "15:00", facility: "St. Luke's Community Hospital", diagnosis: "Hip Fracture", icd10: "S72.001A", avoidable: false, alternative: null, pcp: "Dr. Patel", pcp_visit_prior_7d: false, day_of_week: "Wednesday", after_hours: false, cost: 6200, notes: "Displaced hip fracture requiring surgical intervention." },
+  { id: "ER011", member_id: "M1007", name: "George Clark", date: "2026-03-10", time: "20:30", facility: "Mercy General Hospital", diagnosis: "Diabetic Ketoacidosis", icd10: "E11.10", avoidable: false, alternative: null, pcp: "Dr. Nguyen", pcp_visit_prior_7d: false, day_of_week: "Tuesday", after_hours: true, cost: 5800, notes: "DKA requiring insulin drip and ICU monitoring." },
+  { id: "ER012", member_id: "M1025", name: "Nancy Harris", date: "2026-03-09", time: "09:00", facility: "Memorial Regional Medical Center", diagnosis: "Pneumonia", icd10: "J18.9", avoidable: false, alternative: null, pcp: "Dr. Thompson", pcp_visit_prior_7d: true, day_of_week: "Monday", after_hours: false, cost: 3400, notes: "Community-acquired pneumonia with hypoxia. Appropriate ER visit." },
+];
+
+export const mockAvoidableEducation = [
+  { id: "EDU001", type: "member", member_id: "M1003", name: "Maria Garcia", reason: "2 avoidable ER visits in 90 days (URI, sore throat)", recommendation: "ER vs office visit education; enroll in nurse triage line", pcp: "Dr. Rivera", priority: "high", estimated_savings: 3200 },
+  { id: "EDU002", type: "member", member_id: "M1002", name: "Linda Johnson", reason: "3 avoidable ER visits in 6 months (UTI x2, headache)", recommendation: "After-hours care education; telehealth enrollment", pcp: "Dr. Rivera", priority: "high", estimated_savings: 4800 },
+  { id: "EDU003", type: "member", member_id: "M1009", name: "Thomas Brown", reason: "Chronic back pain managed via ER visits", recommendation: "Pain management referral; care plan for chronic pain", pcp: "Dr. Rivera", priority: "medium", estimated_savings: 2400 },
+  { id: "EDU004", type: "provider", provider_id: 1, name: "Dr. Rivera", reason: "25% avoidable ER rate — highest in network. 3rd available appointment: 8.2 days.", recommendation: "Increase same-day/next-day appointment availability; implement nurse triage callback", priority: "high", estimated_savings: 18000 },
+  { id: "EDU005", type: "readmission", member_id: "M1001", name: "Robert Chen", reason: "Readmitted for CHF within 14 days — medication non-compliance", recommendation: "Medication reconciliation; 48-hour post-discharge call; care manager outreach", pcp: "Dr. Rivera", priority: "high", estimated_savings: 14200 },
+  { id: "EDU006", type: "readmission", member_id: "M1008", name: "Dorothy Williams", reason: "Readmitted for COPD within 21 days — missed follow-up", recommendation: "Mandatory 7-day post-discharge follow-up; pulmonary rehab referral", pcp: "Dr. Patel", priority: "high", estimated_savings: 12800 },
+];
+
+// ==========================================================================
+// FHIR Capability Statement (mock)
+// ==========================================================================
+
+export const mockFHIRCapability = {
+  resourceType: "CapabilityStatement",
+  status: "active",
+  date: "2026-03-26",
+  kind: "instance",
+  fhirVersion: "4.0.1",
+  format: ["json"],
+  rest: [
+    {
+      mode: "server",
+      resource: [
+        { type: "Patient", interaction: [{ code: "create" }] },
+        { type: "Condition", interaction: [{ code: "create" }] },
+        { type: "Encounter", interaction: [{ code: "create" }] },
+        { type: "MedicationRequest", interaction: [{ code: "create" }] },
+        { type: "Observation", interaction: [{ code: "create" }] },
+        { type: "Procedure", interaction: [{ code: "create" }] },
+      ],
+    },
+  ],
+};

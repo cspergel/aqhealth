@@ -123,6 +123,14 @@ import {
   mockPartAnalysis,
   mockExpenditureByPeriod,
   mockDashboardActions,
+  mockUtilizationDashboard,
+  mockFacilityIntelligence,
+  mockAdmissionCalendar,
+  mockAdmissionPatterns,
+  mockAvoidableAnalysis,
+  mockAvoidableERDetail,
+  mockAvoidableEducation,
+  mockFHIRCapability,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -1760,6 +1768,39 @@ export function enableDemoMode() {
       // Dashboard actions
       else if (url.includes("/api/dashboard/actions")) {
         mockResponse = mockDashboardActions;
+      }
+
+      // Utilization Command Center
+      else if (url.includes("/api/utilization/follow-up-needed")) {
+        mockResponse = mockUtilizationDashboard.follow_up_needed;
+      }
+      else if (url.includes("/api/utilization/dashboard")) {
+        mockResponse = mockUtilizationDashboard;
+      }
+      else if (url.includes("/api/utilization/facilities")) {
+        mockResponse = mockFacilityIntelligence;
+      }
+      else if (url.includes("/api/utilization/calendar")) {
+        mockResponse = mockAdmissionCalendar;
+      }
+      else if (url.includes("/api/utilization/patterns")) {
+        mockResponse = mockAdmissionPatterns;
+      }
+
+      // Avoidable Admission Analysis
+      else if (url.includes("/api/avoidable/er-detail")) {
+        mockResponse = mockAvoidableERDetail;
+      }
+      else if (url.includes("/api/avoidable/education")) {
+        mockResponse = mockAvoidableEducation;
+      }
+      else if (url.includes("/api/avoidable/analysis")) {
+        mockResponse = mockAvoidableAnalysis;
+      }
+
+      // FHIR
+      else if (url.includes("/api/fhir/capability")) {
+        mockResponse = mockFHIRCapability;
       }
 
       // Generic insights
