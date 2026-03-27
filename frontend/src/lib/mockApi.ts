@@ -131,6 +131,9 @@ import {
   mockAvoidableERDetail,
   mockAvoidableEducation,
   mockFHIRCapability,
+  mockDataInterfaces,
+  mockInterfaceLogs,
+  mockInterfaceStatus,
 } from "./mockData";
 
 // ---------------------------------------------------------------------------
@@ -434,6 +437,9 @@ export function enableDemoMode() {
         }
         mockResponse = rule || { success: true };
       }
+      else if (url.match(/\/api\/interfaces\/\d+$/)) {
+        mockResponse = { status: "updated" };
+      }
       else {
         mockResponse = { success: true };
       }
@@ -463,6 +469,8 @@ export function enableDemoMode() {
         mockResponse = { deleted: true };
       } else if (url.includes("/api/filters/")) {
         mockResponse = { deleted: true };
+      } else if (url.match(/\/api\/interfaces\/\d+$/)) {
+        mockResponse = { status: "deleted" };
       } else {
         mockResponse = { deleted: true };
       }
@@ -897,6 +905,28 @@ export function enableDemoMode() {
           quality_bonus_change: bonusAmount - (mockStarsProjection.qualifies_for_bonus ? Math.round(mockDashboard.metrics.total_lives * 1028) : 0),
           simulated_measures: simMeasures,
         };
+      }
+      // Interfaces — create / test / ingest
+      else if (url.match(/\/api\/interfaces\/\d+\/test/)) {
+        const idMatch = url.match(/\/api\/interfaces\/(\d+)\/test/);
+        const ifaceId = idMatch ? parseInt(idMatch[1]) : 0;
+        const iface = mockDataInterfaces.find((i) => i.id === ifaceId);
+        mockResponse = { success: true, interface_id: ifaceId, interface_type: iface?.interface_type, message: `Connection to ${iface?.name || "interface"} verified successfully.`, latency_ms: 42 };
+      }
+      else if (url.match(/\/api\/interfaces\/?$/)) {
+        mockResponse = { id: 7, status: "created" };
+      }
+      else if (url.includes("/api/ingest/hl7v2")) {
+        mockResponse = { success: true, format: "hl7v2", records_parsed: 1, records_normalised: 3 };
+      }
+      else if (url.includes("/api/ingest/x12")) {
+        mockResponse = { success: true, format: "x12_837", records_parsed: 12, records_normalised: 12 };
+      }
+      else if (url.includes("/api/ingest/cda")) {
+        mockResponse = { success: true, format: "cda", records_parsed: 1, records_normalised: 8 };
+      }
+      else if (url.includes("/api/ingest/json")) {
+        mockResponse = { success: true, format: "json_custom", records_parsed: 1 };
       }
       else {
         mockResponse = { success: true };
@@ -1801,6 +1831,19 @@ export function enableDemoMode() {
       // FHIR
       else if (url.includes("/api/fhir/capability")) {
         mockResponse = mockFHIRCapability;
+      }
+
+      // Interfaces — Universal Integration Layer
+      else if (url.match(/\/api\/interfaces\/\d+\/logs/)) {
+        const idMatch = url.match(/\/api\/interfaces\/(\d+)\/logs/);
+        const ifaceId = idMatch ? parseInt(idMatch[1]) : 0;
+        mockResponse = mockInterfaceLogs[ifaceId] || [];
+      }
+      else if (url.includes("/api/interfaces/status")) {
+        mockResponse = mockInterfaceStatus;
+      }
+      else if (url.match(/\/api\/interfaces\/?$/) || url.match(/\/api\/interfaces\?/)) {
+        mockResponse = mockDataInterfaces;
       }
 
       // Generic insights

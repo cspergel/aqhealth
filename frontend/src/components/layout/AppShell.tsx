@@ -44,6 +44,7 @@ import { CaseManagementPage } from "../../pages/CaseManagementPage";
 import { PriorAuthPage } from "../../pages/PriorAuthPage";
 import { UtilizationPage } from "../../pages/UtilizationPage";
 import { AvoidablePage } from "../../pages/AvoidablePage";
+import { InterfacesPage } from "../../pages/InterfacesPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -134,6 +135,7 @@ export function AppShell() {
             <Route path="/prior-auth" element={<PriorAuthPage />} />
             <Route path="/utilization" element={<UtilizationPage />} />
             <Route path="/avoidable" element={<AvoidablePage />} />
+            <Route path="/integrations" element={<InterfacesPage />} />
           </Routes>
         </main>
 

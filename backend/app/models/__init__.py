@@ -25,3 +25,4 @@ from app.models.risk_accounting import CapitationPayment, SubcapPayment, RiskPoo
 from app.models.care_plan import CarePlan, CarePlanGoal, CarePlanIntervention
 from app.models.case_management import CaseAssignment, CaseNote
 from app.models.prior_auth import PriorAuth
+from app.models.data_interface import DataInterface, InterfaceLog
