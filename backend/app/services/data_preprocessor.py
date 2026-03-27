@@ -24,6 +24,7 @@ import logging
 import os
 import re
 import tempfile
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -146,50 +147,6 @@ def clean_headers(headers: list[str]) -> list[str]:
     - Handle duplicate column names (append _2, _3)
     - Standardize common abbreviations
     """
-    _ABBREVIATIONS = {
-        "mbr": "member",
-        "prov": "provider",
-        "dt": "date",
-        "dx": "diagnosis",
-        "svc": "service",
-        "amt": "amount",
-        "cd": "code",
-        "nm": "name",
-        "nbr": "number",
-        "num": "number",
-        "no": "number",
-        "dschrg": "discharge",
-        "admssn": "admission",
-        "addr": "address",
-        "tel": "telephone",
-        "ph": "phone",
-        "desc": "description",
-        "stat": "status",
-        "elig": "eligibility",
-        "auth": "authorization",
-        "diag": "diagnosis",
-        "proc": "procedure",
-        "clm": "claim",
-        "subr": "subscriber",
-        "sub": "subscriber",
-        "grp": "group",
-        "org": "organization",
-        "spec": "specialty",
-        "eff": "effective",
-        "term": "termination",
-        "qty": "quantity",
-        "rx": "prescription",
-        "pharm": "pharmacy",
-        "lab": "laboratory",
-        "fac": "facility",
-        "pos": "place_of_service",
-        "rev": "revenue",
-        "mod": "modifier",
-        "ben": "benefit",
-        "cov": "coverage",
-        "lob": "line_of_business",
-    }
-
     cleaned: list[str] = []
     seen: dict[str, int] = {}
 
@@ -216,15 +173,10 @@ def clean_headers(headers: list[str]) -> list[str]:
         # Remove leading/trailing underscores
         h = h.strip("_")
 
-        # Expand abbreviations (only at word boundaries)
-        parts = h.split("_")
-        expanded_parts = []
-        for part in parts:
-            if part in _ABBREVIATIONS:
-                expanded_parts.append(_ABBREVIATIONS[part])
-            else:
-                expanded_parts.append(part)
-        h = "_".join(p for p in expanded_parts if p)
+        # NOTE: Abbreviation expansion removed intentionally.
+        # Expanding abbreviations (dx->diagnosis, amt->amount, etc.) before
+        # alias lookup breaks the alias table which uses the short forms.
+        # The alias table and AI mapper handle semantic mapping instead.
 
         # Collapse multiple underscores
         h = re.sub(r"_+", "_", h)
@@ -347,15 +299,18 @@ def normalize_dates(values: list[str], detected_format: str) -> list[str]:
 
     Handles 2-digit years with a pivot (00-49 -> 2000s, 50-99 -> 1900s).
     Returns the original value unchanged if parsing fails.
+    Preserves None/NaN for originally-null values (avoids "nan" strings).
     """
     results: list[str] = []
     for v in values:
-        if v is None or (isinstance(v, str) and str(v).strip().lower() in _NULL_SENTINELS):
-            results.append(v)
+        # Preserve None/NaN — do not convert to string
+        if v is None:
+            results.append(None)
             continue
         s = str(v).strip()
-        if not s:
-            results.append(v)
+        # Filter out NaN-like string representations
+        if s.lower() in ("nan", "nat", "none", "") or s.lower() in _NULL_SENTINELS:
+            results.append(None)
             continue
         try:
             # Strip fractional seconds if present
@@ -385,6 +340,7 @@ def cleanup_icd10_codes(value: str) -> str:
     if value is None:
         return value
     s = str(value).strip().upper()
+    s = s.rstrip(".")
     if not s or s.lower() in _NULL_SENTINELS:
         return s
 
@@ -687,16 +643,17 @@ def remove_empty_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
 
     Returns (cleaned_df, count_removed).
     """
-    # Replace common null sentinels with actual NaN for detection
-    df_check = df.copy()
-    for col in df_check.columns:
-        df_check[col] = df_check[col].apply(
-            lambda x: None if (x is None or str(x).strip().lower() in _NULL_SENTINELS) else x
-        )
-
-    mask = df_check.isnull().all(axis=1) | (df_check.astype(str).apply(
-        lambda row: all(str(v).strip() == "" for v in row), axis=1
-    ))
+    # Vectorized approach: replace null sentinels with NaN in one pass,
+    # then check if all columns are null per row.
+    df_check = df.replace(
+        to_replace={col: {v: pd.NA for v in _NULL_SENTINELS} for col in df.columns}
+    )
+    # Also catch actual None/NaN and whitespace-only strings
+    df_check = df_check.where(
+        df_check.apply(lambda col: col.astype(str).str.strip() != "", axis=0),
+        other=pd.NA,
+    )
+    mask = df_check.isna().all(axis=1)
     removed_count = mask.sum()
     return df[~mask].reset_index(drop=True), int(removed_count)
 
@@ -816,8 +773,9 @@ def _looks_like_zip_column(col_name: str) -> bool:
 
 def _looks_like_name_column(col_name: str, series: pd.Series) -> bool:
     """Check if column contains combined name values (LAST, FIRST format)."""
-    name_lower = col_name.lower()
-    if not any(kw in name_lower for kw in ("full_name", "member_name", "patient_name", "name")):
+    _NAME_COLUMN_EXACT = {"full_name", "member_name", "patient_name", "name"}
+    name_lower = col_name.lower().strip()
+    if name_lower not in _NAME_COLUMN_EXACT:
         return False
     # Check for comma-separated names in sample
     sample = series.dropna().head(20).astype(str)
@@ -829,7 +787,7 @@ def _looks_like_name_column(col_name: str, series: pd.Series) -> bool:
 # Main preprocessing entry point
 # ---------------------------------------------------------------------------
 
-async def preprocess_file(file_path: str, source_name: str | None = None) -> dict[str, Any]:
+def preprocess_file(file_path: str, source_name: str | None = None) -> dict[str, Any]:
     """
     Main data pre-processing entry point.
 
@@ -859,6 +817,53 @@ async def preprocess_file(file_path: str, source_name: str | None = None) -> dic
     columns_removed: list[str] = []
     date_formats_detected: dict[str, str] = {}
     diagnosis_merged = False
+    merged_dx_columns: list[str] = []
+
+    # ---------------------------------------------------------------
+    # Step 0: File size check — skip full preprocessing for very large files
+    # ---------------------------------------------------------------
+    _MAX_PREPROCESS_SIZE = 200 * 1024 * 1024  # 200 MB
+    try:
+        file_size = os.path.getsize(file_path)
+    except OSError:
+        file_size = 0
+
+    if file_size > _MAX_PREPROCESS_SIZE:
+        logger.warning(
+            "File '%s' is %d MB — exceeds 200 MB limit. "
+            "Skipping full preprocessing; only doing header cleaning + encoding detection.",
+            file_path, file_size // (1024 * 1024),
+        )
+        file_ext = Path(file_path).suffix.lower()
+        is_csv = file_ext not in (".xlsx", ".xls")
+        original_encoding = detect_encoding(file_path) if is_csv else "n/a (excel)"
+
+        # Read just the headers (first row)
+        try:
+            if is_csv:
+                df_head = pd.read_csv(file_path, nrows=0, dtype=str, encoding=original_encoding)
+            else:
+                df_head = pd.read_excel(file_path, nrows=0, dtype=str)
+            cleaned_hdrs = clean_headers(list(df_head.columns))
+        except Exception:
+            cleaned_hdrs = []
+
+        warnings.append(
+            f"File is {file_size // (1024 * 1024)} MB — only header cleaning and "
+            "encoding detection were performed to avoid memory issues."
+        )
+        return {
+            "cleaned_path": None,
+            "original_encoding": original_encoding,
+            "headers_cleaned": cleaned_hdrs,
+            "changes_made": [],
+            "rows_removed": 0,
+            "columns_removed": [],
+            "date_format_detected": {},
+            "diagnosis_columns_merged": False,
+            "merged_dx_columns": [],
+            "warnings": warnings,
+        }
 
     # ---------------------------------------------------------------
     # Step 1: Detect encoding
@@ -896,6 +901,7 @@ async def preprocess_file(file_path: str, source_name: str | None = None) -> dic
             "columns_removed": [],
             "date_format_detected": {},
             "diagnosis_columns_merged": False,
+            "merged_dx_columns": [],
             "warnings": [f"Could not read file: {e}"],
         }
 
@@ -910,6 +916,7 @@ async def preprocess_file(file_path: str, source_name: str | None = None) -> dic
             "columns_removed": [],
             "date_format_detected": {},
             "diagnosis_columns_merged": False,
+            "merged_dx_columns": [],
             "warnings": warnings,
         }
 
@@ -1030,12 +1037,14 @@ async def preprocess_file(file_path: str, source_name: str | None = None) -> dic
     if len(dx_columns) >= 2:
         df["diagnosis_codes"] = merge_diagnosis_columns(df, dx_columns)
         diagnosis_merged = True
+        merged_dx_columns = list(dx_columns)
         changes.append({
             "type": "diagnosis_merge",
             "description": f"Merged {len(dx_columns)} diagnosis columns ({', '.join(dx_columns)}) into 'diagnosis_codes' array",
             "rows_affected": len(df),
         })
         # Do NOT drop original dx columns — mapper may still want them
+        # But record them so downstream mapper can skip them if diagnosis_codes exists
 
     # ---------------------------------------------------------------
     # Step 10: Clean currency/amount columns
@@ -1044,7 +1053,7 @@ async def preprocess_file(file_path: str, source_name: str | None = None) -> dic
         if _looks_like_amount_column(df[col]):
             original_values = df[col].copy()
             df[col] = df[col].apply(
-                lambda x: str(clean_amount(str(x))) if pd.notna(x) and clean_amount(str(x)) is not None else x
+                lambda x: f"{clean_amount(str(x)):.2f}" if pd.notna(x) and clean_amount(str(x)) is not None else x
             )
             changed_count = (df[col] != original_values).sum()
             if changed_count > 0:
@@ -1129,7 +1138,7 @@ async def preprocess_file(file_path: str, source_name: str | None = None) -> dic
         temp_dir = Path(tempfile.gettempdir()) / "aqsoft_preprocessed"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
-        cleaned_filename = f"cleaned_{Path(file_path).stem}_{os.getpid()}{suffix}"
+        cleaned_filename = f"cleaned_{Path(file_path).stem}_{uuid.uuid4().hex[:12]}{suffix}"
         cleaned_path = str(temp_dir / cleaned_filename)
 
         # Handle the diagnosis_codes column (list -> semicolon-separated for CSV)
@@ -1161,5 +1170,6 @@ async def preprocess_file(file_path: str, source_name: str | None = None) -> dic
         "columns_removed": columns_removed,
         "date_format_detected": date_formats_detected,
         "diagnosis_columns_merged": diagnosis_merged,
+        "merged_dx_columns": merged_dx_columns,
         "warnings": warnings,
     }

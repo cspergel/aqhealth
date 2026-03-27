@@ -372,7 +372,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "cost_share", "patient_pay", "member_pay",
     ],
     "copay_amount": [
-        "copay_amount", "copay", "copay_amt", "co_pay",
+        "copay_amount", "copay_amt", "co_pay",
     ],
     "coinsurance_amount": [
         "coinsurance_amount", "coinsurance", "coinsurance_amt", "co_insurance",
@@ -405,7 +405,6 @@ COLUMN_ALIASES: dict[str, list[str]] = {
     ],
     "referring_npi": [
         "referring_npi", "referring_provider_npi", "referral_npi",
-        "ordering_provider_npi",
     ],
     "facility_name": [
         "facility_name", "facility", "hospital_name", "location_name",
@@ -417,7 +416,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "service_facility_npi",
     ],
     "specialty": [
-        "specialty", "provider_specialty", "taxonomy", "speciality",
+        "specialty", "provider_specialty", "speciality",
         "provider_type", "specialty_code", "specialty_description",
         "physician_specialty",
     ],
@@ -439,7 +438,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "credentialing",
     ],
     "panel_status": [
-        "panel_status", "panel_open", "accepting_patients", "panel",
+        "panel_status", "panel_open", "panel",
     ],
     "accepting_new_patients": [
         "accepting_new_patients", "accepting_patients", "open_panel",
@@ -475,7 +474,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "pharmacy_npi", "dispensing_pharmacy_npi", "pharmacy_provider_npi",
     ],
     "prescriber_npi": [
-        "prescriber_npi", "prescriber_id", "ordering_provider_npi",
+        "prescriber_npi", "prescriber_id",
         "prescribing_npi", "prescriber_provider_npi",
     ],
     "prescriber_name": [
@@ -527,11 +526,11 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "type_of_service",
     ],
     "requesting_provider_npi": [
-        "requesting_provider_npi", "requesting_npi", "referring_npi",
+        "requesting_provider_npi", "requesting_npi",
         "ordering_npi",
     ],
     "servicing_provider_npi": [
-        "servicing_provider_npi", "servicing_npi", "rendering_npi",
+        "servicing_provider_npi", "servicing_npi",
     ],
     "requested_date": [
         "requested_date", "request_date", "submission_date",
@@ -738,6 +737,40 @@ def build_reverse_alias_map() -> dict[str, str]:
                 reverse[normalized] = canonical
     return reverse
 
+
+def _validate_no_cross_field_collisions() -> None:
+    """
+    Check for aliases that appear under multiple canonical fields.
+    Logs a warning at import time if any collisions are found.
+    This helps catch maintenance errors in the alias table.
+    """
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
+
+    alias_to_fields: dict[str, list[str]] = {}
+    for canonical, aliases in COLUMN_ALIASES.items():
+        for alias in aliases:
+            normalized = alias.strip().lower().replace(" ", "_").replace("-", "_").replace(".", "_")
+            if normalized not in alias_to_fields:
+                alias_to_fields[normalized] = []
+            alias_to_fields[normalized].append(canonical)
+
+    collisions = {
+        alias: fields
+        for alias, fields in alias_to_fields.items()
+        if len(fields) > 1
+    }
+    if collisions:
+        for alias, fields in collisions.items():
+            _logger.warning(
+                "Alias collision: '%s' appears under multiple canonical fields: %s. "
+                "Only the first (%s) will be used in reverse lookups.",
+                alias, fields, fields[0],
+            )
+
+
+# Validate at module load time
+_validate_no_cross_field_collisions()
 
 # Pre-built at import time for fast lookups
 REVERSE_ALIAS_MAP: dict[str, str] = build_reverse_alias_map()

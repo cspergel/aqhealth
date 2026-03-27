@@ -5,6 +5,7 @@ Handles file uploads, AI column mapping, job management,
 mapping templates, and mapping rules.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -66,6 +67,7 @@ class PreprocessingInfo(BaseModel):
     columns_removed: list[str] = []
     date_format_detected: dict[str, str] = {}
     diagnosis_columns_merged: bool = False
+    merged_dx_columns: list[str] = []
     warnings: list[str] = []
 
 
@@ -216,7 +218,7 @@ async def upload_file(
     preprocessing_info = None
     effective_path = str(file_path)
     try:
-        prep_result = await preprocess_file(str(file_path))
+        prep_result = await asyncio.to_thread(preprocess_file, str(file_path))
         preprocessing_info = PreprocessingInfo(
             original_encoding=prep_result.get("original_encoding"),
             changes_made=prep_result.get("changes_made", []),
@@ -224,6 +226,7 @@ async def upload_file(
             columns_removed=prep_result.get("columns_removed", []),
             date_format_detected=prep_result.get("date_format_detected", {}),
             diagnosis_columns_merged=prep_result.get("diagnosis_columns_merged", False),
+            merged_dx_columns=prep_result.get("merged_dx_columns", []),
             warnings=prep_result.get("warnings", []),
         )
         if prep_result.get("cleaned_path"):
@@ -283,15 +286,17 @@ async def upload_file(
         proposed = result["mapping"]
 
     # Create UploadJob record and retrieve its ID via RETURNING
+    # Store the effective (cleaned) file path so the background worker
+    # doesn't need to re-preprocess.
     mapping_json = json.dumps(proposed)
     id_result = await db.execute(
         text("""
             INSERT INTO upload_jobs
                 (filename, file_size, detected_type, status, column_mapping,
-                 mapping_template_id, uploaded_by)
+                 mapping_template_id, uploaded_by, cleaned_file_path)
             VALUES
                 (:filename, :file_size, :detected_type, 'mapping',
-                 :mapping::jsonb, :template_id, :user_id)
+                 :mapping::jsonb, :template_id, :user_id, :cleaned_path)
             RETURNING id
         """),
         {
@@ -301,6 +306,7 @@ async def upload_file(
             "mapping": mapping_json,
             "template_id": template_id,
             "user_id": current_user["user_id"],
+            "cleaned_path": effective_path,
         },
     )
     job_id = id_result.scalar_one()

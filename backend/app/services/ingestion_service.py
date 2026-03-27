@@ -5,6 +5,7 @@ Reads uploaded CSV/Excel files, applies column mapping, validates rows,
 and bulk-inserts records into tenant schema tables (members, claims, providers).
 """
 
+import asyncio
 import io
 import logging
 import re
@@ -718,7 +719,7 @@ async def process_upload(
 
     # Step 0: Pre-process the raw file to fix common data messiness
     try:
-        prep_result = await preprocess_file(file_path)
+        prep_result = await asyncio.to_thread(preprocess_file, file_path)
         if prep_result["cleaned_path"]:
             file_path = prep_result["cleaned_path"]  # use cleaned version
         # Log what was cleaned
