@@ -621,40 +621,53 @@ h1, h2, h3 {
 }
 
 .vendor-card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 20px 16px;
   text-align: center;
-  width: 150px;
+  width: 155px;
   transition: var(--transition);
 }
 
 .vendor-card:hover {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.07);
   border-color: rgba(255,255,255,0.15);
 }
 
 .vendor-card.chaos {
-  background: rgba(220, 38, 38, 0.1);
-  border-color: rgba(220, 38, 38, 0.3);
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.25);
 }
 
-.vendor-icon {
-  font-size: 28px;
-  margin-bottom: 8px;
+.vendor-label {
+  font-family: 'Berkeley Mono', 'SF Mono', 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 10px;
+  letter-spacing: 0.05em;
 }
 
 .vendor-name {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   margin-bottom: 4px;
   color: rgba(255,255,255,0.9);
+  line-height: 1.3;
+}
+
+.vendor-desc {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 8px;
 }
 
 .vendor-cost {
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.6);
+  font-family: 'Berkeley Mono', 'SF Mono', monospace;
 }
 
 .vendor-plus, .vendor-equals {
