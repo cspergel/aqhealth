@@ -102,6 +102,11 @@ class PayerAdapter(ABC):
         ...
 
     @abstractmethod
+    async def fetch_observations(self, token: str, params: dict) -> list[dict]:
+        """Fetch Observation resources (lab results, vitals)."""
+        ...
+
+    @abstractmethod
     def get_authorization_url(self, credentials: dict) -> str:
         """Build the OAuth authorization URL for browser redirect."""
         ...
@@ -263,7 +268,7 @@ async def sync_payer_data(
             return {"status": "error", "message": f"Token refresh failed: {e}"}
 
     # Determine what to sync
-    all_types = ["patients", "coverage", "claims", "conditions", "providers", "medications"]
+    all_types = ["patients", "coverage", "claims", "conditions", "providers", "medications", "observations"]
     sync_types = data_types or all_types
 
     results = {
@@ -307,6 +312,11 @@ async def sync_payer_data(
                 resources = await adapter.fetch_medications(access_token, params)
                 count = await _upsert_medications(db, resources)
                 results["synced"]["medications"] = count
+
+            elif data_type == "observations":
+                resources = await adapter.fetch_observations(access_token, params)
+                count = await _upsert_observations(db, resources)
+                results["synced"]["observations"] = count
 
         except Exception as e:
             logger.error("Error syncing %s from %s: %s", data_type, payer_name, e, exc_info=True)
@@ -489,6 +499,13 @@ async def _upsert_patients(db: AsyncSession, resources: list[dict]) -> int:
                 existing.gender = res["gender"]
             if res.get("zip_code"):
                 existing.zip_code = res["zip_code"]
+            if res.get("medicaid_status") is not None:
+                existing.medicaid_status = res["medicaid_status"]
+            # Merge extra data (preserve existing keys, add/update new ones)
+            if res.get("extra"):
+                merged = dict(existing.extra or {})
+                merged.update({k: v for k, v in res["extra"].items() if v is not None})
+                existing.extra = merged
         else:
             member = Member(
                 member_id=member_id,
@@ -497,6 +514,8 @@ async def _upsert_patients(db: AsyncSession, resources: list[dict]) -> int:
                 date_of_birth=res.get("date_of_birth", date(1900, 1, 1)),
                 gender=res.get("gender", "U"),
                 zip_code=res.get("zip_code"),
+                medicaid_status=res.get("medicaid_status", False),
+                extra=res.get("extra"),
             )
             db.add(member)
 
@@ -530,6 +549,11 @@ async def _upsert_coverage(db: AsyncSession, resources: list[dict]) -> int:
             member.health_plan = res["health_plan"]
         if res.get("plan_product"):
             member.plan_product = res["plan_product"]
+        # Merge coverage extra data into member extra
+        if res.get("extra"):
+            merged = dict(member.extra or {})
+            merged["coverage"] = {k: v for k, v in res["extra"].items() if v is not None}
+            member.extra = merged
 
         count += 1
 
@@ -580,14 +604,24 @@ async def _upsert_claims(db: AsyncSession, resources: list[dict]) -> int:
             paid_date=res.get("paid_date"),
             diagnosis_codes=res.get("diagnosis_codes"),
             procedure_code=res.get("procedure_code"),
+            drg_code=res.get("drg_code"),
             ndc_code=res.get("ndc_code"),
-            billing_npi=res.get("provider_npi"),
+            billing_npi=res.get("billing_npi") or res.get("provider_npi"),
+            billing_tin=res.get("billing_tin"),
+            facility_name=res.get("facility_name"),
+            facility_npi=res.get("facility_npi"),
             billed_amount=_decimal(res.get("billed_amount")),
             allowed_amount=_decimal(res.get("allowed_amount")),
             paid_amount=_decimal(res.get("paid_amount")),
             member_liability=_decimal(res.get("member_liability")),
             service_category=res.get("service_category", "professional"),
+            pos_code=res.get("pos_code"),
             drug_name=res.get("drug_name"),
+            quantity=res.get("quantity"),
+            days_supply=res.get("days_supply"),
+            los=res.get("los"),
+            status=res.get("status", "paid"),
+            extra=res.get("extra"),
             data_tier="record",
             is_estimated=False,
             signal_source=f"payer_api_{res.get('payer', 'unknown')}",
@@ -624,9 +658,10 @@ async def _upsert_conditions(db: AsyncSession, resources: list[dict]) -> int:
             service_date=res.get("onset_date", date.today()),
             diagnosis_codes=icd_codes,
             service_category="professional",
+            extra=res.get("extra"),
             data_tier="signal",
             is_estimated=False,
-            signal_source=f"payer_api_condition",
+            signal_source="payer_api_condition",
         )
         db.add(claim)
         count += 1
@@ -655,12 +690,24 @@ async def _upsert_providers(db: AsyncSession, resources: list[dict]) -> int:
                 existing.last_name = res["last_name"]
             if res.get("specialty"):
                 existing.specialty = res["specialty"]
+            if res.get("tin"):
+                existing.tin = res["tin"]
+            if res.get("practice_name"):
+                existing.practice_name = res["practice_name"]
+            # Merge extra data
+            if res.get("extra"):
+                merged = dict(existing.extra or {})
+                merged.update({k: v for k, v in res["extra"].items() if v is not None})
+                existing.extra = merged
         else:
             provider = Provider(
                 npi=npi,
                 first_name=res.get("first_name", ""),
                 last_name=res.get("last_name", ""),
                 specialty=res.get("specialty"),
+                tin=res.get("tin"),
+                practice_name=res.get("practice_name"),
+                extra=res.get("extra"),
             )
             db.add(provider)
 
@@ -691,10 +738,66 @@ async def _upsert_medications(db: AsyncSession, resources: list[dict]) -> int:
             service_date=res.get("service_date", date.today()),
             drug_name=res.get("drug_name"),
             ndc_code=res.get("ndc_code"),
+            days_supply=res.get("days_supply"),
+            status=res.get("status", "paid"),
             service_category="pharmacy",
+            extra=res.get("extra"),
             data_tier="signal",
             is_estimated=False,
             signal_source="payer_api_medication",
+        )
+        db.add(claim)
+        count += 1
+
+    await db.flush()
+    return count
+
+
+async def _upsert_observations(db: AsyncSession, resources: list[dict]) -> int:
+    """Map payer-parsed Observation dicts to Claim rows (lab/vital signals).
+
+    Observations are stored as signal-tier claims with service_category="lab"
+    or "vital-signs". The structured observation data is preserved in
+    Claim.extra JSONB for downstream analytics (e.g., A1C trending, eGFR
+    monitoring for CKD HCC validation).
+    """
+    count = 0
+    for res in resources:
+        member_id_str = res.get("member_id")
+        if not member_id_str:
+            continue
+
+        member_q = await db.execute(
+            select(Member).where(Member.member_id == member_id_str)
+        )
+        member = member_q.scalar_one_or_none()
+        if not member:
+            continue
+
+        # Build extra with all observation-specific fields
+        obs_extra = dict(res.get("extra", {}) or {})
+        obs_extra["test_code"] = res.get("test_code")
+        obs_extra["test_name"] = res.get("test_name")
+        obs_extra["result_value"] = res.get("result_value")
+        obs_extra["result_string"] = res.get("result_string")
+        obs_extra["result_units"] = res.get("result_units")
+        obs_extra["abnormal_flag"] = res.get("abnormal_flag")
+        obs_extra["observation_status"] = res.get("status")
+
+        # Determine service category from observation category
+        obs_cat = res.get("category", "laboratory")
+        service_category = "lab" if obs_cat == "laboratory" else obs_cat or "lab"
+
+        claim = Claim(
+            member_id=member.id,
+            claim_type="professional",
+            service_date=res.get("observation_date", date.today()),
+            procedure_code=res.get("test_code"),  # LOINC code as procedure
+            service_category=service_category,
+            extra=obs_extra,
+            data_tier="signal",
+            is_estimated=False,
+            signal_source="payer_api_observation",
         )
         db.add(claim)
         count += 1
