@@ -24,6 +24,7 @@ from app.services.skill_service import (
     suggest_skills,
     update_skill,
     AVAILABLE_ACTIONS,
+    _execute_step,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,11 @@ class SkillExecuteRequest(BaseModel):
     triggered_by: str = "manual"
 
 
+class SkillExecuteByNameRequest(BaseModel):
+    action: str = Field(..., description="Action name to execute (e.g. hcc_analysis)")
+    params: dict = Field(default_factory=dict, description="Optional parameters")
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -85,6 +91,52 @@ async def list_actions(
 ):
     """List available step actions for building skills."""
     return AVAILABLE_ACTIONS
+
+
+# Mapping from frontend pipeline names to backend action names
+_PIPELINE_ACTION_MAP = {
+    "data_load": "run_quality_checks",
+    "hcc_analysis": "run_hcc_engine",
+    "provider_scorecards": "refresh_provider_scorecards",
+    "care_gap_detection": "detect_care_gaps",
+    "ai_insights": "generate_insights",
+    "refresh_scorecards": "refresh_provider_scorecards",
+    "discovery": "run_discovery",
+    "alert_rules": "evaluate_alert_rules",
+}
+
+
+@router.post("/execute-by-name")
+async def execute_skill_by_name(
+    body: SkillExecuteByNameRequest,
+    db: AsyncSession = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Execute a system-level pipeline action by name.
+
+    This endpoint is for system pipeline actions (onboarding wizard, scheduled
+    pipelines) that don't require a persisted skill record.  The action name
+    is mapped to an internal _execute_step action and dispatched directly.
+    """
+    # Resolve alias → canonical action name
+    action = _PIPELINE_ACTION_MAP.get(body.action, body.action)
+
+    # Validate that the action is known
+    known_actions = {a["action"] for a in AVAILABLE_ACTIONS}
+    if action not in known_actions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown action '{body.action}'. Available: {sorted(known_actions)}",
+        )
+
+    tenant_schema = current_user.get("tenant_schema", "public")
+    result = await _execute_step(db, action, body.params, tenant_schema)
+    return {
+        "action": body.action,
+        "resolved_action": action,
+        "summary": result.get("message") or result.get("status", "completed"),
+        **result,
+    }
 
 
 @router.get("/suggest")

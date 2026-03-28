@@ -71,8 +71,8 @@ class DiscoverStructureRequest(BaseModel):
 
 
 class ConfirmStructureRequest(BaseModel):
-    proposal: dict[str, Any] = Field(..., description="Proposal from discover-structure")
-    user_edits: dict[str, Any] | None = Field(None, description="User overrides for names, approvals, rejections")
+    job_id: int = Field(..., description="Upload job ID that was discovered")
+    groups: list[dict[str, Any]] = Field(..., description="User-reviewed groups with tin, name, relationship_type")
 
 
 # ---------------------------------------------------------------------------
@@ -342,10 +342,39 @@ async def confirm_structure(
 ):
     """Create approved groups and providers from the discovery proposal.
 
-    Uses find-or-create pattern — safe for concurrent requests.
+    The frontend sends {job_id, groups: [{tin, name, relationship_type}, ...]}.
+    We re-run discover to get the full proposal, then build user_edits from the
+    confirmed groups list so the existing service logic is unchanged.
     """
+    # 1. Re-discover to get the full proposal (with provider lists, etc.)
+    try:
+        proposal = await org_discovery_service.discover_org_structure(db, body.job_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # 2. Build user_edits from the frontend's confirmed groups
+    confirmed_tins = {g["tin"] for g in body.groups}
+    all_tins = {
+        pg.get("tin_raw") or pg.get("tin")
+        for pg in proposal.get("proposed_groups", [])
+    }
+    rejected_tins = list(all_tins - confirmed_tins)
+
+    group_overrides = {}
+    for g in body.groups:
+        group_overrides[g["tin"]] = {
+            "name": g.get("name"),
+            "relationship_type": g.get("relationship_type"),
+            "approved": True,
+        }
+
+    user_edits = {
+        "groups": group_overrides,
+        "rejected_tins": rejected_tins,
+    }
+
     result = await org_discovery_service.confirm_org_structure(
-        db, body.proposal, body.user_edits
+        db, proposal, user_edits
     )
     await db.commit()
     return result

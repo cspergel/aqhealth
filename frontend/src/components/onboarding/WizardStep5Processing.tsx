@@ -128,12 +128,12 @@ export function WizardStep5Processing({
 
   /* ---- Real pipeline (call backend APIs) ---- */
   const runRealPipeline = useCallback(async () => {
-    const apiSteps: { key: string; endpoint: string; skillName: string }[] = [
-      { key: "load", endpoint: "/api/skills/execute", skillName: "data_load" },
-      { key: "hcc", endpoint: "/api/skills/execute", skillName: "hcc_analysis" },
-      { key: "scorecards", endpoint: "/api/skills/execute", skillName: "provider_scorecards" },
-      { key: "gaps", endpoint: "/api/skills/execute", skillName: "care_gap_detection" },
-      { key: "insights", endpoint: "/api/skills/execute", skillName: "ai_insights" },
+    const apiSteps: { key: string; skillName: string }[] = [
+      { key: "load", skillName: "data_load" },
+      { key: "hcc", skillName: "hcc_analysis" },
+      { key: "scorecards", skillName: "provider_scorecards" },
+      { key: "gaps", skillName: "care_gap_detection" },
+      { key: "insights", skillName: "ai_insights" },
     ];
 
     for (const step of apiSteps) {
@@ -142,7 +142,7 @@ export function WizardStep5Processing({
       );
 
       try {
-        const res = await api.post(step.endpoint, { skill: step.skillName });
+        const res = await api.post("/api/skills/execute-by-name", { action: step.skillName });
         const result = res.data;
         setSteps((prev) =>
           prev.map((s) =>
