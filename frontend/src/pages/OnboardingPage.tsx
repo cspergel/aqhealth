@@ -3,6 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { tokens, fonts } from "../lib/tokens";
 import { WizardShell, type WizardStep } from "../components/onboarding/WizardShell";
 import { WizardStep1Org } from "../components/onboarding/WizardStep1Org";
+import { WizardStep2DataSources } from "../components/onboarding/WizardStep2DataSources";
+import { WizardStep3Structure } from "../components/onboarding/WizardStep3Structure";
+import { WizardStep4Quality } from "../components/onboarding/WizardStep4Quality";
 import { WizardStep5Processing } from "../components/onboarding/WizardStep5Processing";
 
 /* ------------------------------------------------------------------ */
@@ -39,8 +42,14 @@ const STEP_DEFINITIONS: { title: string; description: string }[] = [
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isDemoMode = searchParams.get("demo") === "true";
   const [currentStep, setCurrentStep] = useState(0);
   const [step1Confirmed, setStep1Confirmed] = useState(false);
+  const [hasData, setHasData] = useState(false);
+  const [latestJobId, setLatestJobId] = useState<string | null>(null);
+  const [structureConfirmed, setStructureConfirmed] = useState(false);
+  const [step5Complete, setStep5Complete] = useState(false);
 
   const handleStepChange = useCallback((step: number) => {
     setCurrentStep(step);
@@ -61,20 +70,31 @@ export function OnboardingPage() {
     setCurrentStep(1);
   }, []);
 
-  // Build wizard steps — Step 1 uses the real component, others are placeholders
+  const handleStep5Complete = useCallback(() => {
+    setStep5Complete(true);
+  }, []);
+
+  // Build wizard steps — Step 1 and Step 5 use real components, others are placeholders
   const steps: WizardStep[] = STEP_DEFINITIONS.map((def, i) => ({
     title: def.title,
     description: def.description,
     component:
       i === 0 ? (
         <WizardStep1Org onConfirm={handleStep1Confirm} />
+      ) : i === 4 ? (
+        <WizardStep5Processing
+          demoMode={isDemoMode}
+          onComplete={handleStep5Complete}
+        />
       ) : (
         <StepPlaceholder title={def.title} description={def.description} />
       ),
   }));
 
-  // Disable the shell's Next button on Step 1 — the step has its own confirm gate
-  const nextDisabled = currentStep === 0 && !step1Confirmed;
+  // Disable Next on Step 1 (own confirm gate) and Step 5 (until pipeline finishes)
+  const nextDisabled =
+    (currentStep === 0 && !step1Confirmed) ||
+    (currentStep === 4 && !step5Complete);
 
   return (
     <div style={{ minHeight: "100%" }}>
