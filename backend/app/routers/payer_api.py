@@ -8,7 +8,7 @@ All endpoints require mso_admin or superadmin role.
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -35,6 +35,7 @@ class PayerConnectRequest(BaseModel):
     client_secret: str = Field(..., description="OAuth client secret")
     redirect_uri: str = Field(..., description="OAuth redirect URI (must match app registration)")
     environment: str = Field("sandbox", description="'sandbox' or 'production'")
+    practice_code: str | None = Field(None, description="Practice code (required for eCW)")
 
 
 class PayerCallbackRequest(BaseModel):
@@ -46,6 +47,8 @@ class PayerCallbackRequest(BaseModel):
     client_secret: str
     environment: str = "sandbox"
     state: str | None = None
+    code_verifier: str | None = Field(None, description="PKCE code_verifier (required for eCW)")
+    practice_code: str | None = Field(None, description="Practice code (required for eCW)")
 
 
 class PayerSyncRequest(BaseModel):
@@ -83,20 +86,46 @@ async def connect_payer(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    auth_url = adapter.get_authorization_url({
+    creds = {
         "client_id": body.client_id,
         "client_secret": body.client_secret,
         "redirect_uri": body.redirect_uri,
         "environment": body.environment,
         "state": current_user["tenant_schema"],
-    })
+    }
+    # Pass adapter-specific fields (practice_code for eCW, etc.)
+    if body.practice_code:
+        creds["practice_code"] = body.practice_code
 
-    return {
+    auth_url = adapter.get_authorization_url(creds)
+
+    # After get_authorization_url, PKCE adapters (eCW) store the code_verifier
+    # on the adapter instance. We need to persist it so the callback can use it.
+    code_verifier = getattr(adapter, "_code_verifier", None)
+
+    # Store pending auth state (including PKCE verifier) in tenant config
+    if code_verifier:
+        from app.services.payer_api_service import _encrypt_value, _upsert_payer_connection, _get_payer_connection
+        pending_auth = {
+            "code_verifier": _encrypt_value(code_verifier),
+            "environment": body.environment,
+            "status": "pending_callback",
+        }
+        if body.practice_code:
+            pending_auth["practice_code"] = body.practice_code
+        await _upsert_payer_connection(db, current_user["tenant_schema"], body.payer_name, pending_auth)
+
+    response = {
         "auth_url": auth_url,
         "payer": body.payer_name,
         "environment": body.environment,
         "message": "Redirect user to auth_url to complete OAuth flow",
     }
+    # Return code_verifier to the frontend so it can send it back in the callback
+    if code_verifier:
+        response["code_verifier"] = code_verifier
+
+    return response
 
 
 @router.post("/callback")
@@ -111,17 +140,37 @@ async def payer_callback(
     """
     tenant_schema = current_user["tenant_schema"]
 
+    # Retrieve stored PKCE code_verifier from tenant config if not provided
+    code_verifier = body.code_verifier
+    practice_code = body.practice_code
+    if not code_verifier or not practice_code:
+        from app.services.payer_api_service import _get_payer_connection, _decrypt_value
+        stored = await _get_payer_connection(db, tenant_schema, body.payer_name)
+        if stored:
+            if not code_verifier and stored.get("code_verifier"):
+                code_verifier = _decrypt_value(stored["code_verifier"])
+            if not practice_code and stored.get("practice_code"):
+                practice_code = stored["practice_code"]
+
+    credentials: dict[str, Any] = {
+        "client_id": body.client_id,
+        "client_secret": body.client_secret,
+        "code": body.code,
+        "redirect_uri": body.redirect_uri,
+        "environment": body.environment,
+    }
+    # Pass PKCE code_verifier for adapters that need it (eCW)
+    if code_verifier:
+        credentials["code_verifier"] = code_verifier
+    # Pass adapter-specific fields
+    if practice_code:
+        credentials["practice_code"] = practice_code
+
     try:
         result = await payer_api_service.connect_payer(
             db=db,
             payer_name=body.payer_name,
-            credentials={
-                "client_id": body.client_id,
-                "client_secret": body.client_secret,
-                "code": body.code,
-                "redirect_uri": body.redirect_uri,
-                "environment": body.environment,
-            },
+            credentials=credentials,
             tenant_schema=tenant_schema,
         )
         return result

@@ -9,7 +9,7 @@ from app.models.hcc import HccSuspect, RafHistory
 from app.models.care_gap import GapMeasure, MemberGap
 from app.models.ingestion import UploadJob, MappingTemplate, MappingRule
 from app.models.insight import Insight
-from app.models.learning import PredictionOutcome, LearningMetric, UserInteraction, GapClosureLearn, SuspectOutcomeLearn, QueryFeedback
+from app.models.learning import PredictionOutcome, LearningMetric, UserInteraction, GapClosureLearn, SuspectOutcomeLearn, QueryFeedback, LearningEvent
 from app.models.adt import ADTSource, ADTEvent, CareAlert
 from app.models.saved_filter import SavedFilter
 from app.models.annotation import Annotation

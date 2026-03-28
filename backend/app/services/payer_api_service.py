@@ -226,6 +226,15 @@ async def connect_payer(
         "connected_at": now.isoformat(),
     }
 
+    # Persist adapter-specific fields (practice_code for eCW, etc.)
+    for key in ("practice_code",):
+        if credentials.get(key):
+            connection[key] = credentials[key]
+
+    # Cache discovered endpoints from token response (eCW avoids re-discovery)
+    if token_response.get("cached_endpoints"):
+        connection["cached_endpoints"] = token_response["cached_endpoints"]
+
     # Persist into tenant config JSONB
     await _upsert_payer_connection(db, tenant_schema, payer_name, connection)
 
@@ -290,6 +299,10 @@ async def sync_payer_data(
             "refresh_token": _decrypt_value(connection["refresh_token"]),
             "environment": connection.get("environment", "sandbox"),
         }
+        # Pass through adapter-specific fields needed for endpoint discovery
+        for key in ("practice_code", "cached_endpoints"):
+            if connection.get(key):
+                refresh_creds[key] = connection[key]
         try:
             token_response = await adapter.refresh_token(refresh_creds)
             access_token = token_response["access_token"]
@@ -298,6 +311,9 @@ async def sync_payer_data(
             if token_response.get("refresh_token"):
                 connection["refresh_token"] = _encrypt_value(token_response["refresh_token"])
             connection["token_expires_at"] = now + token_response.get("expires_in", 3600)
+            # Update cached endpoints if returned (eCW endpoint caching)
+            if token_response.get("cached_endpoints"):
+                connection["cached_endpoints"] = token_response["cached_endpoints"]
             await _upsert_payer_connection(db, tenant_schema, payer_name, connection)
         except Exception as e:
             logger.error("Token refresh failed for %s: %s", payer_name, e)
@@ -320,6 +336,10 @@ async def sync_payer_data(
     }
 
     params = {"environment": connection.get("environment", "sandbox")}
+    # Pass through adapter-specific params (practice_code for eCW, etc.)
+    for key in ("practice_code", "client_id", "client_secret", "cached_endpoints"):
+        if connection.get(key):
+            params[key] = _decrypt_value(connection[key]) if key in ("client_id", "client_secret") else connection[key]
 
     # Sync each data type
     for data_type in sync_types:

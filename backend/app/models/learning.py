@@ -3,8 +3,8 @@ Self-Learning Feedback System models — tracks prediction outcomes,
 learning metrics, and user interactions to make the AI smarter over time.
 """
 
-from datetime import date
-from sqlalchemy import String, Integer, Numeric, Date, Text, Boolean
+from datetime import date, datetime
+from sqlalchemy import String, Integer, Numeric, Date, DateTime, Text, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -133,3 +133,22 @@ class SuspectOutcomeLearn(Base, TimestampMixin):
     dismissed_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
     original_confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     outcome_date: Mapped[date] = mapped_column(Date)
+
+
+class LearningEvent(Base, TimestampMixin):
+    """Cross-loop learning event for the self-learning system.
+
+    When one learning loop discovers something, it publishes an event.
+    Other loops subscribe and react. This creates compound intelligence
+    where the whole system is smarter than any individual loop.
+
+    Events are stored in the database for audit and processed async.
+    """
+    __tablename__ = "learning_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(50), index=True)
+    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    tenant_schema: Mapped[str | None] = mapped_column(String(63), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

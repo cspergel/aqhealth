@@ -30,7 +30,7 @@ import hashlib
 import logging
 import secrets
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 
@@ -120,7 +120,7 @@ class EcwAdapter(PayerAdapter):
         entire token lifetime).
         """
         expiry = issued_at + timedelta(seconds=expires_in)
-        return datetime.utcnow() >= (expiry - timedelta(seconds=_REFRESH_BUFFER_SECONDS))
+        return datetime.now(timezone.utc) >= (expiry - timedelta(seconds=_REFRESH_BUFFER_SECONDS))
 
     # -------------------------------------------------------------------
     # SMART on FHIR endpoint discovery
@@ -249,7 +249,12 @@ class EcwAdapter(PayerAdapter):
         or can be passed explicitly in ``credentials["code_verifier"]``.
         """
         fhir_base = self._build_fhir_base(credentials)
-        endpoints = await self._discover_endpoints(fhir_base)
+        # Use cached endpoints if available to avoid re-discovery
+        cached = credentials.get("cached_endpoints")
+        if cached and isinstance(cached, dict) and "authorize" in cached and "token" in cached:
+            endpoints = cached
+        else:
+            endpoints = await self._discover_endpoints(fhir_base)
         token_url = endpoints["token"]
 
         client_auth = base64.b64encode(
@@ -298,12 +303,19 @@ class EcwAdapter(PayerAdapter):
             "expires_in": token_data.get("expires_in", _DEFAULT_TOKEN_LIFETIME),
             "token_type": token_data.get("token_type", "Bearer"),
             "patient": token_data.get("patient", ""),
+            # Cache discovered endpoints so refresh_token doesn't re-discover
+            "cached_endpoints": endpoints,
         }
 
     async def refresh_token(self, credentials: dict) -> dict:
         """Use refresh token to obtain a new access token."""
         fhir_base = self._build_fhir_base(credentials)
-        endpoints = await self._discover_endpoints(fhir_base)
+        # Use cached endpoints if available to avoid re-discovery on every refresh
+        cached = credentials.get("cached_endpoints")
+        if cached and isinstance(cached, dict) and "authorize" in cached and "token" in cached:
+            endpoints = cached
+        else:
+            endpoints = await self._discover_endpoints(fhir_base)
         token_url = endpoints["token"]
 
         client_auth = base64.b64encode(
@@ -331,6 +343,8 @@ class EcwAdapter(PayerAdapter):
             "access_token": token_data["access_token"],
             "refresh_token": token_data.get("refresh_token", credentials["refresh_token"]),
             "expires_in": token_data.get("expires_in", _DEFAULT_TOKEN_LIFETIME),
+            # Cache discovered endpoints so next refresh doesn't re-discover
+            "cached_endpoints": endpoints,
         }
 
     # -------------------------------------------------------------------
