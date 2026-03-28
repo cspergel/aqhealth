@@ -106,6 +106,39 @@ class PayerAdapter(ABC):
         """Fetch Observation resources (lab results, vitals)."""
         ...
 
+    # -------------------------------------------------------------------
+    # Optional resource fetchers (not all payers support these)
+    # Subclasses override as needed; defaults return empty lists.
+    # -------------------------------------------------------------------
+
+    async def fetch_practitioner_roles(self, token: str, params: dict) -> list[dict]:
+        """Fetch PractitionerRole resources (network, specialty, acceptance)."""
+        return []
+
+    async def fetch_care_plans(self, token: str, params: dict) -> list[dict]:
+        """Fetch CarePlan resources."""
+        return []
+
+    async def fetch_care_teams(self, token: str, params: dict) -> list[dict]:
+        """Fetch CareTeam resources (PCP attribution)."""
+        return []
+
+    async def fetch_allergy_intolerances(self, token: str, params: dict) -> list[dict]:
+        """Fetch AllergyIntolerance resources."""
+        return []
+
+    async def fetch_document_references(self, token: str, params: dict) -> list[dict]:
+        """Fetch DocumentReference resources (clinical notes)."""
+        return []
+
+    async def fetch_immunizations(self, token: str, params: dict) -> list[dict]:
+        """Fetch Immunization resources (vaccine records)."""
+        return []
+
+    async def fetch_procedures(self, token: str, params: dict) -> list[dict]:
+        """Fetch Procedure resources (supplements EOB data)."""
+        return []
+
     @abstractmethod
     def get_authorization_url(self, credentials: dict) -> str:
         """Build the OAuth authorization URL for browser redirect."""
@@ -225,8 +258,11 @@ async def sync_payer_data(
     tenant_schema : str
         Tenant schema name (used to retrieve stored credentials).
     data_types : list[str] | None
-        Which resource types to sync. Defaults to all:
-        ``["patients", "coverage", "claims", "conditions", "providers", "medications"]``
+        Which resource types to sync. Defaults to all 14:
+        ``["patients", "coverage", "claims", "conditions", "providers",
+        "medications", "observations", "practitioner_roles", "care_plans",
+        "care_teams", "allergy_intolerances", "document_references",
+        "immunizations", "procedures"]``
 
     Returns
     -------
@@ -268,7 +304,12 @@ async def sync_payer_data(
             return {"status": "error", "message": f"Token refresh failed: {e}"}
 
     # Determine what to sync
-    all_types = ["patients", "coverage", "claims", "conditions", "providers", "medications", "observations"]
+    all_types = [
+        "patients", "coverage", "claims", "conditions", "providers",
+        "medications", "observations", "practitioner_roles", "care_plans",
+        "care_teams", "allergy_intolerances", "document_references",
+        "immunizations", "procedures",
+    ]
     sync_types = data_types or all_types
 
     results = {
@@ -317,6 +358,41 @@ async def sync_payer_data(
                 resources = await adapter.fetch_observations(access_token, params)
                 count = await _upsert_observations(db, resources)
                 results["synced"]["observations"] = count
+
+            elif data_type == "practitioner_roles":
+                resources = await adapter.fetch_practitioner_roles(access_token, params)
+                count = await _upsert_practitioner_roles(db, resources)
+                results["synced"]["practitioner_roles"] = count
+
+            elif data_type == "care_plans":
+                resources = await adapter.fetch_care_plans(access_token, params)
+                count = await _upsert_care_plans(db, resources)
+                results["synced"]["care_plans"] = count
+
+            elif data_type == "care_teams":
+                resources = await adapter.fetch_care_teams(access_token, params)
+                count = await _upsert_care_teams(db, resources)
+                results["synced"]["care_teams"] = count
+
+            elif data_type == "allergy_intolerances":
+                resources = await adapter.fetch_allergy_intolerances(access_token, params)
+                count = await _upsert_allergy_intolerances(db, resources)
+                results["synced"]["allergy_intolerances"] = count
+
+            elif data_type == "document_references":
+                resources = await adapter.fetch_document_references(access_token, params)
+                count = await _upsert_document_references(db, resources)
+                results["synced"]["document_references"] = count
+
+            elif data_type == "immunizations":
+                resources = await adapter.fetch_immunizations(access_token, params)
+                count = await _upsert_immunizations(db, resources)
+                results["synced"]["immunizations"] = count
+
+            elif data_type == "procedures":
+                resources = await adapter.fetch_procedures(access_token, params)
+                count = await _upsert_procedures(db, resources)
+                results["synced"]["procedures"] = count
 
         except Exception as e:
             logger.error("Error syncing %s from %s: %s", data_type, payer_name, e, exc_info=True)
@@ -798,6 +874,371 @@ async def _upsert_observations(db: AsyncSession, resources: list[dict]) -> int:
             data_tier="signal",
             is_estimated=False,
             signal_source="payer_api_observation",
+        )
+        db.add(claim)
+        count += 1
+
+    await db.flush()
+    return count
+
+
+# ---------------------------------------------------------------------------
+# Internal: NEW resource upsert helpers (7 additional FHIR resources)
+# ---------------------------------------------------------------------------
+
+async def _upsert_practitioner_roles(db: AsyncSession, resources: list[dict]) -> int:
+    """Enrich existing Provider records with PractitionerRole data.
+
+    Updates network_status, accepting_new_patients, specialty (if better),
+    and merges role-specific data into Provider.extra JSONB.
+    """
+    count = 0
+    for res in resources:
+        npi = res.get("npi")
+        if not npi:
+            continue
+
+        existing_q = await db.execute(
+            select(Provider).where(Provider.npi == npi)
+        )
+        provider = existing_q.scalar_one_or_none()
+
+        if not provider:
+            # Create a minimal provider record from role data
+            provider = Provider(
+                npi=npi,
+                first_name="",
+                last_name="",
+                specialty=res.get("specialty"),
+                practice_name=res.get("organization_name"),
+                extra={},
+            )
+            db.add(provider)
+
+        # Update specialty if we got a better one from NUCC taxonomy
+        if res.get("specialty") and not provider.specialty:
+            provider.specialty = res["specialty"]
+
+        # Update practice name from organization
+        if res.get("organization_name") and not provider.practice_name:
+            provider.practice_name = res["organization_name"]
+
+        # Merge role-specific data into extra
+        merged = dict(provider.extra or {})
+        if res.get("network_name"):
+            merged["network_name"] = res["network_name"]
+            merged["network_status"] = "in_network"
+        if res.get("accepting_new_patients") is not None:
+            merged["accepting_new_patients"] = res["accepting_new_patients"]
+        if res.get("active") is not None:
+            merged["role_active"] = res["active"]
+        # Merge the extra dict from parser
+        role_extra = res.get("extra", {})
+        if role_extra:
+            for k, v in role_extra.items():
+                if v is not None:
+                    merged[k] = v
+        provider.extra = merged
+
+        count += 1
+
+    await db.flush()
+    return count
+
+
+async def _upsert_care_plans(db: AsyncSession, resources: list[dict]) -> int:
+    """Store CarePlan data in Member.extra JSONB as care_plans array."""
+    count = 0
+    for res in resources:
+        member_id_str = res.get("member_id")
+        if not member_id_str:
+            continue
+
+        member_q = await db.execute(
+            select(Member).where(Member.member_id == member_id_str)
+        )
+        member = member_q.scalar_one_or_none()
+        if not member:
+            continue
+
+        merged = dict(member.extra or {})
+        care_plans = merged.get("care_plans", [])
+
+        # Check for duplicate by fhir_id
+        fhir_id = res.get("fhir_id")
+        if fhir_id:
+            care_plans = [cp for cp in care_plans if cp.get("fhir_id") != fhir_id]
+
+        care_plans.append({
+            "fhir_id": fhir_id,
+            "status": res.get("status"),
+            "intent": res.get("intent"),
+            "title": res.get("title"),
+            "description": res.get("description"),
+            "categories": res.get("categories"),
+            "period_start": res.get("period_start"),
+            "period_end": res.get("period_end"),
+            "conditions_addressed": res.get("conditions_addressed"),
+            "notes": res.get("notes"),
+            "activities": res.get("activities"),
+        })
+
+        merged["care_plans"] = care_plans
+        member.extra = merged
+        count += 1
+
+    await db.flush()
+    return count
+
+
+async def _upsert_care_teams(db: AsyncSession, resources: list[dict]) -> int:
+    """Store CareTeam data in Member.extra and update PCP attribution.
+
+    If a CareTeam has a participant with role "primary", use their NPI
+    to set member.pcp_provider_id (FK to Provider).
+    """
+    count = 0
+    for res in resources:
+        member_id_str = res.get("member_id")
+        if not member_id_str:
+            continue
+
+        member_q = await db.execute(
+            select(Member).where(Member.member_id == member_id_str)
+        )
+        member = member_q.scalar_one_or_none()
+        if not member:
+            continue
+
+        # Store care team in extra
+        merged = dict(member.extra or {})
+        care_teams = merged.get("care_teams", [])
+
+        fhir_id = res.get("fhir_id")
+        if fhir_id:
+            care_teams = [ct for ct in care_teams if ct.get("fhir_id") != fhir_id]
+
+        care_teams.append({
+            "fhir_id": fhir_id,
+            "status": res.get("status"),
+            "name": res.get("name"),
+            "period_start": res.get("period_start"),
+            "period_end": res.get("period_end"),
+            "participants": res.get("participants"),
+        })
+
+        merged["care_teams"] = care_teams
+        member.extra = merged
+
+        # PCP attribution: if primary_npi found, link to provider
+        primary_npi = res.get("primary_npi")
+        if primary_npi:
+            provider_q = await db.execute(
+                select(Provider).where(Provider.npi == primary_npi)
+            )
+            provider = provider_q.scalar_one_or_none()
+            if provider and hasattr(member, "pcp_provider_id"):
+                member.pcp_provider_id = provider.id
+
+        count += 1
+
+    await db.flush()
+    return count
+
+
+async def _upsert_allergy_intolerances(db: AsyncSession, resources: list[dict]) -> int:
+    """Store AllergyIntolerance data in Member.extra JSONB as allergies array.
+
+    Useful for clinical decision support and drug interaction checking.
+    """
+    count = 0
+    for res in resources:
+        member_id_str = res.get("member_id")
+        if not member_id_str:
+            continue
+
+        member_q = await db.execute(
+            select(Member).where(Member.member_id == member_id_str)
+        )
+        member = member_q.scalar_one_or_none()
+        if not member:
+            continue
+
+        merged = dict(member.extra or {})
+        allergies = merged.get("allergies", [])
+
+        # Deduplicate by fhir_id
+        fhir_id = res.get("fhir_id")
+        if fhir_id:
+            allergies = [a for a in allergies if a.get("fhir_id") != fhir_id]
+
+        allergies.append({
+            "fhir_id": fhir_id,
+            "allergen_name": res.get("allergen_name"),
+            "allergen_code": res.get("allergen_code"),
+            "allergen_system": res.get("allergen_system"),
+            "clinical_status": res.get("clinical_status"),
+            "verification_status": res.get("verification_status"),
+            "allergy_type": res.get("allergy_type"),
+            "categories": res.get("categories"),
+            "criticality": res.get("criticality"),
+            "onset_date": res.get("onset_date"),
+            "reactions": res.get("reactions"),
+            "notes": res.get("notes"),
+        })
+
+        merged["allergies"] = allergies
+        member.extra = merged
+        count += 1
+
+    await db.flush()
+    return count
+
+
+async def _upsert_document_references(db: AsyncSession, resources: list[dict]) -> int:
+    """Store DocumentReference data in Member.extra JSONB as clinical_documents array.
+
+    The actual HTML content from Humana is preserved for AI analysis.
+    """
+    count = 0
+    for res in resources:
+        member_id_str = res.get("member_id")
+        if not member_id_str:
+            continue
+
+        member_q = await db.execute(
+            select(Member).where(Member.member_id == member_id_str)
+        )
+        member = member_q.scalar_one_or_none()
+        if not member:
+            continue
+
+        merged = dict(member.extra or {})
+        documents = merged.get("clinical_documents", [])
+
+        # Deduplicate by fhir_id
+        fhir_id = res.get("fhir_id")
+        if fhir_id:
+            documents = [d for d in documents if d.get("fhir_id") != fhir_id]
+
+        documents.append({
+            "fhir_id": fhir_id,
+            "doc_type_code": res.get("doc_type_code"),
+            "doc_type_display": res.get("doc_type_display"),
+            "categories": res.get("categories"),
+            "status": res.get("status"),
+            "date": res.get("date"),
+            "description": res.get("description"),
+            "authors": res.get("authors"),
+            "content": res.get("content"),
+            "context": res.get("context"),
+        })
+
+        merged["clinical_documents"] = documents
+        member.extra = merged
+        count += 1
+
+    await db.flush()
+    return count
+
+
+async def _upsert_immunizations(db: AsyncSession, resources: list[dict]) -> int:
+    """Store Immunization data in Member.extra JSONB as immunizations array.
+
+    Supports quality measures like flu vaccine administration tracking.
+    """
+    count = 0
+    for res in resources:
+        member_id_str = res.get("member_id")
+        if not member_id_str:
+            continue
+
+        member_q = await db.execute(
+            select(Member).where(Member.member_id == member_id_str)
+        )
+        member = member_q.scalar_one_or_none()
+        if not member:
+            continue
+
+        merged = dict(member.extra or {})
+        immunizations = merged.get("immunizations", [])
+
+        # Deduplicate by fhir_id
+        fhir_id = res.get("fhir_id")
+        if fhir_id:
+            immunizations = [i for i in immunizations if i.get("fhir_id") != fhir_id]
+
+        immunizations.append({
+            "fhir_id": fhir_id,
+            "vaccine_code": res.get("vaccine_code"),
+            "vaccine_system": res.get("vaccine_system"),
+            "vaccine_name": res.get("vaccine_name"),
+            "status": res.get("status"),
+            "occurrence_date": res.get("occurrence_date"),
+            "primary_source": res.get("primary_source"),
+            "lot_number": res.get("lot_number"),
+            "site": res.get("site"),
+            "route": res.get("route"),
+            "performers": res.get("performers"),
+            "notes": res.get("notes"),
+        })
+
+        merged["immunizations"] = immunizations
+        member.extra = merged
+        count += 1
+
+    await db.flush()
+    return count
+
+
+async def _upsert_procedures(db: AsyncSession, resources: list[dict]) -> int:
+    """Map payer-parsed Procedure dicts to Claim rows (supplements EOB data).
+
+    Procedures that appear in the Procedure resource but not in EOB are
+    stored as signal-tier claims to ensure complete procedure capture.
+    """
+    count = 0
+    for res in resources:
+        member_id_str = res.get("member_id")
+        if not member_id_str:
+            continue
+
+        member_q = await db.execute(
+            select(Member).where(Member.member_id == member_id_str)
+        )
+        member = member_q.scalar_one_or_none()
+        if not member:
+            continue
+
+        # Build extra with procedure-specific fields
+        proc_extra = {
+            "fhir_id": res.get("fhir_id"),
+            "procedure_display": res.get("procedure_display"),
+            "procedure_system": res.get("procedure_system"),
+            "performer_display": res.get("performer_display"),
+            "category": res.get("category"),
+            "body_sites": res.get("body_sites"),
+            "reason_codes": res.get("reason_codes"),
+            "encounter_ref": res.get("encounter_ref"),
+            "performed_end": res.get("performed_end"),
+            "notes": res.get("notes"),
+        }
+
+        service_date = res.get("performed_date") or date.today()
+
+        claim = Claim(
+            member_id=member.id,
+            claim_type="professional",
+            service_date=service_date,
+            procedure_code=res.get("procedure_code"),
+            billing_npi=res.get("performer_npi"),
+            diagnosis_codes=res.get("reason_codes"),
+            status=res.get("status", "completed"),
+            service_category="procedure",
+            extra=proc_extra,
+            data_tier="signal",
+            is_estimated=False,
+            signal_source="payer_api_procedure",
         )
         db.add(claim)
         count += 1

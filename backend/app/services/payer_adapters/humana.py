@@ -10,7 +10,10 @@ Handles Humana-specific quirks:
 - Multi-code-system Conditions (extract ICD-10 only, ignore SNOMED/ICD-9)
 - _count/_skip pagination with Bundle.link "next" URLs
 - Adaptive rate limiting with exponential backoff on 429 responses
-- Full extraction of all available FHIR data points across 7 resource types
+- Full extraction of all available FHIR data points across 14 resource types
+  (Patient, Coverage, EOB, Condition, Practitioner, PractitionerRole,
+   MedicationRequest, Observation, CarePlan, CareTeam, AllergyIntolerance,
+   DocumentReference, Immunization, Procedure)
 """
 
 import asyncio
@@ -47,8 +50,12 @@ _SCOPES = (
     "internal openid launch/patient offline_access "
     "patient/Patient.read patient/Coverage.read "
     "patient/ExplanationOfBenefit.read patient/Condition.read "
-    "patient/Practitioner.read patient/MedicationRequest.read "
-    "patient/Observation.read"
+    "patient/CarePlan.read patient/CareTeam.read "
+    "patient/AllergyIntolerance.read patient/DocumentReference.read "
+    "patient/Goal.read patient/Immunization.read "
+    "patient/Procedure.read patient/Observation.read "
+    "patient/Medication.read patient/MedicationRequest.read "
+    "patient/Practitioner.read patient/PractitionerRole.read"
 )
 
 # Rate limiting defaults
@@ -221,6 +228,83 @@ class HumanaAdapter(PayerAdapter):
             obs = self._parse_observation(r)
             if obs:
                 parsed.append(obs)
+        return parsed
+
+    async def fetch_practitioner_roles(self, token: str, params: dict) -> list[dict]:
+        """Fetch and parse PractitionerRole resources (network, specialty, acceptance)."""
+        env = params.get("environment", "sandbox")
+        raw_resources = await self._fetch_all_pages(token, env, "/PractitionerRole")
+        parsed = []
+        for r in raw_resources:
+            role = self._parse_practitioner_role(r)
+            if role:
+                parsed.append(role)
+        return parsed
+
+    async def fetch_care_plans(self, token: str, params: dict) -> list[dict]:
+        """Fetch and parse CarePlan resources."""
+        env = params.get("environment", "sandbox")
+        raw_resources = await self._fetch_all_pages(token, env, "/CarePlan")
+        parsed = []
+        for r in raw_resources:
+            plan = self._parse_care_plan(r)
+            if plan:
+                parsed.append(plan)
+        return parsed
+
+    async def fetch_care_teams(self, token: str, params: dict) -> list[dict]:
+        """Fetch and parse CareTeam resources (PCP attribution)."""
+        env = params.get("environment", "sandbox")
+        raw_resources = await self._fetch_all_pages(token, env, "/CareTeam")
+        parsed = []
+        for r in raw_resources:
+            team = self._parse_care_team(r)
+            if team:
+                parsed.append(team)
+        return parsed
+
+    async def fetch_allergy_intolerances(self, token: str, params: dict) -> list[dict]:
+        """Fetch and parse AllergyIntolerance resources."""
+        env = params.get("environment", "sandbox")
+        raw_resources = await self._fetch_all_pages(token, env, "/AllergyIntolerance")
+        parsed = []
+        for r in raw_resources:
+            allergy = self._parse_allergy_intolerance(r)
+            if allergy:
+                parsed.append(allergy)
+        return parsed
+
+    async def fetch_document_references(self, token: str, params: dict) -> list[dict]:
+        """Fetch and parse DocumentReference resources (clinical notes)."""
+        env = params.get("environment", "sandbox")
+        raw_resources = await self._fetch_all_pages(token, env, "/DocumentReference")
+        parsed = []
+        for r in raw_resources:
+            doc = self._parse_document_reference(r)
+            if doc:
+                parsed.append(doc)
+        return parsed
+
+    async def fetch_immunizations(self, token: str, params: dict) -> list[dict]:
+        """Fetch and parse Immunization resources (vaccine records)."""
+        env = params.get("environment", "sandbox")
+        raw_resources = await self._fetch_all_pages(token, env, "/Immunization")
+        parsed = []
+        for r in raw_resources:
+            imm = self._parse_immunization(r)
+            if imm:
+                parsed.append(imm)
+        return parsed
+
+    async def fetch_procedures(self, token: str, params: dict) -> list[dict]:
+        """Fetch and parse Procedure resources (supplements EOB data)."""
+        env = params.get("environment", "sandbox")
+        raw_resources = await self._fetch_all_pages(token, env, "/Procedure")
+        parsed = []
+        for r in raw_resources:
+            proc = self._parse_procedure(r)
+            if proc:
+                parsed.append(proc)
         return parsed
 
     # -------------------------------------------------------------------
@@ -1405,6 +1489,805 @@ class HumanaAdapter(PayerAdapter):
                 "reference_range_text": reference_range_text,
                 "ordering_provider": ordering_provider,
             },
+        }
+
+    # -------------------------------------------------------------------
+    # NEW FHIR resource parsers (7 additional resources)
+    # -------------------------------------------------------------------
+
+    def _parse_practitioner_role(self, resource: dict) -> dict | None:
+        """Map FHIR PractitionerRole to provider enrichment dict.
+
+        Extracts:
+        - Practitioner NPI (from practitioner.identifier)
+        - Specialty (NUCC taxonomy code)
+        - Organization name, network name (from extension)
+        - New patient acceptance, active status, quality ratings
+        - Phone/fax
+        """
+        # Extract practitioner NPI
+        npi = None
+        practitioner_ref = resource.get("practitioner", {})
+        for ident in practitioner_ref.get("identifier", []):
+            system = ident.get("system", "")
+            if "npi" in system.lower() or "2.16.840.1.113883.4.6" in system:
+                npi = ident.get("value")
+                break
+        # Fallback: parse from reference string
+        if not npi:
+            ref = practitioner_ref.get("reference", "")
+            if "Practitioner/" in ref:
+                npi = ref.split("Practitioner/")[-1]
+        if not npi:
+            return None
+
+        # Specialty from NUCC taxonomy
+        specialty = None
+        specialty_code = None
+        for spec in resource.get("specialty", []):
+            for coding in spec.get("coding", []):
+                system = coding.get("system", "")
+                if "nucc" in system.lower() or "taxonomy" in system.lower():
+                    specialty_code = coding.get("code")
+                    specialty = coding.get("display") or specialty_code
+                    break
+                elif not specialty:
+                    specialty = coding.get("display") or coding.get("code")
+            if specialty:
+                break
+        if not specialty:
+            for spec in resource.get("specialty", []):
+                specialty = spec.get("text")
+                if specialty:
+                    break
+
+        # Organization name
+        organization_name = None
+        org_ref = resource.get("organization", {})
+        organization_name = org_ref.get("display")
+        if not organization_name:
+            ref = org_ref.get("reference", "")
+            if "/" in ref:
+                organization_name = ref.split("/")[-1]
+
+        # Extensions: network, new patient acceptance, quality ratings
+        network_name = None
+        accepting_new_patients = None
+        quality_ratings = []
+        for ext in resource.get("extension", []):
+            url = ext.get("url", "").lower()
+            if "network" in url:
+                val = ext.get("valueString") or ext.get("valueReference", {}).get("display")
+                if not val:
+                    vc = ext.get("valueCodeableConcept", {})
+                    val = vc.get("text")
+                    if not val:
+                        for coding in vc.get("coding", []):
+                            val = coding.get("display") or coding.get("code")
+                            if val:
+                                break
+                network_name = val
+            elif "new-patient" in url or "newpatient" in url or "accepting" in url:
+                if ext.get("valueBoolean") is not None:
+                    accepting_new_patients = ext["valueBoolean"]
+                elif ext.get("valueCode"):
+                    accepting_new_patients = ext["valueCode"].lower() in ("yes", "true", "accepting")
+            elif "quality" in url or "rating" in url:
+                rating_val = ext.get("valueDecimal") or ext.get("valueInteger") or ext.get("valueString")
+                if rating_val is not None:
+                    quality_ratings.append({
+                        "type": url.rsplit("/", 1)[-1] if "/" in url else url,
+                        "value": rating_val,
+                    })
+
+        # Active status
+        active = resource.get("active")
+
+        # Telecom
+        phone = None
+        fax = None
+        for telecom in resource.get("telecom", []):
+            sys = telecom.get("system", "")
+            val = telecom.get("value", "")
+            if sys == "phone" and not phone:
+                phone = val
+            elif sys == "fax" and not fax:
+                fax = val
+
+        # Period
+        period = resource.get("period", {})
+        period_start = period.get("start")
+        period_end = period.get("end")
+
+        # Location references
+        locations = []
+        for loc in resource.get("location", []):
+            loc_display = loc.get("display")
+            loc_ref = loc.get("reference", "")
+            locations.append(loc_display or loc_ref)
+
+        return {
+            "npi": npi,
+            "specialty": specialty,
+            "organization_name": organization_name,
+            "network_name": network_name,
+            "accepting_new_patients": accepting_new_patients,
+            "active": active,
+            "extra": {
+                "specialty_code": specialty_code,
+                "phone": phone,
+                "fax": fax,
+                "quality_ratings": quality_ratings if quality_ratings else None,
+                "period_start": period_start,
+                "period_end": period_end,
+                "locations": locations if locations else None,
+            },
+        }
+
+    def _parse_care_plan(self, resource: dict) -> dict | None:
+        """Map FHIR CarePlan to care plan dict.
+
+        Extracts: status, intent, category, description, period,
+        conditions addressed, notes.
+        """
+        member_id = self._extract_member_ref(resource)
+        if not member_id:
+            return None
+
+        status = resource.get("status")  # draft, active, on-hold, completed, etc.
+        intent = resource.get("intent")  # proposal, plan, order, option
+
+        # Category
+        categories = []
+        for cat in resource.get("category", []):
+            cat_text = cat.get("text")
+            if cat_text:
+                categories.append(cat_text)
+            for coding in cat.get("coding", []):
+                display = coding.get("display") or coding.get("code")
+                if display and display not in categories:
+                    categories.append(display)
+
+        # Title / description
+        title = resource.get("title")
+        description = resource.get("description")
+
+        # Period
+        period = resource.get("period", {})
+        period_start = None
+        period_end = None
+        if period.get("start"):
+            try:
+                period_start = date.fromisoformat(period["start"][:10])
+            except ValueError:
+                pass
+        if period.get("end"):
+            try:
+                period_end = date.fromisoformat(period["end"][:10])
+            except ValueError:
+                pass
+
+        # Conditions addressed
+        conditions_addressed = []
+        for addr in resource.get("addresses", []):
+            ref = addr.get("reference", "")
+            display = addr.get("display")
+            if display:
+                conditions_addressed.append(display)
+            elif ref:
+                conditions_addressed.append(ref.split("/")[-1] if "/" in ref else ref)
+
+        # Notes
+        notes = []
+        for note in resource.get("note", []):
+            text = note.get("text")
+            if text:
+                notes.append(text)
+
+        # Activities
+        activities = []
+        for activity in resource.get("activity", []):
+            detail = activity.get("detail", {})
+            act_entry = {}
+            act_status = detail.get("status")
+            act_desc = detail.get("description")
+            act_code = detail.get("code", {})
+            act_code_text = act_code.get("text")
+            if not act_code_text:
+                for coding in act_code.get("coding", []):
+                    act_code_text = coding.get("display") or coding.get("code")
+                    if act_code_text:
+                        break
+            if act_status or act_desc or act_code_text:
+                act_entry["status"] = act_status
+                act_entry["description"] = act_desc
+                act_entry["code"] = act_code_text
+                activities.append(act_entry)
+
+        return {
+            "member_id": member_id,
+            "fhir_id": resource.get("id"),
+            "status": status,
+            "intent": intent,
+            "title": title,
+            "description": description,
+            "categories": categories,
+            "period_start": period_start.isoformat() if period_start else None,
+            "period_end": period_end.isoformat() if period_end else None,
+            "conditions_addressed": conditions_addressed,
+            "notes": notes,
+            "activities": activities,
+        }
+
+    def _parse_care_team(self, resource: dict) -> dict | None:
+        """Map FHIR CareTeam to care team dict.
+
+        Extracts: all participant NPIs with roles, status, period.
+        Useful for PCP attribution.
+        """
+        member_id = self._extract_member_ref(resource)
+        if not member_id:
+            return None
+
+        status = resource.get("status")  # proposed, active, suspended, inactive
+        name = resource.get("name")
+
+        # Period
+        period = resource.get("period", {})
+        period_start = period.get("start")
+        period_end = period.get("end")
+
+        # Participants
+        participants = []
+        primary_npi = None
+        for participant in resource.get("participant", []):
+            # Role
+            roles = []
+            is_primary = False
+            for role_cc in participant.get("role", []):
+                for coding in role_cc.get("coding", []):
+                    role_code = coding.get("code", "")
+                    role_display = coding.get("display") or role_code
+                    roles.append(role_display)
+                    if role_code.lower() in ("primary", "pcp", "primarycare"):
+                        is_primary = True
+                role_text = role_cc.get("text", "")
+                if role_text and role_text not in roles:
+                    roles.append(role_text)
+                if "primary" in role_text.lower():
+                    is_primary = True
+
+            # Member reference (NPI or practitioner ID)
+            member_ref = participant.get("member", {})
+            ref_str = member_ref.get("reference", "")
+            participant_id = None
+            participant_type = None
+
+            if "Practitioner/" in ref_str:
+                participant_id = ref_str.split("Practitioner/")[-1]
+                participant_type = "practitioner"
+            elif "Organization/" in ref_str:
+                participant_id = ref_str.split("Organization/")[-1]
+                participant_type = "organization"
+            else:
+                # Check identifier
+                ident = member_ref.get("identifier", {})
+                if isinstance(ident, dict):
+                    participant_id = ident.get("value")
+                    if "npi" in ident.get("system", "").lower():
+                        participant_type = "practitioner"
+
+            display = member_ref.get("display")
+
+            # Participant period
+            p_period = participant.get("period", {})
+
+            entry = {
+                "id": participant_id,
+                "type": participant_type,
+                "display": display,
+                "roles": roles,
+                "is_primary": is_primary,
+                "period_start": p_period.get("start"),
+                "period_end": p_period.get("end"),
+            }
+            participants.append(entry)
+
+            if is_primary and participant_type == "practitioner" and participant_id:
+                primary_npi = participant_id
+
+        return {
+            "member_id": member_id,
+            "fhir_id": resource.get("id"),
+            "status": status,
+            "name": name,
+            "primary_npi": primary_npi,
+            "period_start": period_start,
+            "period_end": period_end,
+            "participants": participants,
+        }
+
+    def _parse_allergy_intolerance(self, resource: dict) -> dict | None:
+        """Map FHIR AllergyIntolerance to allergy dict.
+
+        Extracts: allergen code (RxNorm), clinical status, verification status,
+        onset date, reactions with manifestations.
+        """
+        member_id = self._extract_member_ref(resource)
+        if not member_id:
+            return None
+
+        # Allergen code and name
+        allergen_code = None
+        allergen_system = None
+        allergen_name = None
+        code_block = resource.get("code", {})
+        allergen_name = code_block.get("text")
+        for coding in code_block.get("coding", []):
+            system = coding.get("system", "")
+            allergen_code = coding.get("code")
+            allergen_system = system
+            if not allergen_name:
+                allergen_name = coding.get("display")
+            # Prefer RxNorm
+            if "rxnorm" in system.lower():
+                allergen_code = coding.get("code")
+                allergen_system = system
+                allergen_name = allergen_name or coding.get("display")
+                break
+
+        if not allergen_name and not allergen_code:
+            return None
+
+        # Clinical status
+        clinical_status = None
+        cs_block = resource.get("clinicalStatus", {})
+        for coding in cs_block.get("coding", []):
+            clinical_status = coding.get("code")
+            if clinical_status:
+                break
+
+        # Verification status
+        verification_status = None
+        vs_block = resource.get("verificationStatus", {})
+        for coding in vs_block.get("coding", []):
+            verification_status = coding.get("code")
+            if verification_status:
+                break
+
+        # Type (allergy | intolerance)
+        allergy_type = resource.get("type")
+
+        # Category (food, medication, environment, biologic)
+        categories = resource.get("category", [])
+
+        # Criticality (low, high, unable-to-assess)
+        criticality = resource.get("criticality")
+
+        # Onset date
+        onset_date = None
+        onset_str = resource.get("onsetDateTime") or resource.get("recordedDate")
+        if onset_str:
+            try:
+                onset_date = date.fromisoformat(onset_str[:10])
+            except ValueError:
+                pass
+
+        # Reactions
+        reactions = []
+        for reaction in resource.get("reaction", []):
+            manifestations = []
+            for manifest in reaction.get("manifestation", []):
+                m_text = manifest.get("text")
+                if m_text:
+                    manifestations.append(m_text)
+                for coding in manifest.get("coding", []):
+                    m_display = coding.get("display") or coding.get("code")
+                    if m_display and m_display not in manifestations:
+                        manifestations.append(m_display)
+
+            severity = reaction.get("severity")  # mild, moderate, severe
+            substance_text = None
+            substance_block = reaction.get("substance", {})
+            substance_text = substance_block.get("text")
+            if not substance_text:
+                for coding in substance_block.get("coding", []):
+                    substance_text = coding.get("display")
+                    if substance_text:
+                        break
+
+            reactions.append({
+                "manifestations": manifestations,
+                "severity": severity,
+                "substance": substance_text,
+            })
+
+        # Notes
+        notes = []
+        for note in resource.get("note", []):
+            text = note.get("text")
+            if text:
+                notes.append(text)
+
+        return {
+            "member_id": member_id,
+            "fhir_id": resource.get("id"),
+            "allergen_name": allergen_name,
+            "allergen_code": allergen_code,
+            "allergen_system": allergen_system,
+            "clinical_status": clinical_status,
+            "verification_status": verification_status,
+            "allergy_type": allergy_type,
+            "categories": categories,
+            "criticality": criticality,
+            "onset_date": onset_date.isoformat() if onset_date else None,
+            "reactions": reactions,
+            "notes": notes,
+        }
+
+    def _parse_document_reference(self, resource: dict) -> dict | None:
+        """Map FHIR DocumentReference to document dict.
+
+        Extracts: document type (LOINC code), status, date, description,
+        content (base64 HTML). Humana returns full clinical note HTML.
+        """
+        member_id = self._extract_member_ref(resource)
+        if not member_id:
+            return None
+
+        # Document type (LOINC code — H&P, consult, ED notes, etc.)
+        doc_type_code = None
+        doc_type_display = None
+        type_block = resource.get("type", {})
+        doc_type_display = type_block.get("text")
+        for coding in type_block.get("coding", []):
+            system = coding.get("system", "")
+            if "loinc" in system.lower():
+                doc_type_code = coding.get("code")
+                if not doc_type_display:
+                    doc_type_display = coding.get("display")
+                break
+            elif not doc_type_code:
+                doc_type_code = coding.get("code")
+                if not doc_type_display:
+                    doc_type_display = coding.get("display")
+
+        # Category
+        doc_categories = []
+        for cat in resource.get("category", []):
+            cat_text = cat.get("text")
+            if cat_text:
+                doc_categories.append(cat_text)
+            for coding in cat.get("coding", []):
+                display = coding.get("display") or coding.get("code")
+                if display and display not in doc_categories:
+                    doc_categories.append(display)
+
+        # Status
+        status = resource.get("status")  # current, superseded, entered-in-error
+
+        # Date
+        doc_date = None
+        date_str = resource.get("date")
+        if date_str:
+            try:
+                doc_date = date.fromisoformat(date_str[:10])
+            except ValueError:
+                pass
+
+        # Description
+        description = resource.get("description")
+
+        # Author
+        authors = []
+        for author in resource.get("author", []):
+            display = author.get("display")
+            ref = author.get("reference", "")
+            authors.append(display or ref)
+
+        # Content — Humana returns full HTML in base64
+        content_entries = []
+        for content in resource.get("content", []):
+            attachment = content.get("attachment", {})
+            content_type = attachment.get("contentType")
+            data_b64 = attachment.get("data")
+            url = attachment.get("url")
+            title = attachment.get("title")
+            size = attachment.get("size")
+
+            # Decode base64 HTML content if present
+            decoded_content = None
+            if data_b64:
+                try:
+                    decoded_content = base64.b64decode(data_b64).decode("utf-8", errors="replace")
+                except Exception:
+                    decoded_content = None
+
+            content_entries.append({
+                "content_type": content_type,
+                "data": decoded_content,
+                "url": url,
+                "title": title,
+                "size": size,
+            })
+
+        # Context (encounter reference, period, facility)
+        context = resource.get("context", {})
+        encounter_ref = None
+        for enc in context.get("encounter", []):
+            encounter_ref = enc.get("reference")
+            if encounter_ref:
+                break
+        context_period = context.get("period", {})
+        facility_name = None
+        facility_ref = context.get("facilityType", {})
+        facility_name = facility_ref.get("text")
+        if not facility_name:
+            for coding in facility_ref.get("coding", []):
+                facility_name = coding.get("display")
+                if facility_name:
+                    break
+
+        return {
+            "member_id": member_id,
+            "fhir_id": resource.get("id"),
+            "doc_type_code": doc_type_code,
+            "doc_type_display": doc_type_display,
+            "categories": doc_categories,
+            "status": status,
+            "date": doc_date.isoformat() if doc_date else None,
+            "description": description,
+            "authors": authors,
+            "content": content_entries,
+            "context": {
+                "encounter_ref": encounter_ref,
+                "period_start": context_period.get("start"),
+                "period_end": context_period.get("end"),
+                "facility_name": facility_name,
+            },
+        }
+
+    def _parse_immunization(self, resource: dict) -> dict | None:
+        """Map FHIR Immunization to immunization dict.
+
+        Extracts: vaccine code (CVX), status, occurrence date, primary source flag.
+        """
+        member_id = self._extract_member_ref(resource)
+        if not member_id:
+            return None
+
+        # Vaccine code (CVX)
+        vaccine_code = None
+        vaccine_system = None
+        vaccine_name = None
+        code_block = resource.get("vaccineCode", {})
+        vaccine_name = code_block.get("text")
+        for coding in code_block.get("coding", []):
+            system = coding.get("system", "")
+            vaccine_code = coding.get("code")
+            vaccine_system = system
+            if not vaccine_name:
+                vaccine_name = coding.get("display")
+            # Prefer CVX system
+            if "cvx" in system.lower():
+                vaccine_code = coding.get("code")
+                vaccine_system = system
+                vaccine_name = vaccine_name or coding.get("display")
+                break
+
+        if not vaccine_code and not vaccine_name:
+            return None
+
+        # Status
+        status = resource.get("status")  # completed, entered-in-error, not-done
+
+        # Occurrence date
+        occurrence_date = None
+        occ_str = resource.get("occurrenceDateTime") or resource.get("occurrenceString")
+        if occ_str:
+            try:
+                occurrence_date = date.fromisoformat(occ_str[:10])
+            except ValueError:
+                pass
+
+        # Primary source (was this recorded by the administering organization?)
+        primary_source = resource.get("primarySource")
+
+        # Lot number
+        lot_number = resource.get("lotNumber")
+
+        # Site
+        site = None
+        site_block = resource.get("site", {})
+        site = site_block.get("text")
+        if not site:
+            for coding in site_block.get("coding", []):
+                site = coding.get("display") or coding.get("code")
+                if site:
+                    break
+
+        # Route
+        route = None
+        route_block = resource.get("route", {})
+        route = route_block.get("text")
+        if not route:
+            for coding in route_block.get("coding", []):
+                route = coding.get("display") or coding.get("code")
+                if route:
+                    break
+
+        # Performer
+        performers = []
+        for performer in resource.get("performer", []):
+            actor = performer.get("actor", {})
+            func = performer.get("function", {})
+            func_text = func.get("text")
+            if not func_text:
+                for coding in func.get("coding", []):
+                    func_text = coding.get("display") or coding.get("code")
+                    if func_text:
+                        break
+            performers.append({
+                "display": actor.get("display"),
+                "reference": actor.get("reference"),
+                "function": func_text,
+            })
+
+        # Notes
+        notes = []
+        for note in resource.get("note", []):
+            text = note.get("text")
+            if text:
+                notes.append(text)
+
+        return {
+            "member_id": member_id,
+            "fhir_id": resource.get("id"),
+            "vaccine_code": vaccine_code,
+            "vaccine_system": vaccine_system,
+            "vaccine_name": vaccine_name,
+            "status": status,
+            "occurrence_date": occurrence_date.isoformat() if occurrence_date else None,
+            "primary_source": primary_source,
+            "lot_number": lot_number,
+            "site": site,
+            "route": route,
+            "performers": performers if performers else None,
+            "notes": notes if notes else None,
+        }
+
+    def _parse_procedure(self, resource: dict) -> dict | None:
+        """Map FHIR Procedure to procedure dict.
+
+        Extracts: procedure code (CPT/HCPCS), status, performed date/period,
+        performer NPI. Supplements EOB claim data.
+        """
+        member_id = self._extract_member_ref(resource)
+        if not member_id:
+            return None
+
+        # Procedure code (CPT/HCPCS)
+        procedure_code = None
+        procedure_system = None
+        procedure_display = None
+        code_block = resource.get("code", {})
+        procedure_display = code_block.get("text")
+        for coding in code_block.get("coding", []):
+            system = coding.get("system", "")
+            procedure_code = coding.get("code")
+            procedure_system = system
+            if not procedure_display:
+                procedure_display = coding.get("display")
+            # Prefer CPT/HCPCS
+            if "cpt" in system.lower() or "hcpcs" in system.lower():
+                procedure_code = coding.get("code")
+                procedure_system = system
+                procedure_display = procedure_display or coding.get("display")
+                break
+
+        if not procedure_code and not procedure_display:
+            return None
+
+        # Status
+        status = resource.get("status")  # preparation, in-progress, completed, etc.
+
+        # Performed date or period
+        performed_date = None
+        performed_end = None
+        performed_dt = resource.get("performedDateTime")
+        if performed_dt:
+            try:
+                performed_date = date.fromisoformat(performed_dt[:10])
+            except ValueError:
+                pass
+        else:
+            performed_period = resource.get("performedPeriod", {})
+            if performed_period.get("start"):
+                try:
+                    performed_date = date.fromisoformat(performed_period["start"][:10])
+                except ValueError:
+                    pass
+            if performed_period.get("end"):
+                try:
+                    performed_end = date.fromisoformat(performed_period["end"][:10])
+                except ValueError:
+                    pass
+
+        # Performer NPI
+        performer_npi = None
+        performer_display = None
+        for performer in resource.get("performer", []):
+            actor = performer.get("actor", {})
+            ref = actor.get("reference", "")
+            if "Practitioner/" in ref:
+                performer_npi = ref.split("Practitioner/")[-1]
+            # Check actor identifier for NPI
+            ident = actor.get("identifier", {})
+            if isinstance(ident, dict) and "npi" in ident.get("system", "").lower():
+                performer_npi = ident.get("value")
+            if not performer_display:
+                performer_display = actor.get("display")
+            if performer_npi:
+                break
+
+        # Category
+        category = None
+        cat_block = resource.get("category", {})
+        category = cat_block.get("text")
+        if not category:
+            for coding in cat_block.get("coding", []):
+                category = coding.get("display") or coding.get("code")
+                if category:
+                    break
+
+        # Body site
+        body_sites = []
+        for bs in resource.get("bodySite", []):
+            bs_text = bs.get("text")
+            if bs_text:
+                body_sites.append(bs_text)
+            for coding in bs.get("coding", []):
+                display = coding.get("display")
+                if display and display not in body_sites:
+                    body_sites.append(display)
+
+        # Reason codes (diagnosis reference)
+        reason_codes = []
+        for reason in resource.get("reasonCode", []):
+            for coding in reason.get("coding", []):
+                system = coding.get("system", "")
+                code_val = coding.get("code")
+                if code_val and "icd-10" in system.lower():
+                    reason_codes.append(code_val)
+
+        # Encounter reference
+        encounter_ref = None
+        enc = resource.get("encounter", {})
+        encounter_ref = enc.get("reference")
+
+        # Notes
+        notes = []
+        for note in resource.get("note", []):
+            text = note.get("text")
+            if text:
+                notes.append(text)
+
+        return {
+            "member_id": member_id,
+            "fhir_id": resource.get("id"),
+            "procedure_code": procedure_code,
+            "procedure_system": procedure_system,
+            "procedure_display": procedure_display,
+            "status": status,
+            "performed_date": performed_date,
+            "performed_end": performed_end.isoformat() if performed_end else None,
+            "performer_npi": performer_npi,
+            "performer_display": performer_display,
+            "category": category,
+            "body_sites": body_sites if body_sites else None,
+            "reason_codes": reason_codes if reason_codes else None,
+            "encounter_ref": encounter_ref,
+            "notes": notes if notes else None,
         }
 
     # -------------------------------------------------------------------
