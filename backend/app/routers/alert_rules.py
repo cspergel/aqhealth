@@ -77,6 +77,10 @@ class AlertTriggerOut(BaseModel):
     message: str
     acknowledged: bool
     acknowledged_by: int | None
+    acted_on: bool
+    dismissed: bool
+    action_taken: str | None
+    action_at: str | None
     created_at: str
 
 
@@ -171,6 +175,75 @@ async def acknowledge_trigger(
     return _trigger_to_dict(trigger)
 
 
+@router.get("/effectiveness", response_model=list[dict])
+async def get_effectiveness(
+    db: AsyncSession = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+) -> list[dict]:
+    """Analyze alert rule effectiveness and return recommendations.
+
+    For each active rule, returns trigger counts (total, acknowledged,
+    acted_on, dismissed, ignored), an effectiveness score, and
+    recommendations such as threshold adjustments or deactivation.
+    """
+    return await alert_rules_service.analyze_alert_effectiveness(db)
+
+
+@router.post("/auto-adjust", response_model=list[dict])
+async def auto_adjust_thresholds(
+    db: AsyncSession = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+) -> list[dict]:
+    """Auto-adjust thresholds for rules with 3+ unrejected adjustment proposals.
+
+    Uses a three-tier pattern: suggest -> notify -> auto-adjust.
+    Returns list of adjustments made.
+    """
+    return await alert_rules_service.auto_adjust_alert_thresholds(db)
+
+
+@router.patch("/triggers/{trigger_id}/act", response_model=AlertTriggerOut)
+async def mark_acted_on(
+    trigger_id: int,
+    action_taken: str | None = Query(None, description="Description of action taken"),
+    db: AsyncSession = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Mark a trigger as acted on — user took meaningful action."""
+    trigger = await alert_rules_service.mark_trigger_acted_on(
+        db, trigger_id, action_taken
+    )
+    if not trigger:
+        raise HTTPException(status_code=404, detail="Trigger not found")
+    return _trigger_to_dict(trigger)
+
+
+@router.patch("/triggers/{trigger_id}/dismiss", response_model=AlertTriggerOut)
+async def dismiss_trigger(
+    trigger_id: int,
+    db: AsyncSession = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Dismiss a trigger — user saw it but chose not to act."""
+    trigger = await alert_rules_service.dismiss_trigger(db, trigger_id)
+    if not trigger:
+        raise HTTPException(status_code=404, detail="Trigger not found")
+    return _trigger_to_dict(trigger)
+
+
+@router.patch("/{rule_id}/reject-adjustment")
+async def reject_adjustment(
+    rule_id: int,
+    db: AsyncSession = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Reject a proposed threshold adjustment, resetting the proposal counter."""
+    rule = await alert_rules_service.reject_adjustment_proposal(db, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    return _rule_to_dict(rule)
+
+
 @router.get("/presets", response_model=list[dict])
 async def get_presets(
     current_user: dict = Depends(get_current_user),
@@ -216,5 +289,9 @@ def _trigger_to_dict(t) -> dict:
         "message": t.message,
         "acknowledged": t.acknowledged,
         "acknowledged_by": t.acknowledged_by,
+        "acted_on": t.acted_on,
+        "dismissed": t.dismissed,
+        "action_taken": t.action_taken,
+        "action_at": t.action_at.isoformat() if t.action_at else None,
         "created_at": t.created_at.isoformat() if t.created_at else "",
     }

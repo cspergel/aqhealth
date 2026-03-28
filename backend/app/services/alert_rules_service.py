@@ -1,12 +1,16 @@
 """
 Alert Rules Engine — create, manage, and evaluate user-defined alerting rules.
+
+Includes self-learning feedback loop: analyzes alert effectiveness based on
+user actions (acted_on vs dismissed vs ignored) and auto-adjusts thresholds
+for chronically ineffective rules.
 """
 
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import case, select, func
+from sqlalchemy import case, select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert_rule import AlertRule, AlertRuleTrigger
@@ -485,6 +489,285 @@ async def acknowledge_trigger(db: AsyncSession, trigger_id: int, user_id: int) -
     await db.commit()
     await db.refresh(trigger)
     return trigger
+
+
+# ---------------------------------------------------------------------------
+# Preset rules
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Self-learning feedback loop
+# ---------------------------------------------------------------------------
+
+IGNORED_THRESHOLD_DAYS = 7
+LOW_EFFECTIVENESS_PCT = 10
+HIGH_EFFECTIVENESS_PCT = 80
+MIN_TRIGGERS_FOR_ANALYSIS = 5
+TIGHTEN_FACTOR = 0.20  # 20% threshold adjustment
+
+
+async def analyze_alert_effectiveness(db: AsyncSession) -> list[dict]:
+    """Analyze each active alert rule's effectiveness based on user actions.
+
+    For each rule, counts total triggers, acknowledged, acted_on, dismissed,
+    and ignored (unacknowledged after 7 days).  Computes an effectiveness
+    score (acted_on / total) and returns recommendations:
+      - effectiveness < 10% with 5+ triggers  -> propose threshold adjustment
+      - effectiveness > 80%                   -> mark as high_value
+      - too many triggers (>50 in 30 days)    -> suggest tightening
+    """
+    active_rules = (await db.execute(
+        select(AlertRule).where(AlertRule.is_active == True)
+    )).scalars().all()
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=IGNORED_THRESHOLD_DAYS)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    recommendations: list[dict] = []
+
+    for rule in active_rules:
+        # Aggregate trigger stats in one query
+        result = await db.execute(
+            select(
+                func.count(AlertRuleTrigger.id).label("total"),
+                func.sum(case((AlertRuleTrigger.acknowledged == True, 1), else_=0)).label("acknowledged"),
+                func.sum(case((AlertRuleTrigger.acted_on == True, 1), else_=0)).label("acted_on"),
+                func.sum(case((AlertRuleTrigger.dismissed == True, 1), else_=0)).label("dismissed"),
+                func.sum(case(
+                    (and_(
+                        AlertRuleTrigger.acknowledged == False,
+                        AlertRuleTrigger.created_at < cutoff,
+                    ), 1),
+                    else_=0,
+                )).label("ignored"),
+            ).where(AlertRuleTrigger.rule_id == rule.id)
+        )
+        row = result.one()
+        total = int(row.total or 0)
+        acknowledged = int(row.acknowledged or 0)
+        acted_on = int(row.acted_on or 0)
+        dismissed = int(row.dismissed or 0)
+        ignored = int(row.ignored or 0)
+
+        # Recent trigger volume (last 30 days)
+        recent_result = await db.execute(
+            select(func.count(AlertRuleTrigger.id))
+            .where(AlertRuleTrigger.rule_id == rule.id)
+            .where(AlertRuleTrigger.created_at >= thirty_days_ago)
+        )
+        recent_count = int(recent_result.scalar() or 0)
+
+        effectiveness = (acted_on / total * 100) if total > 0 else None
+
+        # Persist the score on the rule itself
+        if effectiveness is not None:
+            rule.effectiveness_score = Decimal(str(round(effectiveness, 2)))
+
+        rec = {
+            "rule_id": rule.id,
+            "rule_name": rule.name,
+            "entity_type": rule.entity_type,
+            "metric": rule.metric,
+            "current_threshold": float(rule.threshold),
+            "total_triggers": total,
+            "acknowledged": acknowledged,
+            "acted_on": acted_on,
+            "dismissed": dismissed,
+            "ignored": ignored,
+            "recent_30d_triggers": recent_count,
+            "effectiveness_score": round(effectiveness, 2) if effectiveness is not None else None,
+            "is_high_value": False,
+            "recommendations": [],
+        }
+
+        # Low effectiveness with enough data -> propose threshold adjustment
+        if effectiveness is not None and effectiveness < LOW_EFFECTIVENESS_PCT and total >= MIN_TRIGGERS_FOR_ANALYSIS:
+            proposed = _compute_tighter_threshold(rule)
+            rec["recommendations"].append({
+                "type": "threshold_adjustment",
+                "reason": f"Only {effectiveness:.0f}% of {total} triggers resulted in action",
+                "current_threshold": float(rule.threshold),
+                "proposed_threshold": proposed,
+                "tier": _adjustment_tier(rule.adjustment_proposals),
+            })
+            rule.adjustment_proposals = (rule.adjustment_proposals or 0) + 1
+
+        # High effectiveness -> mark as high value
+        if effectiveness is not None and effectiveness > HIGH_EFFECTIVENESS_PCT and total >= MIN_TRIGGERS_FOR_ANALYSIS:
+            rec["is_high_value"] = True
+            rec["recommendations"].append({
+                "type": "high_value",
+                "reason": f"{effectiveness:.0f}% action rate — this rule drives real intervention",
+            })
+            rule.is_high_value = True
+
+        # Too many triggers -> suggest tightening
+        if recent_count > 50:
+            proposed = _compute_tighter_threshold(rule)
+            rec["recommendations"].append({
+                "type": "volume_reduction",
+                "reason": f"{recent_count} triggers in 30 days — alert fatigue risk",
+                "current_threshold": float(rule.threshold),
+                "proposed_threshold": proposed,
+            })
+
+        # Dismissed 3+ times without action -> suggest deactivation
+        if dismissed >= 3 and acted_on == 0:
+            rec["recommendations"].append({
+                "type": "deactivation",
+                "reason": f"Dismissed {dismissed} times, never acted on — consider deactivating",
+            })
+
+        recommendations.append(rec)
+
+    await db.commit()
+    logger.info("Analyzed effectiveness for %d rules", len(active_rules))
+    return recommendations
+
+
+async def auto_adjust_alert_thresholds(db: AsyncSession) -> list[dict]:
+    """Auto-adjust thresholds for rules that have been repeatedly proposed.
+
+    Three-tier pattern:
+      - 1st proposal: suggest (returned in analyze_alert_effectiveness)
+      - 2nd proposal: notify (flag in response)
+      - 3rd+ proposal: auto-adjust threshold by tightening 20% and log
+
+    Only auto-adjusts if the user has never rejected (i.e., the rule's
+    adjustment_proposals count keeps climbing without the user resetting it).
+    """
+    # Find rules with 3+ unrejected adjustment proposals
+    result = await db.execute(
+        select(AlertRule).where(
+            AlertRule.is_active == True,
+            AlertRule.adjustment_proposals >= 3,
+        )
+    )
+    rules = list(result.scalars().all())
+    adjustments: list[dict] = []
+    now = datetime.now(timezone.utc)
+
+    for rule in rules:
+        old_threshold = float(rule.threshold)
+        new_threshold = _compute_tighter_threshold(rule)
+
+        # Build history entry
+        history_entry = {
+            "adjusted_at": now.isoformat(),
+            "old_threshold": old_threshold,
+            "new_threshold": new_threshold,
+            "reason": f"Auto-adjusted after {rule.adjustment_proposals} proposals with no rejection",
+            "proposals_at_adjustment": rule.adjustment_proposals,
+        }
+
+        # Update the rule
+        rule.threshold = Decimal(str(round(new_threshold, 2)))
+        rule.last_auto_adjusted = now
+        rule.adjustment_proposals = 0  # reset counter after adjustment
+        existing_history = rule.adjustment_history or []
+        if not isinstance(existing_history, list):
+            existing_history = []
+        existing_history.append(history_entry)
+        rule.adjustment_history = existing_history
+
+        adjustments.append({
+            "rule_id": rule.id,
+            "rule_name": rule.name,
+            "old_threshold": old_threshold,
+            "new_threshold": new_threshold,
+            "adjustment_count": len(existing_history),
+            "reason": history_entry["reason"],
+        })
+
+        logger.info(
+            "Auto-adjusted rule %d (%s): threshold %.2f -> %.2f",
+            rule.id, rule.name, old_threshold, new_threshold,
+        )
+
+    await db.commit()
+    logger.info("Auto-adjusted %d alert rules", len(adjustments))
+    return adjustments
+
+
+async def mark_trigger_acted_on(
+    db: AsyncSession, trigger_id: int, action_taken: str | None = None,
+) -> AlertRuleTrigger | None:
+    """Mark a trigger as acted on (user took meaningful action)."""
+    result = await db.execute(
+        select(AlertRuleTrigger).where(AlertRuleTrigger.id == trigger_id)
+    )
+    trigger = result.scalar_one_or_none()
+    if not trigger:
+        return None
+    trigger.acted_on = True
+    trigger.dismissed = False
+    trigger.action_taken = action_taken
+    trigger.action_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(trigger)
+    return trigger
+
+
+async def dismiss_trigger(db: AsyncSession, trigger_id: int) -> AlertRuleTrigger | None:
+    """Mark a trigger as dismissed (user saw it but chose not to act)."""
+    result = await db.execute(
+        select(AlertRuleTrigger).where(AlertRuleTrigger.id == trigger_id)
+    )
+    trigger = result.scalar_one_or_none()
+    if not trigger:
+        return None
+    trigger.dismissed = True
+    trigger.acted_on = False
+    trigger.action_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(trigger)
+    return trigger
+
+
+async def reject_adjustment_proposal(db: AsyncSession, rule_id: int) -> AlertRule | None:
+    """User explicitly rejects a threshold adjustment proposal, resetting the counter."""
+    result = await db.execute(select(AlertRule).where(AlertRule.id == rule_id))
+    rule = result.scalar_one_or_none()
+    if not rule:
+        return None
+    rule.adjustment_proposals = 0
+    await db.commit()
+    await db.refresh(rule)
+    return rule
+
+
+# ---------------------------------------------------------------------------
+# Self-learning helpers
+# ---------------------------------------------------------------------------
+
+def _compute_tighter_threshold(rule: AlertRule) -> float:
+    """Compute a tighter threshold by shifting 20% toward reducing triggers.
+
+    For "gt"/"gte" operators (fire when value exceeds threshold), tighten
+    means raising the bar.  For "lt"/"lte", tighten means lowering it.
+    """
+    current = float(rule.threshold)
+    shift = abs(current) * TIGHTEN_FACTOR
+
+    if rule.operator in ("gt", "gte", "change_gt"):
+        # Raise threshold so fewer things exceed it
+        return round(current + shift, 2)
+    elif rule.operator in ("lt", "lte", "change_lt"):
+        # Lower threshold so fewer things fall below it
+        return round(current - shift, 2)
+    else:
+        # "eq" — bump up slightly
+        return round(current + shift, 2)
+
+
+def _adjustment_tier(proposals: int) -> str:
+    """Map proposal count to the three-tier pattern."""
+    proposals = proposals or 0
+    if proposals == 0:
+        return "suggest"
+    elif proposals == 1:
+        return "notify"
+    else:
+        return "auto_adjust"
 
 
 # ---------------------------------------------------------------------------

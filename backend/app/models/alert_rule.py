@@ -40,6 +40,13 @@ class AlertRule(Base, TimestampMixin):
     last_triggered: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trigger_count: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Self-learning fields
+    effectiveness_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    is_high_value: Mapped[bool] = mapped_column(Boolean, default=False)
+    adjustment_proposals: Mapped[int] = mapped_column(Integer, default=0)  # times threshold adjustment proposed
+    last_auto_adjusted: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    adjustment_history: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # log of auto-adjustments
+
 
 class AlertRuleTrigger(Base, TimestampMixin):
     """Record of a rule being triggered."""
@@ -58,3 +65,9 @@ class AlertRuleTrigger(Base, TimestampMixin):
 
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
     acknowledged_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # User action tracking for self-learning
+    acted_on: Mapped[bool] = mapped_column(Boolean, default=False)
+    dismissed: Mapped[bool] = mapped_column(Boolean, default=False)
+    action_taken: Mapped[str | None] = mapped_column(String(200), nullable=True)  # freetext: what the user did
+    action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
