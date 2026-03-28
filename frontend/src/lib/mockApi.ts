@@ -2034,6 +2034,51 @@ export function enableDemoMode() {
       else if (url.includes("/api/insights")) {
         mockResponse = mockInsights;
       }
+
+      // Onboarding
+      else if (url.includes("/api/onboarding/progress")) {
+        mockResponse = {
+          requirements: [
+            { key: "member_roster", name: "Member Roster", priority: "required", status: "complete", row_count: 1423, description: "Demographics, health plan, PCP assignment", where_to_find: "Health plan portal → Member Reports", unlocks: ["Dashboard metrics", "HCC analysis", "Care gap detection"] },
+            { key: "medical_claims", name: "Medical Claims (12+ months)", priority: "required", status: "complete", row_count: 48721, date_range: { min: "2025-01-15", max: "2026-03-01" }, description: "Professional, facility, and outpatient claims", where_to_find: "Health plan portal → Claims Extract, or Availity", unlocks: ["HCC suspect detection", "Expenditure analytics", "Utilization patterns"] },
+            { key: "provider_roster", name: "Provider Roster", priority: "required", status: "complete", row_count: 47, description: "NPI, specialty, office/TIN assignment", where_to_find: "Internal HR/credentialing, or CAQH ProView", unlocks: ["Provider scorecards", "Practice group comparison"] },
+            { key: "eligibility", name: "Eligibility / Enrollment", priority: "recommended", status: "complete", row_count: 1423, description: "Coverage start/end dates, plan product", where_to_find: "Health plan → Eligibility Reports, 834 files", unlocks: ["Accurate member-months", "Coverage gaps", "Churn analysis"] },
+            { key: "pharmacy_claims", name: "Pharmacy Claims", priority: "recommended", status: "partial", row_count: 12340, description: "NDC codes, drug names, days supply", where_to_find: "PBM portal (CVS Caremark, Express Scripts, OptumRx)", unlocks: ["Medication-diagnosis gaps", "PDC quality measures"] },
+            { key: "prior_year_hcc", name: "Prior Year HCC Captures", priority: "recommended", status: "complete", row_count: 892, description: "Last year's confirmed HCC codes per member", where_to_find: "Prior year RAF report from health plan", unlocks: ["Recapture gap detection"] },
+            { key: "capitation", name: "Capitation / Premium Data", priority: "enhances", status: "complete", row_count: 24, description: "Monthly capitation payments by plan", where_to_find: "Monthly capitation statements from health plan", unlocks: ["P&L dashboard", "MLR tracking"] },
+            { key: "adt_config", name: "ADT Feed Configuration", priority: "enhances", status: "not_loaded", row_count: 0, description: "Real-time hospital admit/discharge alerts", where_to_find: "Bamboo Health, Availity Patient Alerts", unlocks: ["Live census", "TCM case management"] },
+            { key: "historical_claims", name: "Historical Claims (24-36 months)", priority: "enhances", status: "partial", row_count: 48721, months_loaded: 14, description: "Extended claims for trending", where_to_find: "Same as medical claims, broader date range", unlocks: ["Year-over-year trending", "Seasonal patterns"] },
+            { key: "lab_results", name: "Lab Results", priority: "enhances", status: "not_loaded", row_count: 0, description: "HbA1c, eGFR, lipid panels", where_to_find: "Reference lab portal (Quest, LabCorp) or EMR", unlocks: ["Clinical decision support"] },
+          ],
+          required_complete: 3,
+          required_total: 3,
+          recommended_complete: 2,
+          recommended_total: 3,
+          overall_pct: 78,
+          phase: "core_complete",
+          hcc_analysis_run: true,
+          ready_for_analytics: true,
+        };
+      }
+      else if (url.includes("/api/onboarding/requirements")) {
+        mockResponse = []; // progress endpoint has the full data
+      }
+      else if (url.includes("/api/onboarding/org-structure")) {
+        mockResponse = {
+          groups: [
+            { id: 1, name: "Pinellas Primary Care", group_type: "practice", relationship_type: "owned", tin: "***-***4567", city: "St. Petersburg", state: "FL", zip_code: "33701", county_code: "10510", bonus_pct: 5.0, provider_count: 12, providers: [] },
+            { id: 2, name: "Clearwater Family Medicine", group_type: "practice", relationship_type: "owned", tin: "***-***8901", city: "Clearwater", state: "FL", zip_code: "33755", county_code: "10510", bonus_pct: 5.0, provider_count: 8, providers: [] },
+            { id: 3, name: "Palm Harbor Specialists", group_type: "practice", relationship_type: "affiliated", tin: "***-***2345", city: "Palm Harbor", state: "FL", zip_code: "34683", county_code: "10510", bonus_pct: 5.0, provider_count: 6, providers: [] },
+          ],
+          unassigned_providers: [],
+          total_groups: 3,
+          total_providers: 26,
+          total_unassigned: 0,
+        };
+      }
+      else if (url.includes("/api/onboarding/payer-guidance")) {
+        mockResponse = { payer: "Humana", data_type: "claims", guidance: "In the Humana portal, go to Availity → Reports → Claims Detail → select 'All Claims' and date range of last 24 months → Export CSV." };
+      }
     }
 
     const data = mockResponse !== null ? mockResponse : null;
