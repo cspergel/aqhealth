@@ -185,6 +185,22 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
         )
         await db.commit()
 
+        # 4b. Analyze correction patterns to auto-learn transformation rules
+        try:
+            from app.services.data_learning_service import analyze_correction_patterns
+
+            learning_db = await _get_tenant_session(tenant_schema)
+            try:
+                patterns = await analyze_correction_patterns(learning_db)
+                if patterns:
+                    logger.info(
+                        f"Job {job_id}: found {len(patterns)} correction patterns for rule creation"
+                    )
+            finally:
+                await learning_db.close()
+        except Exception as learn_err:
+            logger.warning(f"Correction pattern analysis failed (non-blocking): {learn_err}")
+
         # 5. Run data quality checks after processing
         try:
             from app.services.data_quality_service import run_quality_checks

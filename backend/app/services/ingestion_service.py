@@ -953,6 +953,16 @@ async def process_upload(
     total_routed_by_tin = 0
     total_routed_by_npi = 0
     total_unrouted = 0
+    total_learned_rules_applied = 0
+
+    # Step 0b: Load learned transformation rules for this source/data_type
+    learned_rules_log: list[dict] = []
+    try:
+        from app.services.data_learning_service import apply_learned_rules
+        _apply_learned_rules = apply_learned_rules
+    except Exception as import_err:
+        logger.debug("Data learning service unavailable: %s", import_err)
+        _apply_learned_rules = None
 
     # Use chunked reading for CSV to avoid loading entire file into memory
     file_type = detect_file_type(file_path)
@@ -1015,6 +1025,28 @@ async def process_upload(
         chunk_valid_rows: list[dict] = []
         chunk_size = len(df_chunk)
         total_rows += chunk_size
+
+        # Apply learned transformation rules to the raw chunk before row processing
+        if _apply_learned_rules is not None:
+            try:
+                chunk_dicts = [
+                    {col: row[col] for col in df_chunk.columns}
+                    for _, row in df_chunk.iterrows()
+                ]
+                source_name = os.path.basename(file_path)
+                chunk_dicts, rules_log = await _apply_learned_rules(
+                    db, chunk_dicts, source_name=source_name, data_type=data_type,
+                )
+                learned_rules_log.extend(rules_log)
+                total_learned_rules_applied += len(rules_log)
+                # Write transformed values back into the DataFrame
+                if rules_log:
+                    for i, row_dict in enumerate(chunk_dicts):
+                        for col in df_chunk.columns:
+                            if col in row_dict:
+                                df_chunk.iat[i, df_chunk.columns.get_loc(col)] = row_dict[col]
+            except Exception as learn_err:
+                logger.debug("Learned rules application failed (non-blocking): %s", learn_err)
 
         for local_idx, (_, pandas_row) in enumerate(df_chunk.iterrows()):
             row_dict = {col: pandas_row[col] for col in df_chunk.columns}
@@ -1123,6 +1155,7 @@ async def process_upload(
         "routed_by_tin": total_routed_by_tin,
         "routed_by_npi": total_routed_by_npi,
         "unrouted": total_unrouted,
+        "learned_rules_applied": total_learned_rules_applied,
     }
 
     logger.info(

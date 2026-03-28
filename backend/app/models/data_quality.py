@@ -5,7 +5,7 @@ Tracks quality reports, quarantined records, and data lineage
 for full traceability of every record in the platform.
 """
 
-from sqlalchemy import Index, String, Integer, Text
+from sqlalchemy import Boolean, Index, String, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -66,3 +66,18 @@ class DataLineage(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_data_lineage_entity", "entity_type", "entity_id"),
     )
+
+
+class DataCorrection(Base, TimestampMixin):
+    """Logs human corrections to data for pattern learning."""
+    __tablename__ = "data_corrections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    correction_type: Mapped[str] = mapped_column(String(30))  # "value_fix", "format_fix", "code_correction"
+    source_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    data_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    field: Mapped[str] = mapped_column(String(100), index=True)
+    original_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    corrected_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    context: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    rule_created: Mapped[bool] = mapped_column(Boolean, default=False)

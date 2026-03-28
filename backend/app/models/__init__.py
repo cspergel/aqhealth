@@ -16,7 +16,7 @@ from app.models.annotation import Annotation
 from app.models.watchlist import WatchlistItem
 from app.models.report import ReportTemplate, GeneratedReport
 from app.models.action import ActionItem
-from app.models.data_quality import DataQualityReport, QuarantinedRecord, DataLineage
+from app.models.data_quality import DataQualityReport, QuarantinedRecord, DataLineage, DataCorrection
 from app.models.alert_rule import AlertRule, AlertRuleTrigger
 from app.models.practice_expense import StaffMember, ExpenseCategory, ExpenseEntry
 from app.models.boi import Intervention
