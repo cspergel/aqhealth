@@ -90,7 +90,16 @@
       "Bash(sed -i 's/\"\"CKD Stage 3 \\(HCC 329\\)\"\"/\"\"CKD Stage 3a \\(HCC 329\\)\"\"/g' frontend/src/lib/mockData.ts)",
       "Bash(sed -i 's/{ hcc_code: 329, hcc_label: \"\"CKD Stage 3-5\"\", captures: 267, avg_meat_score: 89 }/{ hcc_code: 328, hcc_label: \"\"CKD Stage 3b\"\", captures: 112, avg_meat_score: 89 },\\\\n    { hcc_code: 327, hcc_label: \"\"CKD Stage 4\"\", captures: 67, avg_meat_score: 92 },\\\\n    { hcc_code: 326, hcc_label: \"\"CKD Stage 5 \\\\/ ESRD\"\", captures: 23, avg_meat_score: 95 }/g' frontend/src/lib/mockData.ts)",
       "Bash(start:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(ls \"/c/Users/drcra/Documents/Coding Projects/AQSoft Health Platform/backend/app/services/\"*.py)",
+      "WebFetch(domain:www.cms.gov)",
+      "WebFetch(domain:www.huduser.gov)",
+      "WebFetch(domain:www.census.gov)",
+      "WebFetch(domain:www2.census.gov)",
+      "WebFetch(domain:data.cms.gov)",
+      "WebFetch(domain:www.nber.org)",
+      "Bash(python3:*)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
