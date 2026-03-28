@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _SANDBOX_HOST = "https://staging-fhir.ecwcloud.com"
-_PRODUCTION_HOST = "https://fhir.ecwcloud.com"
+_PRODUCTION_HOST = "https://fhir4.eclinicalworks.com"  # Note: different domain from sandbox!
 
 # eCW token lifetime is only 300 seconds (5 minutes!), not the 3600s default.
 # Refresh buffer must be small enough to not expire before the token is usable.
