@@ -50,3 +50,6 @@ class Insight(Base, TimestampMixin):
     # Source modules that contributed data to this insight
     source_modules: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     # e.g., ["hcc_engine", "expenditure", "care_gaps", "provider_scorecard"]
+
+    # Self-learning priority adjustment: "high_priority", "low_priority", or None (normal)
+    priority_level: Mapped[str | None] = mapped_column(String(20), nullable=True)

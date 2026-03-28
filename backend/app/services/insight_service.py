@@ -24,10 +24,106 @@ from app.models.claim import Claim, ClaimType
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
 from app.models.hcc import HccSuspect, SuspectStatus
 from app.models.insight import Insight, InsightCategory, InsightStatus
+from app.models.learning import UserInteraction
 from app.models.member import Member, RiskTier
 from app.models.provider import Provider
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Self-learning feedback loop — boost acted-on, demote dismissed categories
+# ---------------------------------------------------------------------------
+
+async def _get_insight_feedback_summary(db: AsyncSession) -> dict[str, dict]:
+    """
+    Query UserInteraction records for insight-related interactions and compute
+    act_on vs dismiss rates per insight category.
+
+    Returns a dict keyed by InsightCategory value, e.g.:
+        {
+            "revenue": {"act_on": 5, "dismiss": 1, "total": 6, "act_on_rate": 0.833},
+            "cost": {"act_on": 0, "dismiss": 4, "total": 4, "act_on_rate": 0.0},
+            ...
+        }
+    """
+    # Get all insight-targeted interactions that are act_on or dismiss
+    rows = (await db.execute(
+        select(
+            UserInteraction.target_id,
+            UserInteraction.interaction_type,
+        ).where(
+            UserInteraction.target_type == "insight",
+            UserInteraction.interaction_type.in_(["act_on", "dismiss"]),
+            UserInteraction.target_id.isnot(None),
+        )
+    )).all()
+
+    if not rows:
+        return {}
+
+    # Collect all insight IDs referenced
+    insight_ids = list({r.target_id for r in rows})
+
+    # Look up the category for each insight
+    insight_cats = (await db.execute(
+        select(Insight.id, Insight.category).where(Insight.id.in_(insight_ids))
+    )).all()
+    id_to_cat = {r.id: r.category for r in insight_cats}
+
+    # Tally act_on and dismiss per category
+    summary: dict[str, dict] = {}
+    for r in rows:
+        cat = id_to_cat.get(r.target_id)
+        if not cat:
+            continue
+        if cat not in summary:
+            summary[cat] = {"act_on": 0, "dismiss": 0, "total": 0, "act_on_rate": 0.0}
+        summary[cat][r.interaction_type] = summary[cat].get(r.interaction_type, 0) + 1
+        summary[cat]["total"] += 1
+
+    # Compute act_on rate
+    for cat_data in summary.values():
+        total = cat_data["total"]
+        cat_data["act_on_rate"] = cat_data["act_on"] / total if total > 0 else 0.0
+
+    return summary
+
+
+async def adjust_insight_priorities(db: AsyncSession) -> dict[str, str]:
+    """
+    Analyze user feedback on insights and return a priority adjustment map.
+
+    Rules:
+    - Categories with 3+ dismissals AND <10% act_on rate → "low_priority"
+    - Categories with 3+ act_on AND >50% act_on rate → "high_priority"
+    - Everything else → "normal"
+
+    Returns:
+        {"revenue": "high_priority", "cost": "low_priority", ...}
+    """
+    summary = await _get_insight_feedback_summary(db)
+    adjustments: dict[str, str] = {}
+
+    for cat, data in summary.items():
+        if data["dismiss"] >= 3 and data["act_on_rate"] < 0.10:
+            adjustments[cat] = "low_priority"
+            logger.info(
+                "Insight category '%s' demoted to low_priority "
+                "(dismiss=%d, act_on_rate=%.1f%%)",
+                cat, data["dismiss"], data["act_on_rate"] * 100,
+            )
+        elif data["act_on"] >= 3 and data["act_on_rate"] > 0.50:
+            adjustments[cat] = "high_priority"
+            logger.info(
+                "Insight category '%s' promoted to high_priority "
+                "(act_on=%d, act_on_rate=%.1f%%)",
+                cat, data["act_on"], data["act_on_rate"] * 100,
+            )
+        else:
+            adjustments[cat] = "normal"
+
+    return adjustments
 
 from app.constants import CMS_PMPM_BASE as CMS_MONTHLY_BASE
 
@@ -413,6 +509,19 @@ async def generate_insights(db: AsyncSession, tenant_schema: str = "default") ->
     Injects learning context (past prediction accuracy, blind spots, user
     preferences) so the LLM can adjust confidence and prioritize accordingly.
     """
+    # --- Self-learning priority adjustments ---
+    priority_adjustments = await adjust_insight_priorities(db)
+    low_priority_cats = {
+        cat for cat, level in priority_adjustments.items() if level == "low_priority"
+    }
+    high_priority_cats = {
+        cat for cat, level in priority_adjustments.items() if level == "high_priority"
+    }
+    if low_priority_cats:
+        logger.info("Self-learning: suppressing low-priority categories: %s", low_priority_cats)
+    if high_priority_cats:
+        logger.info("Self-learning: boosting high-priority categories: %s", high_priority_cats)
+
     # --- Run Autonomous Discovery Engine first ---
     from app.services.discovery_service import run_full_discovery
     try:
@@ -422,11 +531,24 @@ async def generate_insights(db: AsyncSession, tenant_schema: str = "default") ->
         logger.error("Discovery engine failed, continuing with LLM-only: %s", e)
         discoveries = []
 
+    # Filter out discoveries for suppressed categories
+    if low_priority_cats and discoveries:
+        before = len(discoveries)
+        discoveries = [
+            d for d in discoveries
+            if d.get("category") not in low_priority_cats
+        ]
+        if len(discoveries) < before:
+            logger.info(
+                "Self-learning: filtered %d low-priority discoveries",
+                before - len(discoveries),
+            )
+
     if not settings.anthropic_api_key:
         logger.warning("ANTHROPIC_API_KEY not set — skipping LLM insight generation")
         # If no LLM available, persist discovery results directly
         if discoveries:
-            return await _persist_insights(db, discoveries)
+            return await _persist_insights(db, discoveries, priority_adjustments)
         return []
 
     context = await build_context_graph(db)
@@ -476,9 +598,24 @@ async def generate_insights(db: AsyncSession, tenant_schema: str = "default") ->
         discovery_addendum += "These ARE the primary insights — polish and connect them, add context from the graph above.\n\n"
         discovery_addendum += json.dumps(discoveries[:30], indent=2, default=str)
 
+    # --- Self-learning priority addendum for LLM ---
+    priority_addendum = ""
+    if low_priority_cats or high_priority_cats:
+        priority_addendum = "\n\n=== INSIGHT PRIORITY ADJUSTMENTS (from user feedback) ===\n"
+        if low_priority_cats:
+            priority_addendum += (
+                f"SUPPRESS these categories (users consistently dismiss them): "
+                f"{', '.join(low_priority_cats)}. Generate fewer or zero insights for these.\n"
+            )
+        if high_priority_cats:
+            priority_addendum += (
+                f"BOOST these categories (users consistently act on them): "
+                f"{', '.join(high_priority_cats)}. Generate more insights and higher confidence for these.\n"
+            )
+
     enriched_prompt = POPULATION_USER_PROMPT.format(
         context_json=json.dumps(context, indent=2, default=str)
-    ) + learning_addendum + discovery_addendum
+    ) + learning_addendum + priority_addendum + discovery_addendum
 
     try:
         guard_result = await guarded_llm_call(
@@ -491,28 +628,41 @@ async def generate_insights(db: AsyncSession, tenant_schema: str = "default") ->
         if not guard_result["response"]:
             logger.error("Guarded LLM call returned empty response")
             if discoveries:
-                return await _persist_insights(db, discoveries)
+                return await _persist_insights(db, discoveries, priority_adjustments)
             return []
         if guard_result["warnings"]:
             logger.warning("LLM output warnings: %s", guard_result["warnings"])
     except Exception as e:
         logger.error("Guarded LLM call failed: %s", e, exc_info=True)
         if discoveries:
-            return await _persist_insights(db, discoveries)
+            return await _persist_insights(db, discoveries, priority_adjustments)
         return []
 
     insights_data = _parse_llm_json(guard_result["response"])
     if not insights_data:
         # Fall back to discovery results if LLM parsing fails
         if discoveries:
-            return await _persist_insights(db, discoveries)
+            return await _persist_insights(db, discoveries, priority_adjustments)
         return []
 
-    return await _persist_insights(db, insights_data)
+    return await _persist_insights(db, insights_data, priority_adjustments)
 
 
-async def _persist_insights(db: AsyncSession, insights_data: list[dict]) -> list[dict]:
-    """Dismiss old active insights and persist new ones."""
+async def _persist_insights(
+    db: AsyncSession,
+    insights_data: list[dict],
+    priority_adjustments: dict[str, str] | None = None,
+) -> list[dict]:
+    """Dismiss old active insights and persist new ones.
+
+    Applies self-learning priority adjustments:
+    - Skips insights for "low_priority" categories entirely
+    - Boosts confidence by 10 (capped at 100) for "high_priority" categories
+    - Tags each insight with its priority_level
+    """
+    if priority_adjustments is None:
+        priority_adjustments = {}
+
     # Dismiss old active insights before creating new ones
     await db.execute(
         update(Insight)
@@ -521,16 +671,28 @@ async def _persist_insights(db: AsyncSession, insights_data: list[dict]) -> list
     )
 
     created = []
+    skipped = 0
     category_map = {c.value: c.value for c in InsightCategory}
 
     for item in insights_data:
         cat_str = item.get("category", "cross_module")
         category = category_map.get(cat_str, InsightCategory.cross_module.value)
 
+        # Self-learning: skip low-priority categories
+        priority = priority_adjustments.get(cat_str)
+        if priority == "low_priority":
+            skipped += 1
+            continue
+
         # Build connections, including scan_type if present
         connections = item.get("connections") or {}
         if item.get("scan_type"):
             connections["scan_type"] = item["scan_type"]
+
+        # Self-learning: boost confidence for high-priority categories
+        confidence = item.get("confidence")
+        if priority == "high_priority" and confidence is not None:
+            confidence = min(confidence + 10, 100)
 
         insight = Insight(
             category=category,
@@ -538,13 +700,14 @@ async def _persist_insights(db: AsyncSession, insights_data: list[dict]) -> list
             description=str(item.get("description", "")),
             dollar_impact=item.get("dollar_impact"),
             recommended_action=item.get("recommended_action"),
-            confidence=item.get("confidence"),
+            confidence=confidence,
             status=InsightStatus.active.value,
             affected_members=item.get("affected_members") or [],
             affected_providers=item.get("affected_providers") or [],
             surface_on=item.get("surface_on") or ["dashboard"],
             connections=connections,
             source_modules=item.get("source_modules") or [],
+            priority_level=priority,
         )
         db.add(insight)
         created.append({
@@ -552,9 +715,14 @@ async def _persist_insights(db: AsyncSession, insights_data: list[dict]) -> list
             "title": insight.title,
             "dollar_impact": insight.dollar_impact,
             "scan_type": item.get("scan_type"),
+            "priority_level": priority,
         })
 
     await db.commit()
+    if skipped:
+        logger.info(
+            "Self-learning: skipped %d insights from low-priority categories", skipped
+        )
     logger.info("Persisted %d population insights", len(created))
     return created
 
