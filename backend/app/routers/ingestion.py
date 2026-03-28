@@ -24,7 +24,7 @@ from app.config import settings
 from app.dependencies import get_current_user, get_tenant_db
 from app.services.data_preprocessor import preprocess_file
 from app.services.ingestion_service import read_file_headers_and_sample
-from app.services.mapping_service import detect_type_with_metadata, propose_mapping
+from app.services.mapping_service import detect_type_with_metadata, log_mapping_corrections, propose_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -369,9 +369,9 @@ async def confirm_mapping(
 
     Optionally saves the mapping as a reusable template.
     """
-    # Load the job
+    # Load the job (including original AI-proposed mapping for correction logging)
     result = await db.execute(
-        text("SELECT id, status, detected_type FROM upload_jobs WHERE id = :jid"),
+        text("SELECT id, status, detected_type, column_mapping, filename FROM upload_jobs WHERE id = :jid"),
         {"jid": job_id},
     )
     job = result.mappings().first()
@@ -422,6 +422,25 @@ async def confirm_mapping(
                 "mapping": template_mapping,
             },
         )
+
+    # --- Self-learning: log mapping corrections (AI proposal vs user confirmation) ---
+    try:
+        original_mapping = job["column_mapping"]
+        if isinstance(original_mapping, str):
+            original_mapping = json.loads(original_mapping)
+        if original_mapping:
+            await log_mapping_corrections(
+                db=db,
+                proposed_mapping=original_mapping,
+                confirmed_mapping=body.column_mapping,
+                source_context={
+                    "source_name": body.source_name or job["filename"],
+                    "data_type": data_type,
+                    "job_id": job_id,
+                },
+            )
+    except Exception as corr_err:
+        logger.warning("Mapping correction logging failed (non-blocking): %s", corr_err)
 
     await db.commit()
 

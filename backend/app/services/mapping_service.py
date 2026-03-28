@@ -11,6 +11,8 @@ import logging
 import re
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
 from app.services.llm_guard import guarded_llm_call
 
@@ -608,3 +610,77 @@ def apply_rules(
                     }
 
     return proposed_mapping
+
+
+# ---------------------------------------------------------------------------
+# Self-learning: log mapping corrections when user overrides AI proposal
+# ---------------------------------------------------------------------------
+
+async def log_mapping_corrections(
+    db: AsyncSession,
+    proposed_mapping: dict[str, Any],
+    confirmed_mapping: dict[str, str],
+    source_context: dict[str, Any] | None = None,
+) -> list[dict]:
+    """
+    Compare the AI-proposed mapping with the user-confirmed mapping and log
+    every override as a DataCorrection via data_learning_service.log_correction.
+
+    Args:
+        db: Async database session.
+        proposed_mapping: The original AI/heuristic proposal —
+            {source_col: {"platform_field": str|None, "confidence": float}}.
+        confirmed_mapping: The user's final mapping —
+            {source_col: platform_field_str}.
+        source_context: Optional dict with source_name, data_type, job_id, etc.
+
+    Returns:
+        List of dicts describing each override that was logged.
+    """
+    from app.services.data_learning_service import log_correction
+
+    overrides: list[dict] = []
+
+    for source_col, confirmed_field in confirmed_mapping.items():
+        # Determine what the AI originally proposed
+        proposal = proposed_mapping.get(source_col)
+        if isinstance(proposal, dict):
+            proposed_field = proposal.get("platform_field")
+        elif isinstance(proposal, str):
+            proposed_field = proposal
+        else:
+            proposed_field = None
+
+        # Only log when user actually changed the mapping
+        if proposed_field == confirmed_field:
+            continue
+
+        # Skip columns where both are unmapped (None/null)
+        if proposed_field is None and (confirmed_field is None or confirmed_field == ""):
+            continue
+
+        ctx = dict(source_context or {})
+        ctx["source_column"] = source_col
+
+        await log_correction(
+            db=db,
+            correction_type="mapping_override",
+            source_context=ctx,
+            field=source_col,
+            original_value=proposed_field,
+            corrected_value=confirmed_field,
+        )
+
+        overrides.append({
+            "source_column": source_col,
+            "proposed": proposed_field,
+            "confirmed": confirmed_field,
+        })
+
+    if overrides:
+        logger.info(
+            "Logged %d mapping corrections (overrides of AI proposal)",
+            len(overrides),
+        )
+
+    return overrides

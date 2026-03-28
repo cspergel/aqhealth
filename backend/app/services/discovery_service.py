@@ -24,8 +24,12 @@ from app.models.care_gap import GapMeasure, MemberGap, GapStatus
 from app.models.hcc import HccSuspect, SuspectStatus
 from app.models.member import Member, RiskTier
 from app.models.provider import Provider
+from app.models.insight import Insight, InsightStatus
 
 logger = logging.getLogger(__name__)
+
+# Scan type names — canonical list used throughout the feedback loop
+SCAN_TYPES = ("anomaly", "opportunity", "comparative", "temporal", "cross_module", "revenue_cycle")
 
 
 def _sf(v) -> float:
@@ -1071,6 +1075,87 @@ async def _gather_cross_module_context(db: AsyncSession) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Self-learning: scan effectiveness tracking
+# ---------------------------------------------------------------------------
+
+async def get_scan_effectiveness(db: AsyncSession) -> dict[str, dict]:
+    """
+    For each scan type, count how many insights were generated, acted on,
+    and dismissed.  Uses the connections->>'scan_type' stored on each Insight.
+
+    Returns:
+        {
+            "anomaly":       {"generated": 40, "acted_on": 12, "dismissed": 20, "active": 8},
+            "opportunity":   {"generated": 25, "acted_on": 18, "dismissed": 3,  "active": 4},
+            ...
+        }
+    """
+    effectiveness: dict[str, dict] = {
+        st: {"generated": 0, "acted_on": 0, "dismissed": 0, "active": 0}
+        for st in SCAN_TYPES
+    }
+
+    # Query all insights grouped by scan_type and status
+    stmt = (
+        select(
+            Insight.connections["scan_type"].as_string().label("scan_type"),
+            Insight.status,
+            func.count(Insight.id).label("cnt"),
+        )
+        .where(Insight.connections["scan_type"].as_string().in_(list(SCAN_TYPES)))
+        .group_by(
+            Insight.connections["scan_type"].as_string(),
+            Insight.status,
+        )
+    )
+
+    result = await db.execute(stmt)
+    for row in result.all():
+        st = row.scan_type
+        if st not in effectiveness:
+            continue
+        cnt = int(row.cnt)
+        effectiveness[st]["generated"] += cnt
+        if row.status == InsightStatus.acted_on.value:
+            effectiveness[st]["acted_on"] += cnt
+        elif row.status == InsightStatus.dismissed.value:
+            effectiveness[st]["dismissed"] += cnt
+        elif row.status == InsightStatus.active.value:
+            effectiveness[st]["active"] += cnt
+        # bookmarked counts toward generated but neither acted_on nor dismissed
+
+    return effectiveness
+
+
+async def _get_scan_priority_weights(db: AsyncSession) -> dict[str, float]:
+    """
+    Compute a weight (0.0 – 2.0) for each scan type based on historical
+    effectiveness.  Default is 1.0.
+
+    Logic:
+        - action_rate  = acted_on / resolved  (where resolved = acted_on + dismissed)
+        - If fewer than 5 resolved insights exist for a scan, return default 1.0
+          (not enough signal).
+        - weight = 0.4 + 1.6 * action_rate
+          Maps 0% action → 0.4, 50% → 1.2, 100% → 2.0
+    """
+    effectiveness = await get_scan_effectiveness(db)
+    weights: dict[str, float] = {}
+
+    for scan_type, stats in effectiveness.items():
+        resolved = stats["acted_on"] + stats["dismissed"]
+        if resolved < 5:
+            weights[scan_type] = 1.0  # not enough data
+            continue
+        action_rate = stats["acted_on"] / resolved
+        weight = 0.4 + 1.6 * action_rate
+        weights[scan_type] = round(min(max(weight, 0.0), 2.0), 2)
+
+    logger.info("Scan priority weights: %s", weights)
+    return weights
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 
@@ -1078,8 +1163,16 @@ async def run_full_discovery(db: AsyncSession, tenant_schema: str = "default") -
     """
     Orchestrate all 6 scans, gather cross-module context, and synthesize
     results into ranked discoveries.
+
+    Self-learning behaviour:
+        - Checks each scan's priority weight before running it.
+        - weight < 0.3 → skip the scan entirely (too many dismissed insights).
+        - weight > 1.5 → flag as expanded (future: pass depth param).
     """
     logger.info("Starting autonomous discovery scan...")
+
+    # Compute self-learning priority weights
+    weights = await _get_scan_priority_weights(db)
 
     # Run all scans
     scans = {}
@@ -1094,11 +1187,28 @@ async def run_full_discovery(db: AsyncSession, tenant_schema: str = "default") -
 
     all_raw: list[dict] = []
     for name, func_ref in scan_funcs.items():
+        weight = weights.get(name, 1.0)
+
+        # Self-learning gate: skip scans that consistently produce noise
+        if weight < 0.3:
+            logger.info(
+                "Scan '%s' SKIPPED — weight %.2f (insights consistently dismissed)",
+                name, weight,
+            )
+            scans[name] = 0
+            continue
+
+        if weight > 1.5:
+            logger.info(
+                "Scan '%s' BOOSTED — weight %.2f (insights consistently acted on)",
+                name, weight,
+            )
+
         try:
             results = await func_ref(db)
             scans[name] = len(results)
             all_raw.extend(results)
-            logger.info("Scan '%s' found %d raw findings", name, len(results))
+            logger.info("Scan '%s' found %d raw findings (weight=%.2f)", name, len(results), weight)
         except Exception as e:
             logger.error("Scan '%s' failed: %s", name, e, exc_info=True)
             scans[name] = 0
