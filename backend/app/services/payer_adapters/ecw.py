@@ -26,7 +26,9 @@ Rate limit: 250 requests/minute per base URL. HTTP 429 blocks for remainder of m
 
 import asyncio
 import base64
+import hashlib
 import logging
+import secrets
 import time
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -42,8 +44,13 @@ logger = logging.getLogger(__name__)
 # eCW FHIR endpoints
 # ---------------------------------------------------------------------------
 
-_SANDBOX_HOST = "https://fhir.eclinicalworks.com"
-_PRODUCTION_HOST = "https://fhir.eclinicalworks.com"
+_SANDBOX_HOST = "https://staging-fhir.ecwcloud.com"
+_PRODUCTION_HOST = "https://fhir.ecwcloud.com"
+
+# eCW token lifetime is only 300 seconds (5 minutes!), not the 3600s default.
+# Refresh buffer must be small enough to not expire before the token is usable.
+_DEFAULT_TOKEN_LIFETIME = 300  # 5 minutes
+_REFRESH_BUFFER_SECONDS = 60  # refresh 60s before expiry
 
 _SCOPES = (
     "launch launch/patient openid fhirUser offline_access "
@@ -84,6 +91,36 @@ class EcwAdapter(PayerAdapter):
         super().__init__()
         # Sliding-window rate limiter: track timestamps of recent requests
         self._request_timestamps: list[float] = []
+        # PKCE state — eCW requires Proof Key for Code Exchange (S256)
+        self._code_verifier: str | None = None
+        self._code_challenge: str | None = None
+
+    # -------------------------------------------------------------------
+    # PKCE helpers — eCW requires S256 code challenge
+    # -------------------------------------------------------------------
+
+    def _generate_pkce(self) -> tuple[str, str]:
+        """Generate PKCE code_verifier and code_challenge (S256).
+
+        Returns (code_verifier, code_challenge).
+        """
+        code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("=")
+        challenge_bytes = hashlib.sha256(code_verifier.encode()).digest()
+        code_challenge = base64.urlsafe_b64encode(challenge_bytes).decode().rstrip("=")
+        self._code_verifier = code_verifier
+        self._code_challenge = code_challenge
+        return code_verifier, code_challenge
+
+    @staticmethod
+    def is_token_expired(issued_at: datetime, expires_in: int = _DEFAULT_TOKEN_LIFETIME) -> bool:
+        """Check if an eCW token needs refresh.
+
+        eCW tokens live only 300s (5 min). We refresh 60s before expiry
+        to avoid mid-request failures, but NOT 300s (which would be the
+        entire token lifetime).
+        """
+        expiry = issued_at + timedelta(seconds=expires_in)
+        return datetime.utcnow() >= (expiry - timedelta(seconds=_REFRESH_BUFFER_SECONDS))
 
     # -------------------------------------------------------------------
     # SMART on FHIR endpoint discovery
@@ -169,12 +206,27 @@ class EcwAdapter(PayerAdapter):
 
         Requires ``practice_code``, ``client_id``, ``redirect_uri`` in credentials.
         Discovers the authorize endpoint dynamically at connection time; for the
-        synchronous URL builder we construct it from a known pattern.
+        synchronous URL builder we require ``auth_url`` in credentials (discovered
+        via _discover_endpoints or the .well-known/smart-configuration).
+
+        NOTE: eCW OAuth server is SEPARATE from the FHIR server.
+        - FHIR server: staging-fhir.ecwcloud.com / fhir.ecwcloud.com
+        - OAuth server: staging-oauthserver.ecwcloud.com / oauthserver.ecwcloud.com
+        The fallback ``{fhir_base}/oauth2/authorize`` is WRONG for eCW.
+        Always discover via .well-known/smart-configuration first.
         """
         fhir_base = self._build_fhir_base(credentials)
-        # eCW typically hosts auth relative to the FHIR server; we use a
-        # deterministic pattern here. The async flow uses _discover_endpoints.
-        auth_url = credentials.get("auth_url", f"{fhir_base}/oauth2/authorize")
+        auth_url = credentials.get("auth_url")
+        if not auth_url:
+            logger.warning(
+                "No auth_url provided for eCW — OAuth server is separate from FHIR server. "
+                "Use _discover_endpoints() first. Falling back to pattern that may not work."
+            )
+            auth_url = f"{fhir_base}/oauth2/authorize"
+
+        # Generate PKCE challenge — eCW requires S256
+        code_verifier, code_challenge = self._generate_pkce()
+
         params = {
             "response_type": "code",
             "client_id": credentials["client_id"],
@@ -182,6 +234,8 @@ class EcwAdapter(PayerAdapter):
             "scope": _SCOPES,
             "state": credentials.get("state", ""),
             "aud": fhir_base,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
         }
         return f"{auth_url}?{urlencode(params)}"
 
@@ -189,6 +243,10 @@ class EcwAdapter(PayerAdapter):
         """Exchange authorization code for tokens via SMART on FHIR token endpoint.
 
         Supports both Authorization Code and Client Credentials flows.
+
+        PKCE: eCW requires the ``code_verifier`` in the token exchange.
+        The verifier is stored on the adapter instance by ``get_authorization_url()``
+        or can be passed explicitly in ``credentials["code_verifier"]``.
         """
         fhir_base = self._build_fhir_base(credentials)
         endpoints = await self._discover_endpoints(fhir_base)
@@ -201,16 +259,25 @@ class EcwAdapter(PayerAdapter):
         grant_type = credentials.get("grant_type", "authorization_code")
 
         if grant_type == "client_credentials":
-            data = {
+            data: dict[str, str] = {
                 "grant_type": "client_credentials",
                 "scope": _SCOPES,
             }
         else:
+            # PKCE: include code_verifier from instance state or credentials
+            code_verifier = credentials.get("code_verifier") or self._code_verifier
+            if not code_verifier:
+                logger.warning(
+                    "No PKCE code_verifier available for eCW token exchange. "
+                    "eCW requires PKCE — this request may fail."
+                )
             data = {
                 "grant_type": "authorization_code",
                 "code": credentials["code"],
                 "redirect_uri": credentials["redirect_uri"],
             }
+            if code_verifier:
+                data["code_verifier"] = code_verifier
 
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
             response = await client.post(
@@ -224,11 +291,13 @@ class EcwAdapter(PayerAdapter):
             response.raise_for_status()
             token_data = response.json()
 
+        # eCW tokens expire in 300s (5 min), NOT the typical 3600s
         return {
             "access_token": token_data["access_token"],
             "refresh_token": token_data.get("refresh_token", ""),
-            "expires_in": token_data.get("expires_in", 3600),
+            "expires_in": token_data.get("expires_in", _DEFAULT_TOKEN_LIFETIME),
             "token_type": token_data.get("token_type", "Bearer"),
+            "patient": token_data.get("patient", ""),
         }
 
     async def refresh_token(self, credentials: dict) -> dict:
@@ -261,7 +330,7 @@ class EcwAdapter(PayerAdapter):
         return {
             "access_token": token_data["access_token"],
             "refresh_token": token_data.get("refresh_token", credentials["refresh_token"]),
-            "expires_in": token_data.get("expires_in", 3600),
+            "expires_in": token_data.get("expires_in", _DEFAULT_TOKEN_LIFETIME),
         }
 
     # -------------------------------------------------------------------
@@ -1759,7 +1828,11 @@ class EcwAdapter(PayerAdapter):
 
     @staticmethod
     def _extract_member_ref(resource: dict) -> str | None:
-        """Extract patient/member ID from subject or patient reference."""
+        """Extract patient/member ID from subject or patient reference.
+
+        eCW patient IDs are encrypted GUIDs (e.g. ``Lt2IFR5Ah76n4d8TFP5gBHFj5TnTm27O7XeimBF33lI``)
+        not simple integers. This method handles both formats transparently.
+        """
         for key in ("subject", "patient"):
             ref_block = resource.get(key, {})
             if isinstance(ref_block, dict):
