@@ -127,6 +127,7 @@ AVAILABLE_ACTIONS = [
     {"action": "run_quality_checks", "label": "Run Quality Checks", "description": "Execute data quality validation rules", "category": "Data"},
     {"action": "calculate_stars", "label": "Calculate Stars", "description": "Run Stars rating projection calculator", "category": "Quality"},
     {"action": "refresh_provider_scorecards", "label": "Refresh Provider Scorecards", "description": "Recompute provider and practice-group scorecard metrics", "category": "Data"},
+    {"action": "process_learning_events", "label": "Process Learning Events", "description": "Process cross-loop learning events to trigger compound intelligence reactions", "category": "Intelligence"},
 ]
 
 
@@ -405,6 +406,15 @@ async def _execute_step(
             return {"status": "completed", **result}
         except Exception as e:
             logger.error("refresh_provider_scorecards failed: %s", e)
+            return {"status": "failed", "error": str(e)}
+
+    elif action == "process_learning_events":
+        try:
+            from app.services.learning_events import process_cross_loop_events
+            result = await process_cross_loop_events(db, tenant_schema)
+            return {"status": "completed", **result}
+        except Exception as e:
+            logger.error("process_learning_events failed: %s", e)
             return {"status": "failed", "error": str(e)}
 
     else:

@@ -140,6 +140,19 @@ async def log_query_feedback(
         question[:80],
         corrected_answer is not None,
     )
+
+    # Cross-loop event: notify other learning loops
+    if user_feedback == "negative" and corrected_answer:
+        try:
+            from app.services.learning_events import publish_event
+            await publish_event(db, "query_corrected", {
+                "question": question[:200],
+                "corrected_answer": corrected_answer[:500],
+                "tenant_schema": tenant_schema,
+            }, tenant_schema=tenant_schema)
+        except Exception:
+            pass  # non-fatal
+
     return record
 
 
@@ -160,7 +173,8 @@ async def _get_relevant_learnings(
 
     Three-tier autonomy:
       - Corrections seen 1-2 times → labelled **suggestions**
-      - Corrections seen 3+ times → labelled **rules** the AI must obey
+      - Corrections seen 3-4 times → labelled **strong_suggestions**
+      - Corrections seen 5+  times → labelled **rules** the AI must obey
     """
     incoming_kws = _extract_keywords(question)
     if not incoming_kws:
@@ -213,21 +227,29 @@ async def _get_relevant_learnings(
     if not matched:
         return ""
 
-    # Build prompt sections
+    # Build prompt sections — three-tier: suggestion / strong_suggestion / rule
     suggestions: list[str] = []
+    strong_suggestions: list[str] = []
     rules: list[str] = []
     for m in matched:
         entry = f'- When asked "{m["question"]}", the correct answer was: {m["corrected_answer"]}'
-        if m["count"] >= 3:
+        if m["count"] >= 5:
             rules.append(entry)
+        elif m["count"] >= 3:
+            strong_suggestions.append(entry)
         else:
             suggestions.append(entry)
 
     parts: list[str] = []
     if rules:
         parts.append(
-            "RULES (you MUST follow these — users have corrected this multiple times):\n"
+            "RULES (you MUST follow these — users have corrected this many times):\n"
             + "\n".join(rules)
+        )
+    if strong_suggestions:
+        parts.append(
+            "STRONG SUGGESTIONS (users have corrected this multiple times — follow unless you have strong reason not to):\n"
+            + "\n".join(strong_suggestions)
         )
     if suggestions:
         parts.append(
@@ -237,8 +259,8 @@ async def _get_relevant_learnings(
 
     learning_block = "\n\n".join(parts)
     logger.info(
-        "Injecting %d learnings (%d rules, %d suggestions) for query: %s",
-        len(matched), len(rules), len(suggestions), question[:80],
+        "Injecting %d learnings (%d rules, %d strong, %d suggestions) for query: %s",
+        len(matched), len(rules), len(strong_suggestions), len(suggestions), question[:80],
     )
     return (
         "\n\n--- Past Learnings ---\n"

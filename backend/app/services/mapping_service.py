@@ -683,4 +683,12 @@ async def log_mapping_corrections(
             len(overrides),
         )
 
+        # Cross-loop event: notify other learning loops about each correction
+        try:
+            from app.services.learning_events import publish_event
+            for override in overrides:
+                await publish_event(db, "mapping_corrected", override)
+        except Exception:
+            pass  # non-fatal
+
     return overrides

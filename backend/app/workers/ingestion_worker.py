@@ -201,6 +201,22 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
         except Exception as learn_err:
             logger.warning(f"Correction pattern analysis failed (non-blocking): {learn_err}")
 
+        # 4c. Process cross-loop learning events
+        try:
+            from app.services.learning_events import process_cross_loop_events
+
+            events_db = await _get_tenant_session(tenant_schema)
+            try:
+                event_summary = await process_cross_loop_events(events_db, tenant_schema)
+                if event_summary.get("processed", 0) > 0:
+                    logger.info(
+                        f"Job {job_id}: processed {event_summary['processed']} cross-loop learning events"
+                    )
+            finally:
+                await events_db.close()
+        except Exception as events_err:
+            logger.warning(f"Cross-loop event processing failed (non-blocking): {events_err}")
+
         # 5. Run data quality checks after processing
         try:
             from app.services.data_quality_service import run_quality_checks

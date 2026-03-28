@@ -524,10 +524,14 @@ async def analyze_alert_effectiveness(db: AsyncSession) -> list[dict]:
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     recommendations: list[dict] = []
 
-    for rule in active_rules:
-        # Aggregate trigger stats in one query
-        result = await db.execute(
+    # --- Single GROUP BY query for ALL rules (eliminates N+1) ---
+    rule_ids = [r.id for r in active_rules]
+    stats_by_rule: dict[int, dict] = {}
+
+    if rule_ids:
+        stats_result = await db.execute(
             select(
+                AlertRuleTrigger.rule_id,
                 func.count(AlertRuleTrigger.id).label("total"),
                 func.sum(case((AlertRuleTrigger.acknowledged == True, 1), else_=0)).label("acknowledged"),
                 func.sum(case((AlertRuleTrigger.acted_on == True, 1), else_=0)).label("acted_on"),
@@ -539,22 +543,35 @@ async def analyze_alert_effectiveness(db: AsyncSession) -> list[dict]:
                     ), 1),
                     else_=0,
                 )).label("ignored"),
-            ).where(AlertRuleTrigger.rule_id == rule.id)
+                func.sum(case(
+                    (AlertRuleTrigger.created_at >= thirty_days_ago, 1),
+                    else_=0,
+                )).label("recent_count"),
+            )
+            .where(AlertRuleTrigger.rule_id.in_(rule_ids))
+            .group_by(AlertRuleTrigger.rule_id)
         )
-        row = result.one()
-        total = int(row.total or 0)
-        acknowledged = int(row.acknowledged or 0)
-        acted_on = int(row.acted_on or 0)
-        dismissed = int(row.dismissed or 0)
-        ignored = int(row.ignored or 0)
+        for row in stats_result.all():
+            stats_by_rule[row.rule_id] = {
+                "total": int(row.total or 0),
+                "acknowledged": int(row.acknowledged or 0),
+                "acted_on": int(row.acted_on or 0),
+                "dismissed": int(row.dismissed or 0),
+                "ignored": int(row.ignored or 0),
+                "recent_count": int(row.recent_count or 0),
+            }
 
-        # Recent trigger volume (last 30 days)
-        recent_result = await db.execute(
-            select(func.count(AlertRuleTrigger.id))
-            .where(AlertRuleTrigger.rule_id == rule.id)
-            .where(AlertRuleTrigger.created_at >= thirty_days_ago)
-        )
-        recent_count = int(recent_result.scalar() or 0)
+    for rule in active_rules:
+        s = stats_by_rule.get(rule.id, {
+            "total": 0, "acknowledged": 0, "acted_on": 0,
+            "dismissed": 0, "ignored": 0, "recent_count": 0,
+        })
+        total = s["total"]
+        acknowledged = s["acknowledged"]
+        acted_on = s["acted_on"]
+        dismissed = s["dismissed"]
+        ignored = s["ignored"]
+        recent_count = s["recent_count"]
 
         effectiveness = (acted_on / total * 100) if total > 0 else None
 
@@ -720,6 +737,19 @@ async def dismiss_trigger(db: AsyncSession, trigger_id: int) -> AlertRuleTrigger
     trigger.action_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(trigger)
+
+    # Cross-loop event: feed into alert effectiveness analysis
+    try:
+        from app.services.learning_events import publish_event
+        await publish_event(db, "alert_dismissed", {
+            "trigger_id": trigger_id,
+            "rule_id": trigger.rule_id,
+            "entity_type": trigger.entity_type,
+            "entity_id": trigger.entity_id,
+        })
+    except Exception:
+        pass  # non-fatal
+
     return trigger
 
 
@@ -746,7 +776,7 @@ def _compute_tighter_threshold(rule: AlertRule) -> float:
     means raising the bar.  For "lt"/"lte", tighten means lowering it.
     """
     current = float(rule.threshold)
-    shift = abs(current) * TIGHTEN_FACTOR
+    shift = max(abs(current) * TIGHTEN_FACTOR, 1.0)
 
     if rule.operator in ("gt", "gte", "change_gt"):
         # Raise threshold so fewer things exceed it
@@ -760,11 +790,16 @@ def _compute_tighter_threshold(rule: AlertRule) -> float:
 
 
 def _adjustment_tier(proposals: int) -> str:
-    """Map proposal count to the three-tier pattern."""
+    """Map proposal count to the three-tier pattern.
+
+    1-2 proposals → suggest (informational only)
+    3-4 proposals → notify  (flag for user attention)
+    5+  proposals → auto_adjust (system takes action)
+    """
     proposals = proposals or 0
-    if proposals == 0:
+    if proposals <= 2:
         return "suggest"
-    elif proposals == 1:
+    elif proposals <= 4:
         return "notify"
     else:
         return "auto_adjust"

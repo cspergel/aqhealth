@@ -540,6 +540,20 @@ async def learn_suspect_outcome(
         suspect_id, suspect.hcc_code, outcome, provider_id,
     )
 
+    # Cross-loop event: notify other learning loops
+    try:
+        from app.services.learning_events import publish_event
+        event_type = "suspect_captured" if outcome == "captured" else "suspect_dismissed"
+        await publish_event(db, event_type, {
+            "suspect_id": suspect_id,
+            "member_id": suspect.member_id,
+            "hcc_code": suspect.hcc_code,
+            "provider_id": provider_id,
+            "reason": reason,
+        })
+    except Exception:
+        pass  # non-fatal
+
 
 async def _get_provider_capture_patterns(
     db: AsyncSession, provider_id: int

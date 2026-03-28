@@ -458,6 +458,26 @@ async def track_user_interaction(
     db.add(interaction)
     await db.commit()
     await db.refresh(interaction)
+
+    # Cross-loop events for insight interactions
+    try:
+        if target_type == "insight":
+            from app.services.learning_events import publish_event
+            if interaction_type == "act_on":
+                await publish_event(db, "insight_acted_on", {
+                    "insight_id": target_id,
+                    "user_id": user_id,
+                    "category": (metadata or {}).get("category"),
+                })
+            elif interaction_type == "dismiss":
+                await publish_event(db, "insight_dismissed", {
+                    "insight_id": target_id,
+                    "user_id": user_id,
+                    "category": (metadata or {}).get("category"),
+                })
+    except Exception:
+        pass  # non-fatal
+
     return interaction
 
 

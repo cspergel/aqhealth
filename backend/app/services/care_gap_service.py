@@ -976,6 +976,19 @@ async def learn_gap_closure(db: AsyncSession, gap_id: int) -> None:
         measure.code, procedure_code, provider_id,
     )
 
+    # Cross-loop event: notify other learning loops
+    try:
+        from app.services.learning_events import publish_event
+        await publish_event(db, "gap_closed", {
+            "gap_id": gap_id,
+            "measure_code": measure.code,
+            "procedure_code": procedure_code,
+            "provider_id": provider_id,
+            "member_id": gap.member_id,
+        })
+    except Exception:
+        pass  # non-fatal
+
 
 async def get_recommended_actions(
     db: AsyncSession, measure_code: str

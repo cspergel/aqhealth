@@ -241,6 +241,21 @@ async def auto_create_transformation_rule(
         "Created transformation rule [%s]: %s %r -> %r (%d occurrences, %s)",
         rule_type, field, original, corrected, count, status,
     )
+
+    # Cross-loop event: notify other learning loops
+    try:
+        from app.services.learning_events import publish_event
+        await publish_event(db, "rule_auto_created", {
+            "field": field,
+            "rule_type": rule_type,
+            "original": original,
+            "corrected": corrected,
+            "count": count,
+            "is_active": is_active,
+        })
+    except Exception:
+        pass  # non-fatal
+
     return rule
 
 
