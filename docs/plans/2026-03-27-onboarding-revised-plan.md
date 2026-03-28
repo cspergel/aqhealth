@@ -467,11 +467,206 @@ git commit -m "feat: enhanced ingestion page — requirements checklist, org dis
 
 ---
 
+### Task 9: AI Data Intelligence Loop
+
+**Files:**
+- Create: `backend/app/services/data_learning_service.py`
+- Modify: `backend/app/services/ingestion_service.py` (log corrections)
+- Modify: `backend/app/services/mapping_service.py` (log mapping overrides)
+- Modify: `backend/app/workers/ingestion_worker.py` (trigger learning after upload)
+
+**Purpose:** The self-learning feedback loop for data quality. Every human correction during upload/mapping/validation becomes training data. When patterns emerge, the system auto-creates TransformationRules and Skills that fix the same issues in future uploads — without human intervention.
+
+**This is the recursive intelligence loop applied to the data pipeline.** It connects the existing Skill framework + TransformationRule model to the ingestion flow.
+
+**`data_learning_service.py` — core functions:**
+
+```python
+"""
+Data Learning Service — observes human corrections during data ingestion
+and auto-generates transformation rules and skills when patterns emerge.
+
+The feedback loop:
+1. Human corrects AI proposal (mapping override, quality fix, org edit)
+2. Correction is logged with context (source, field, before/after)
+3. When the same correction appears 2+ times → propose a TransformationRule
+4. When the same rule fires 5+ times → promote to auto-apply (no human confirm)
+5. When a sequence of rules consistently runs together → propose a Skill
+"""
+
+async def log_correction(
+    db: AsyncSession,
+    correction_type: str,   # "mapping_override", "quality_fix", "value_correction", "org_edit"
+    source_context: dict,   # {"source_name": "Humana claims Q1", "data_type": "claims", "payer": "Humana"}
+    field: str,             # "billing_npi", "gender", "date_of_birth"
+    original_value: Any,    # What AI proposed or data contained
+    corrected_value: Any,   # What human changed it to
+    tenant_schema: str = "default",
+) -> None:
+    """Log a human correction for the learning system."""
+
+async def analyze_correction_patterns(
+    db: AsyncSession,
+    tenant_schema: str = "default",
+) -> list[dict]:
+    """
+    Analyze logged corrections for recurring patterns.
+    Returns proposed rules that should be created.
+
+    Pattern detection:
+    - Same field + same before→after correction 2+ times → propose value_map rule
+    - Same source + same field format issue 2+ times → propose format_convert rule
+    - Same field always needs default when missing → propose default_fill rule
+    """
+
+async def auto_create_transformation_rule(
+    db: AsyncSession,
+    pattern: dict,
+    tenant_schema: str = "default",
+) -> dict:
+    """
+    Create a TransformationRule from a detected pattern.
+    Sets created_from="pattern" to distinguish from human or AI created rules.
+
+    Rule confidence levels:
+    - 2 occurrences: created but requires human approval (is_active=False)
+    - 5+ occurrences: auto-activated (is_active=True)
+    - Rule includes source_name so it only applies to matching sources
+    """
+
+async def propose_skill_from_rules(
+    db: AsyncSession,
+    tenant_schema: str = "default",
+) -> dict | None:
+    """
+    When multiple TransformationRules consistently fire together on the same
+    source, propose a Skill that bundles them into a single workflow.
+
+    Example: "Humana Claims Cleanup" skill with steps:
+    1. Strip leading zeros from member_id
+    2. Convert dates from MM/DD/YYYY to ISO
+    3. Map gender "1"→"M", "2"→"F"
+    4. Normalize TIN format
+
+    Skill is created with trigger_type="event", trigger_config={"event_type": "file_upload",
+    "filter": {"source_name_contains": "humana"}}, created_from="observed"
+    """
+
+async def apply_learned_rules(
+    db: AsyncSession,
+    rows: list[dict],
+    source_name: str | None,
+    data_type: str,
+) -> tuple[list[dict], list[dict]]:
+    """
+    Apply active TransformationRules to a batch of rows BEFORE validation.
+    Called during ingestion, after preprocessing but before _process_*_row.
+
+    Returns: (transformed_rows, applied_rules_log)
+    The log tracks what was changed so the user can review:
+    [{"row": 5, "field": "gender", "rule_id": 12, "before": "1", "after": "M"}]
+    """
+```
+
+**Integration points:**
+
+1. **mapping_service.py** — when human overrides AI column mapping in `confirm-mapping`:
+   ```python
+   # In confirm_mapping endpoint, compare proposed vs confirmed mapping
+   for col, proposed in ai_mapping.items():
+       confirmed = user_mapping.get(col)
+       if confirmed != proposed:
+           await log_correction(db, "mapping_override",
+               source_context, col, proposed, confirmed)
+   ```
+
+2. **ingestion_service.py** — when human fixes quality errors:
+   ```python
+   # When quality review corrections are applied
+   for fix in user_fixes:
+       await log_correction(db, "quality_fix",
+           source_context, fix["field"], fix["original"], fix["corrected"])
+   ```
+
+3. **ingestion_worker.py** — after successful upload, trigger pattern analysis:
+   ```python
+   # At end of process_ingestion_job, after downstream triggers
+   await analyze_correction_patterns(db, tenant_schema)
+   ```
+
+4. **process_upload** — apply learned rules before validation:
+   ```python
+   # After preprocessing, before _process_*_row loop
+   if data_type in ("claims", "roster", "pharmacy"):
+       rows, rules_applied = await apply_learned_rules(db, rows, source_name, data_type)
+       if rules_applied:
+           logger.info(f"Applied {len(rules_applied)} learned transformation rules")
+   ```
+
+**Correction logging model — add to data_quality.py:**
+
+```python
+class DataCorrection(Base, TimestampMixin):
+    """Logs human corrections to AI proposals for pattern learning."""
+    __tablename__ = "data_corrections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    correction_type: Mapped[str] = mapped_column(String(30))  # mapping_override, quality_fix, value_correction
+    source_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    data_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    field: Mapped[str] = mapped_column(String(100), index=True)
+    original_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    corrected_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    context: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # payer, file format, etc.
+    rule_created: Mapped[bool] = mapped_column(default=False)  # True once a rule was generated from this
+```
+
+**The self-learning progression:**
+
+```
+Upload 1: Human corrects "1"→"M" for gender field in Humana file
+Upload 2: Human corrects "1"→"M" again → system proposes TransformationRule (inactive, needs approval)
+Upload 3: User approves rule → rule auto-applies on Upload 3, no human correction needed
+Upload 5+: Rule promoted to auto-apply, no confirmation needed
+Upload 10+: System bundles this rule + 3 others into a "Humana Claims Cleanup" Skill
+Upload 15+: Skill triggers automatically on any Humana file upload. Zero human intervention.
+```
+
+**This is the recursive loop:**
+- Data comes in messy → human fixes it → system observes → system proposes rule → human confirms → rule applies automatically → system proposes skill → skill runs automatically → next upload needs zero fixes.
+
+**Platform-wide AI autonomy tiers (applies everywhere, not just data):**
+
+| Tier | Threshold | UX | Frontend Pattern |
+|------|-----------|-----|-----------------|
+| **Ask** | 1-2 occurrences | "I noticed X. Should I fix it?" Approve/reject buttons | Inline confirm banner, not modal |
+| **Notify** | 3-5 confirmed | "Auto-fixed X. Undo?" | Toast notification + activity log |
+| **Silent** | 5+ never rejected | Just does it | Activity log only, no interruption |
+
+**This pattern applies to EVERY module, not just ingestion:**
+- **HCC suspects:** Provider captures same HCC type 5x → auto-boost confidence for similar suspects
+- **Care gaps:** Same procedure closes same gap type 3x → auto-suggest that procedure
+- **Alerts:** User dismisses alert type 3x → suggest deactivating or adjusting threshold
+- **Query bar:** Same question asked 3x → pre-compute and surface proactively
+- **Reports:** Same report run monthly → suggest scheduled skill
+- **Discovery:** Insight always acted on → boost priority; always dismissed → demote
+
+**The `data_learning_service.py` in this task is the FIRST implementation of this pattern.** The same `log_correction → analyze_patterns → auto_create_rule → propose_skill` pipeline will be generalized to other modules in future phases. The `DataCorrection` model and `TransformationRule` model are the foundation — other modules will create their own correction types and rule types using the same infrastructure.
+
+**Goal: the system gets quieter over time.** First week = lots of questions. First month = mostly auto-fixes with notifications. After 3 months = silent, just works. The user barely notices the AI — they just notice that everything runs smoother.
+
+**Commit:**
+```bash
+git commit -m "feat: AI data intelligence loop — auto-learn transformation rules from human corrections"
+```
+
+---
+
 ## Phase 2: Full Wizard & Dashboard (5 Tasks)
 
 *Phase 2 builds on Phase 1. Only start after Phase 1 is verified working with real data.*
 
-### Task 9: Onboarding Wizard Shell
+### Task 10: Onboarding Wizard Shell
 
 **Files:**
 - Create: `frontend/src/pages/OnboardingPage.tsx`
@@ -577,6 +772,7 @@ Task 4 (org discovery) ────── needs 1, 2 ──┤ │
 Task 6 (auto-routing) ─────── needs 1, 2 ──┤ │
                                             │ │
 Task 7 (router) ────────────── needs 3, 4 ─┤ │
+Task 9 (AI learning) ─────── needs 6 ──────┤ │
                                             │ │
 Task 8 (frontend) ─────────── needs 5, 7 ──┘ │
 ```
@@ -585,16 +781,16 @@ Task 8 (frontend) ─────────── needs 5, 7 ──┘ │
 - **Group A:** Tasks 1 + 2 (no dependencies, run in parallel)
 - **Group B:** Tasks 3 + 5 (depend on Task 1 only, run in parallel)
 - **Group C:** Tasks 4 + 6 (depend on Tasks 1 + 2, run in parallel)
-- **Group D:** Task 7 (depends on Tasks 3 + 4)
+- **Group D:** Tasks 7 + 9 (Task 7 needs 3+4, Task 9 needs 6)
 - **Group E:** Task 8 (depends on Tasks 5 + 7)
 
 ### Phase 2 Dependency Graph
 ```
-Task 9 (wizard shell) ─────── needs Phase 1
-Task 10 (step 1 org) ──────── needs 9
-Task 11 (steps 2-4) ────────── needs 9
-Task 12 (step 5 processing) ── needs 11
-Task 13 (dashboard) ──────────── needs Phase 1 (parallel with 9-12)
+Task 10 (wizard shell) ─────── needs Phase 1
+Task 11 (step 1 org) ──────── needs 10
+Task 12 (steps 2-4) ────────── needs 10
+Task 13 (step 5 processing) ── needs 12
+Task 14 (dashboard) ──────────── needs Phase 1 (parallel with 10-13)
 ```
 
 ### Verification After Phase 1
