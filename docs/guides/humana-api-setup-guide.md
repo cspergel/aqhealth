@@ -35,9 +35,14 @@ Humana Data Exchange (HDX) provides free FHIR R4 APIs that give us direct access
 1. Go to **https://developers.humana.com/apis/registerapp**
 2. Fill in:
    - **Application Name:** `AQSoft Health Platform` (or your preferred name)
-   - **Redirect URL:** `https://your-domain.com/api/payer/callback`
-     - For local development: `http://localhost:8090/api/payer/callback`
-     - For production: `https://api.aqhealth.ai/api/payer/callback`
+   - **Redirect URL:** Must be **HTTPS** (Humana won't accept http://localhost)
+     - For local development: use **ngrok** or similar tunnel:
+       1. Run: `ngrok http 8090`
+       2. Copy the `https://xxxx.ngrok-free.app` URL
+       3. Register redirect as: `https://xxxx.ngrok-free.app/api/payer/callback`
+       4. Note: ngrok URLs change each restart on free tier — use a paid plan or reserve a subdomain for stable testing
+     - For production: `https://api.aqhealth.ai/api/payer/callback` (or your hosted domain)
+     - **You can update the redirect URL later** in the Humana portal if it changes
 3. Submit the registration
 4. **Save the credentials you receive:**
    - `Client ID` — your app's unique identifier
@@ -168,8 +173,11 @@ After production access is established:
 
 ### "Connection Failed" during OAuth
 - Verify Client ID and Client Secret are correct
-- Check that the Redirect URL in Humana's portal matches exactly: `http://localhost:8090/api/payer/callback` (dev) or your production URL
+- **Redirect URL must be HTTPS** — Humana rejects http://localhost
+- For local dev, use ngrok: `ngrok http 8090` then register the `https://xxxx.ngrok-free.app/api/payer/callback` URL
+- Check that the Redirect URL in Humana's portal matches **exactly** what your app sends (no trailing slash differences)
 - Ensure you're using the right environment (sandbox vs production)
+- If using ngrok free tier, the URL changes on restart — update it in both Humana's portal and your .env
 
 ### "401 Unauthorized" during sync
 - Token may have expired — the platform auto-refreshes, but if the refresh token is also expired, you need to re-authorize
