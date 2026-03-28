@@ -70,26 +70,70 @@ export function OnboardingPage() {
     setCurrentStep(1);
   }, []);
 
+  const handleDataLoaded = useCallback((jobId?: string) => {
+    setHasData(true);
+    if (jobId) setLatestJobId(jobId);
+  }, []);
+
   const handleStep5Complete = useCallback(() => {
     setStep5Complete(true);
   }, []);
 
-  // Build wizard steps — Step 1 and Step 5 use real components, others are placeholders
-  const steps: WizardStep[] = STEP_DEFINITIONS.map((def, i) => ({
-    title: def.title,
-    description: def.description,
-    component:
-      i === 0 ? (
-        <WizardStep1Org onConfirm={handleStep1Confirm} />
-      ) : i === 4 ? (
-        <WizardStep5Processing
-          demoMode={isDemoMode}
-          onComplete={handleStep5Complete}
-        />
-      ) : (
-        <StepPlaceholder title={def.title} description={def.description} />
-      ),
-  }));
+  const handleStructureConfirm = useCallback(() => {
+    setStructureConfirmed(true);
+  }, []);
+
+  const handleStructureSkip = useCallback(() => {
+    setStructureConfirmed(true);
+  }, []);
+
+  const handleGoToDataSources = useCallback(() => {
+    setCurrentStep(1);
+  }, []);
+
+  // Build wizard steps — all 5 steps use real components
+  const steps: WizardStep[] = STEP_DEFINITIONS.map((def, i) => {
+    let component: React.ReactNode;
+    switch (i) {
+      case 0:
+        component = <WizardStep1Org onConfirm={handleStep1Confirm} />;
+        break;
+      case 1:
+        component = <WizardStep2DataSources onDataLoaded={handleDataLoaded} />;
+        break;
+      case 2:
+        component = (
+          <WizardStep3Structure
+            jobId={latestJobId}
+            hasData={hasData}
+            onConfirm={handleStructureConfirm}
+            onSkip={handleStructureSkip}
+            onGoBack={handleGoToDataSources}
+          />
+        );
+        break;
+      case 3:
+        component = (
+          <WizardStep4Quality
+            hasData={hasData}
+            onGoBack={handleGoToDataSources}
+          />
+        );
+        break;
+      case 4:
+        component = (
+          <WizardStep5Processing
+            demoMode={isDemoMode}
+            onComplete={handleStep5Complete}
+          />
+        );
+        break;
+      default:
+        component = <StepPlaceholder title={def.title} description={def.description} />;
+        break;
+    }
+    return { title: def.title, description: def.description, component };
+  });
 
   // Disable Next on Step 1 (own confirm gate) and Step 5 (until pipeline finishes)
   const nextDisabled =
