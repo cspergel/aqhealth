@@ -331,6 +331,50 @@ def _detect_type_heuristic(headers: list[str]) -> str:
     return best if scores[best] >= 2 else "unknown"
 
 
+def _detect_payer(headers: list[str], sample_rows: list[list[str]] | None = None) -> str | None:
+    """Detect likely payer from column names or data values."""
+    all_text = " ".join(headers).lower()
+    if sample_rows:
+        for row in sample_rows[:5]:
+            all_text += " " + " ".join(str(v) for v in row).lower()
+
+    if "humana" in all_text or "hicn" in all_text:
+        return "Humana"
+    if "uhc" in all_text or "optum" in all_text or "united" in all_text:
+        return "UHC"
+    if "aetna" in all_text or "cvs" in all_text:
+        return "Aetna"
+    if "cigna" in all_text or "evernorth" in all_text:
+        return "Cigna"
+    if "anthem" in all_text or "elevance" in all_text:
+        return "Anthem"
+    return None
+
+
+def detect_type_with_metadata(headers: list[str], sample_rows: list[list[str]] | None = None) -> dict:
+    """Enhanced file type detection with confidence and payer hint.
+    Wraps _detect_type_heuristic (which returns a string) and adds metadata.
+    """
+    data_type = _detect_type_heuristic(headers)  # Returns string — DO NOT CHANGE
+    normed = [_normalize(h) for h in headers]
+
+    # Confidence: what % of expected signals were found
+    signals = _TYPE_SIGNALS.get(data_type, [])
+    if signals:
+        matched = sum(1 for sig in signals if any(sig in nh for nh in normed))
+        confidence = round(matched / len(signals) * 100)
+    else:
+        confidence = 0
+
+    payer_hint = _detect_payer(headers, sample_rows)
+
+    return {
+        "data_type": data_type,
+        "confidence": confidence,
+        "payer_hint": payer_hint,
+    }
+
+
 def _heuristic_mapping(
     headers: list[str], data_type: str
 ) -> dict[str, dict[str, Any]]:
@@ -513,9 +557,13 @@ async def propose_mapping(
     if existing_rules:
         mapping = apply_rules(mapping, existing_rules)
 
+    # Enhanced file identification metadata
+    file_identification = detect_type_with_metadata(headers, sample_rows)
+
     return {
         "data_type": data_type,
         "mapping": mapping,
+        "file_identification": file_identification,
     }
 
 

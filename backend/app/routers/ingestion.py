@@ -24,7 +24,7 @@ from app.config import settings
 from app.dependencies import get_current_user, get_tenant_db
 from app.services.data_preprocessor import preprocess_file
 from app.services.ingestion_service import read_file_headers_and_sample
-from app.services.mapping_service import propose_mapping
+from app.services.mapping_service import detect_type_with_metadata, propose_mapping
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,12 @@ class PreprocessingInfo(BaseModel):
     warnings: list[str] = []
 
 
+class FileIdentification(BaseModel):
+    data_type: str
+    confidence: int = 0
+    payer_hint: str | None = None
+
+
 class UploadResponse(BaseModel):
     job_id: int
     filename: str
@@ -79,6 +85,7 @@ class UploadResponse(BaseModel):
     sample_rows: list[list[str]]
     headers: list[str]
     preprocessing: PreprocessingInfo | None = None
+    file_identification: FileIdentification | None = None
 
 
 class ConfirmMappingRequest(BaseModel):
@@ -268,6 +275,7 @@ async def upload_file(
             template_data_type = tmpl["data_type"]
 
     # Propose mapping (AI or heuristic)
+    file_identification = None
     if template_mapping:
         # Convert template mapping {src: field} to proposal format
         proposed = {
@@ -280,10 +288,13 @@ async def upload_file(
             if h not in proposed:
                 proposed[h] = {"platform_field": None, "confidence": 0.0}
         data_type = template_data_type or "unknown"
+        # Still run detection for metadata even when using a template
+        file_identification = detect_type_with_metadata(headers, sample_rows)
     else:
         result = await propose_mapping(headers, sample_rows, existing_rules, tenant_schema=current_user["tenant_schema"])
         data_type = result["data_type"]
         proposed = result["mapping"]
+        file_identification = result.get("file_identification")
 
     # Create UploadJob record and retrieve its ID via RETURNING
     # Store the effective (cleaned) file path so the background worker
@@ -342,6 +353,7 @@ async def upload_file(
         sample_rows=sample_rows,
         headers=headers,
         preprocessing=preprocessing_info,
+        file_identification=FileIdentification(**file_identification) if file_identification else None,
     )
 
 
