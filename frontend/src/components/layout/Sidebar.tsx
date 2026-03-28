@@ -132,7 +132,7 @@ const navSections: NavSection[] = [
     title: "Admin",
     items: [
       { path: "/onboarding", label: "Setup Wizard" },
-      { path: "/ingestion", label: "Data Management" },
+      { path: "/data-management", label: "Data Management" },
     ],
   },
 ];

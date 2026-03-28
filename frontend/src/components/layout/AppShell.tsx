@@ -49,6 +49,7 @@ import { AIPipelinePage } from "../../pages/AIPipelinePage";
 import { SkillsPage } from "../../pages/SkillsPage";
 import { DataProtectionPage } from "../../pages/DataProtectionPage";
 import { OnboardingPage } from "../../pages/OnboardingPage";
+import { DataManagementPage } from "../../pages/DataManagementPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -144,6 +145,7 @@ export function AppShell() {
             <Route path="/automation" element={<SkillsPage />} />
             <Route path="/data-protection" element={<DataProtectionPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/data-management" element={<DataManagementPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
