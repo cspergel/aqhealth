@@ -1,23 +1,58 @@
 import { useState, useRef, useCallback } from "react";
 import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
+import { Tag } from "../ui/Tag";
+
+/* ------------------------------------------------------------------ */
+/* Types                                                               */
+/* ------------------------------------------------------------------ */
 
 interface UploadResult {
   job_id: string;
   proposed_mapping: Record<string, string>;
   sample_data: Record<string, string[]>;
   detected_type: string;
+  /** Extended fields from detect_type_with_metadata (may not exist on older backends) */
+  confidence?: number;
+  row_count?: number;
+  detected_payer?: string | null;
 }
 
 interface FileUploadProps {
   onUploadComplete: (result: UploadResult) => void;
 }
 
+/* ------------------------------------------------------------------ */
+/* File type options for override dropdown                              */
+/* ------------------------------------------------------------------ */
+
+const FILE_TYPE_OPTIONS = [
+  "claims",
+  "roster",
+  "pharmacy",
+  "providers",
+  "prior_auth",
+  "lab_results",
+  "care_gaps",
+  "risk_scores",
+  "capitation",
+  "encounters",
+  "adt_census",
+  "quality_report",
+  "provider_roster",
+];
+
+/* ------------------------------------------------------------------ */
+/* Component                                                           */
+/* ------------------------------------------------------------------ */
+
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [identification, setIdentification] = useState<UploadResult | null>(null);
+  const [typeOverride, setTypeOverride] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const ACCEPTED = ".csv,.xlsx,.xls";
@@ -34,6 +69,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     }
     setError("");
     setSelectedFile(file);
+    setIdentification(null);
+    setTypeOverride(null);
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -72,7 +109,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       const res = await api.post<UploadResult>("/api/ingestion/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      onUploadComplete(res.data);
+      // Show identification before proceeding
+      setIdentification(res.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Upload failed. Please try again.");
     } finally {
@@ -80,11 +118,26 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     }
   };
 
+  const handleProceed = () => {
+    if (!identification) return;
+    const result = typeOverride
+      ? { ...identification, detected_type: typeOverride }
+      : identification;
+    onUploadComplete(result);
+  };
+
   const clearFile = () => {
     setSelectedFile(null);
     setError("");
+    setIdentification(null);
+    setTypeOverride(null);
     if (inputRef.current) inputRef.current.value = "";
   };
+
+  const effectiveType = typeOverride || identification?.detected_type || "";
+  const confidence = identification?.confidence;
+  const rowCount = identification?.row_count;
+  const detectedPayer = identification?.detected_payer;
 
   return (
     <div>
@@ -146,8 +199,72 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         </div>
       )}
 
-      {/* Upload button */}
-      {selectedFile && (
+      {/* File identification result */}
+      {identification && (
+        <div
+          className="mt-4 rounded-[10px] p-4"
+          style={{ background: tokens.surfaceAlt, border: `1px solid ${tokens.border}` }}
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div className="text-xs leading-relaxed" style={{ color: tokens.text }}>
+              This looks like a <strong>{effectiveType}</strong> file
+              {confidence != null && (
+                <span style={{ color: tokens.textMuted }}>
+                  {" "}({confidence}% confidence)
+                </span>
+              )}
+              {rowCount != null && (
+                <span style={{ color: tokens.textMuted }}>
+                  . {rowCount.toLocaleString()} rows detected
+                </span>
+              )}
+              .
+            </div>
+            <Tag variant={confidence != null && confidence >= 80 ? "green" : "amber"}>
+              {confidence != null && confidence >= 80 ? "High match" : "Review type"}
+            </Tag>
+          </div>
+
+          {detectedPayer && (
+            <div className="text-xs mb-3" style={{ color: tokens.textSecondary }}>
+              Detected payer: <strong>{detectedPayer}</strong>
+            </div>
+          )}
+
+          {/* Type override */}
+          <div className="flex items-center gap-2 mt-2">
+            <label
+              className="text-[11px] font-medium"
+              style={{ color: tokens.textMuted }}
+            >
+              Override type:
+            </label>
+            <select
+              value={typeOverride || ""}
+              onChange={(e) => setTypeOverride(e.target.value || null)}
+              className="text-xs px-2 py-1.5 rounded-lg outline-none"
+              style={{
+                border: `1px solid ${tokens.border}`,
+                color: tokens.text,
+                background: tokens.surface,
+                fontFamily: fonts.code,
+              }}
+            >
+              <option value="">
+                Use detected: {identification.detected_type}
+              </option>
+              {FILE_TYPE_OPTIONS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Upload button — shown before upload */}
+      {selectedFile && !identification && (
         <button
           onClick={handleUpload}
           disabled={uploading}
@@ -155,6 +272,17 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           style={{ background: tokens.accent }}
         >
           {uploading ? "Uploading and analyzing..." : "Upload and analyze"}
+        </button>
+      )}
+
+      {/* Proceed button — shown after identification */}
+      {identification && (
+        <button
+          onClick={handleProceed}
+          className="mt-4 w-full py-2.5 rounded-[10px] text-sm font-semibold text-white transition-opacity"
+          style={{ background: tokens.accent }}
+        >
+          Continue with {effectiveType}
         </button>
       )}
 

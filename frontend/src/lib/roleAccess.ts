@@ -26,6 +26,7 @@ export const ROLE_ACCESS: Record<string, RoleConfig> = {
       "population",
       "care ops",
       "operations",
+      // "admin" excluded — analyst cannot access admin section
     ],
     hidePages: ["/clinical"],
   },

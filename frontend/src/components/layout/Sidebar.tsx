@@ -128,6 +128,12 @@ const navSections: NavSection[] = [
       { path: "/data-exchange", label: "Data Exchange" },
     ],
   },
+  {
+    title: "Admin",
+    items: [
+      { path: "/ingestion", label: "Data Management" },
+    ],
+  },
 ];
 
 /* ------------------------------------------------------------------ */
