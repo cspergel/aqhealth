@@ -24,6 +24,7 @@ from app.models.claim import Claim, ClaimType
 from app.models.member import Member
 from app.models.provider import Provider
 from app.services.data_preprocessor import preprocess_file
+from app.utils.tin import normalize_tin
 
 logger = logging.getLogger(__name__)
 
@@ -377,10 +378,22 @@ def _process_claim_row(
     # Extract rendering provider NPI for FK resolution during upsert
     rendering_npi = _clean_str(_get_val(row, reverse_map, "rendering_npi"), 15)
 
+    # Extract billing TIN for office routing
+    billing_tin_raw = _clean_str(_get_val(row, reverse_map, "billing_tin"), 20)
+
     claim_data = {
         "_member_id_raw": member_id_raw,  # will be resolved to FK later
         "_rendering_npi": rendering_npi,  # will be resolved to FK later
         "claim_id": _clean_str(_get_val(row, reverse_map, "claim_id"), 50),
+    }
+
+    # billing_tin: persist normalized value to DB AND set helper for routing
+    if billing_tin_raw:
+        normalized = normalize_tin(billing_tin_raw)
+        claim_data["billing_tin"] = normalized or billing_tin_raw  # persist to DB
+        claim_data["_billing_tin"] = normalized  # helper for routing (stripped before insert)
+
+    claim_data.update({
         "claim_type": claim_type.value if hasattr(claim_type, 'value') else str(claim_type),
         "service_date": service_date,
         "paid_date": _parse_date(_get_val(row, reverse_map, "paid_date")),
@@ -401,7 +414,7 @@ def _process_claim_row(
         "days_supply": _parse_int(_get_val(row, reverse_map, "days_supply")),
         "los": _parse_int(_get_val(row, reverse_map, "los")),
         "status": _clean_str(_get_val(row, reverse_map, "status"), 20) or "paid",
-    }
+    })
 
     # Derive primary_diagnosis from first diagnosis code
     if dx_codes:
@@ -610,10 +623,30 @@ async def _resolve_member_ids_batch(
     return lookup
 
 
+async def _resolve_practice_groups_by_tin(
+    db: AsyncSession, tins: list[str]
+) -> dict[str, int]:
+    """Batch-resolve normalized TIN strings to practice_group PKs."""
+    if not tins:
+        return {}
+    unique_tins = list(set(t for t in tins if t))
+    lookup: dict[str, int] = {}
+    for chunk in _chunks(unique_tins, 500):
+        placeholders = ", ".join(f":t{i}" for i in range(len(chunk)))
+        params = {f"t{i}": t for i, t in enumerate(chunk)}
+        result = await db.execute(
+            text(f"SELECT tin, id FROM practice_groups WHERE tin IN ({placeholders})"),
+            params,
+        )
+        for row in result.mappings():
+            lookup[row["tin"]] = row["id"]
+    return lookup
+
+
 async def _upsert_claims(
     db: AsyncSession, valid_rows: list[dict], all_errors: list[dict] | None = None,
     tenant_schema: str = "default",
-) -> int:
+) -> dict[str, int]:
     """Bulk insert claims in batches. Returns count of inserted rows.
 
     When a member_id cannot be resolved via the lookup table, entity
@@ -622,7 +655,7 @@ async def _upsert_claims(
     instead of being silently skipped.
     """
     if not valid_rows:
-        return 0
+        return {"inserted": 0, "updated": 0, "routed_by_tin": 0, "routed_by_npi": 0, "unrouted": 0}
 
     # Batch-resolve all member IDs upfront instead of one-by-one
     raw_mids = [r.get("_member_id_raw") for r in valid_rows if r.get("_member_id_raw")]
@@ -632,8 +665,29 @@ async def _upsert_claims(
     raw_npis = [r.get("_rendering_npi") for r in valid_rows if r.get("_rendering_npi")]
     provider_lookup = await _resolve_provider_npis_batch(db, raw_npis)
 
+    # Batch-resolve billing TINs to practice_group PKs
+    raw_tins = [r.get("_billing_tin") for r in valid_rows if r.get("_billing_tin")]
+    tin_group_lookup = await _resolve_practice_groups_by_tin(db, raw_tins)
+
+    # Build a provider PK → practice_group_id lookup for NPI fallback routing
+    provider_group_lookup: dict[int, int] = {}
+    if provider_lookup:
+        provider_pks = list(provider_lookup.values())
+        for chunk in _chunks(provider_pks, 500):
+            placeholders = ", ".join(f":p{i}" for i in range(len(chunk)))
+            params = {f"p{i}": pk for i, pk in enumerate(chunk)}
+            result = await db.execute(
+                text(f"SELECT id, practice_group_id FROM providers WHERE id IN ({placeholders}) AND practice_group_id IS NOT NULL"),
+                params,
+            )
+            for prow in result.mappings():
+                provider_group_lookup[prow["id"]] = prow["practice_group_id"]
+
     inserted = 0
     updated = 0
+    routed_by_tin = 0
+    routed_by_npi = 0
+    unrouted = 0
 
     for batch in _chunks(valid_rows, 500):
         for row_data in batch:
@@ -643,6 +697,18 @@ async def _upsert_claims(
                 provider_pk = provider_lookup.get(rendering_npi)
                 if provider_pk:
                     row_data["rendering_provider_id"] = provider_pk
+
+            # --- TIN-based practice group routing ---
+            billing_tin = row_data.pop("_billing_tin", None)
+            if not row_data.get("practice_group_id"):
+                if billing_tin and billing_tin in tin_group_lookup:
+                    row_data["practice_group_id"] = tin_group_lookup[billing_tin]
+                    routed_by_tin += 1
+                elif row_data.get("rendering_provider_id") and row_data["rendering_provider_id"] in provider_group_lookup:
+                    row_data["practice_group_id"] = provider_group_lookup[row_data["rendering_provider_id"]]
+                    routed_by_npi += 1
+                else:
+                    unrouted += 1
 
             raw_mid = row_data.get("_member_id_raw")
             row_data.pop("_member_id_raw", None)
@@ -772,7 +838,13 @@ async def _upsert_claims(
 
         await db.commit()
 
-    return {"inserted": inserted, "updated": updated}
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "routed_by_tin": routed_by_tin,
+        "routed_by_npi": routed_by_npi,
+        "unrouted": unrouted,
+    }
 
 
 async def _upsert_providers(
@@ -878,6 +950,9 @@ async def process_upload(
     total_rows = 0
     total_inserted = 0
     total_updated = 0
+    total_routed_by_tin = 0
+    total_routed_by_npi = 0
+    total_unrouted = 0
 
     # Use chunked reading for CSV to avoid loading entire file into memory
     file_type = detect_file_type(file_path)
@@ -986,6 +1061,9 @@ async def process_upload(
                     result_counts = await _upsert_claims(db, chunk_valid_rows, all_errors, tenant_schema=tenant_schema)
                     total_inserted += result_counts["inserted"]
                     total_updated += result_counts["updated"]
+                    total_routed_by_tin += result_counts.get("routed_by_tin", 0)
+                    total_routed_by_npi += result_counts.get("routed_by_npi", 0)
+                    total_unrouted += result_counts.get("unrouted", 0)
                 elif data_type == "providers":
                     result_counts = await _upsert_providers(db, chunk_valid_rows)
                     total_inserted += result_counts["inserted"]
@@ -1042,6 +1120,9 @@ async def process_upload(
         "error_rows": len(all_errors),
         "errors": stored_errors,
         "data_type": data_type,
+        "routed_by_tin": total_routed_by_tin,
+        "routed_by_npi": total_routed_by_npi,
+        "unrouted": total_unrouted,
     }
 
     logger.info(
