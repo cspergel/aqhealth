@@ -19,6 +19,16 @@ class PracticeGroup(Base, TimestampMixin):
     state: Mapped[str | None] = mapped_column(String(2), nullable=True)
     zip_code: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
+    # Onboarding & org management fields
+    relationship_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "owned" | "affiliated"
+    tin: Mapped[str | None] = mapped_column(String(20), nullable=True, unique=True, index=True)  # Tax ID — unique per office
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    fax: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    county_code: Mapped[str | None] = mapped_column(String(10), nullable=True)  # CMS county code, auto-set from ZIP
+    bonus_pct: Mapped[float | None] = mapped_column(Numeric(3, 1), nullable=True)  # 0, 3.5, or 5 only
+    org_npi: Mapped[str | None] = mapped_column(String(20), nullable=True)  # Group/organizational NPI
+
     # Computed group metrics (updated by analytics)
     provider_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_panel_size: Mapped[int | None] = mapped_column(Integer, nullable=True)

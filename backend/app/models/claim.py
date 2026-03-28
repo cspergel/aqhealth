@@ -35,6 +35,11 @@ class Claim(Base, TimestampMixin):
 
     # Provider / Facility
     rendering_provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
+    practice_group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("practice_groups.id"), nullable=True, index=True
+    )  # Which office this claim is attributed to (set during ingestion auto-routing)
+    billing_tin: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    billing_npi: Mapped[str | None] = mapped_column(String(20), nullable=True)
     facility_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     facility_npi: Mapped[str | None] = mapped_column(String(15), nullable=True)
 

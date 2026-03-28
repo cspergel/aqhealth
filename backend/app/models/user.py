@@ -30,3 +30,8 @@ class User(Base, TimestampMixin):
     )  # NULL for superadmin
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     mfa_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Office scoping — NULL means sees all offices in tenant
+    # Not a DB FK (cross-schema: users in platform, practice_groups in tenant)
+    # Application must validate existence when setting
+    practice_group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

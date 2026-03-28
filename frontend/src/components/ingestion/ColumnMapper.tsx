@@ -3,34 +3,61 @@ import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
 
-// Standard target columns for healthcare data
+// Standard target columns — matches backend PLATFORM_FIELDS exactly
 const TARGET_COLUMNS = [
   "(unmapped)",
-  "member_id",
-  "first_name",
-  "last_name",
-  "date_of_birth",
-  "gender",
-  "diagnosis_code",
-  "diagnosis_description",
-  "service_date",
-  "provider_npi",
-  "provider_name",
-  "facility_name",
-  "claim_id",
-  "claim_amount",
-  "procedure_code",
-  "procedure_description",
-  "plan_id",
-  "plan_name",
-  "effective_date",
-  "termination_date",
-  "address",
-  "city",
-  "state",
-  "zip",
-  "phone",
-  "email",
+  // --- Roster / Eligibility ---
+  "member_id", "first_name", "last_name", "date_of_birth", "gender",
+  "zip_code", "health_plan", "plan_product", "coverage_start", "coverage_end",
+  "pcp_npi", "pcp_name", "medicaid_status", "disability_status", "institutional",
+  "address", "city", "state", "phone", "email", "language", "race", "ethnicity",
+  "group_number", "contract_id",
+  // --- Claims ---
+  "claim_id", "claim_type", "service_date", "paid_date",
+  "diagnosis_codes", "diagnosis_1", "diagnosis_2", "diagnosis_3", "diagnosis_4",
+  "diagnosis_5", "diagnosis_6", "diagnosis_7", "diagnosis_8",
+  "procedure_code", "drg_code", "ndc_code",
+  "rendering_npi", "rendering_provider_name", "facility_name", "facility_npi",
+  "billing_tin", "billing_npi",
+  "billed_amount", "allowed_amount", "paid_amount", "member_liability",
+  "pos_code", "drug_name", "drug_class", "quantity", "days_supply",
+  "modifier_1", "modifier_2", "revenue_code",
+  "admission_date", "discharge_date", "discharge_status",
+  "admit_type", "admit_source", "los", "status",
+  // --- Pharmacy ---
+  "prescriber_npi", "prescriber_name", "pharmacy_name", "pharmacy_npi",
+  "daw_code", "formulary_status", "generic_indicator", "refill_number",
+  // --- Providers ---
+  "npi", "specialty", "practice_name", "tin", "taxonomy_code",
+  "credentialing_status", "panel_status", "accepting_new_patients",
+  // --- Authorization ---
+  "auth_id", "service_type", "requesting_provider_npi", "servicing_provider_npi",
+  "requested_date", "decision_date", "decision",
+  "approved_units", "approved_from_date", "approved_to_date",
+  "denial_reason", "urgency",
+  // --- Lab Results ---
+  "order_date", "result_date", "test_code", "test_name",
+  "result_value", "result_units", "reference_range", "abnormal_flag",
+  "ordering_provider_npi", "performing_lab",
+  // --- Care Gaps ---
+  "measure_code", "measure_name", "gap_status", "due_date",
+  "last_service_date", "stars_weight",
+  // --- Risk Scores ---
+  "payment_year", "raf_score", "hcc_list", "demographic_score",
+  "disease_score", "model_version",
+  // --- Capitation ---
+  "payment_month", "cap_amount", "plan_name", "product_type",
+  "rate_cell", "county_code",
+  // --- Encounter ---
+  "encounter_id", "encounter_date", "encounter_type",
+  "provider_npi", "visit_type",
+  // --- ADT Census ---
+  "patient_name", "patient_class", "attending_provider",
+  "diagnosis", "room_bed", "event_type",
+  // --- Quality Report ---
+  "numerator", "denominator", "rate", "performance_year",
+  // --- Provider Roster ---
+  "panel_size", "attributed_members", "contract_type",
 ];
 
 type ProcessingStatus = "idle" | "pending" | "processing" | "completed" | "failed";
@@ -78,7 +105,7 @@ export function ColumnMapper({
     setError("");
     try {
       await api.post(`/api/ingestion/${jobId}/confirm-mapping`, {
-        mapping,
+        column_mapping: mapping,
         save_as_template: saveAsTemplate,
         template_name: saveAsTemplate ? templateName : undefined,
       });

@@ -469,6 +469,7 @@ ALLOWED_CLAIM_COLUMNS = {
     # Dual data tier fields (written by ADT/reconciliation flows)
     "estimated_amount", "signal_source", "signal_event_id",
     "reconciled", "reconciled_claim_id",
+    "billing_tin", "billing_npi", "practice_group_id",
 }
 
 ALLOWED_PROVIDER_COLUMNS = {
