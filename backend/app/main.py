@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_protection, data_quality, discovery, education, expenditure, fhir, financial, filters, groups, hcc, ingestion, insights, interfaces, journey, learning, members, onboarding, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, skills, stars, stoploss, tags, tcm, temporal, tenants, utilization, watchlist
+from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_protection, data_quality, discovery, education, expenditure, fhir, financial, filters, groups, hcc, ingestion, insights, interfaces, journey, learning, members, onboarding, payer_api, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, skills, stars, stoploss, tags, tcm, temporal, tenants, utilization, watchlist
 
 app = FastAPI(
     title="AQSoft Health Platform",
@@ -80,6 +80,7 @@ app.include_router(data_protection.router)
 app.include_router(education.router)
 app.include_router(tags.router)
 app.include_router(onboarding.router)
+app.include_router(payer_api.router)
 
 
 @app.exception_handler(Exception)

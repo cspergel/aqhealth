@@ -1,0 +1,194 @@
+"""
+Payer API Integration endpoints.
+
+Manages OAuth connections to health plan APIs (Humana, etc.) and triggers
+FHIR data synchronization into the platform.
+
+All endpoints require mso_admin or superadmin role.
+"""
+
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
+from app.services import payer_api_service
+from app.services.payer_adapters import get_adapter
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/payer", tags=["payer-api"])
+
+
+# ---------------------------------------------------------------------------
+# Request / response models
+# ---------------------------------------------------------------------------
+
+class PayerConnectRequest(BaseModel):
+    """Initiate an OAuth connection to a payer API."""
+    payer_name: str = Field(..., description="Payer adapter name, e.g. 'humana'")
+    client_id: str = Field(..., description="OAuth client ID")
+    client_secret: str = Field(..., description="OAuth client secret")
+    redirect_uri: str = Field(..., description="OAuth redirect URI (must match app registration)")
+    environment: str = Field("sandbox", description="'sandbox' or 'production'")
+
+
+class PayerCallbackRequest(BaseModel):
+    """OAuth callback — exchange authorization code for tokens."""
+    payer_name: str
+    code: str = Field(..., description="Authorization code from payer redirect")
+    redirect_uri: str
+    client_id: str
+    client_secret: str
+    environment: str = "sandbox"
+    state: str | None = None
+
+
+class PayerSyncRequest(BaseModel):
+    """Trigger a data sync from a connected payer."""
+    payer_name: str
+    data_types: list[str] | None = Field(
+        None,
+        description="Resource types to sync. Defaults to all: patients, coverage, claims, conditions, providers, medications",
+    )
+
+
+class PayerDisconnectRequest(BaseModel):
+    """Remove a payer connection."""
+    payer_name: str
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/connect")
+async def connect_payer(
+    body: PayerConnectRequest,
+    current_user: dict = Depends(require_role(UserRole.mso_admin, UserRole.superadmin)),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Initiate OAuth flow — returns the authorization URL for browser redirect.
+
+    The frontend should redirect the user to the returned ``auth_url`` to
+    complete the OAuth consent flow. After the user authorizes, the payer
+    will redirect back to ``redirect_uri`` with an authorization ``code``.
+    """
+    try:
+        adapter = get_adapter(body.payer_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    auth_url = adapter.get_authorization_url({
+        "client_id": body.client_id,
+        "client_secret": body.client_secret,
+        "redirect_uri": body.redirect_uri,
+        "environment": body.environment,
+        "state": current_user["tenant_schema"],
+    })
+
+    return {
+        "auth_url": auth_url,
+        "payer": body.payer_name,
+        "environment": body.environment,
+        "message": "Redirect user to auth_url to complete OAuth flow",
+    }
+
+
+@router.post("/callback")
+async def payer_callback(
+    body: PayerCallbackRequest,
+    current_user: dict = Depends(require_role(UserRole.mso_admin, UserRole.superadmin)),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """OAuth callback — exchange authorization code for tokens and store connection.
+
+    Called after the payer redirects back with an authorization code.
+    """
+    tenant_schema = current_user["tenant_schema"]
+
+    try:
+        result = await payer_api_service.connect_payer(
+            db=db,
+            payer_name=body.payer_name,
+            credentials={
+                "client_id": body.client_id,
+                "client_secret": body.client_secret,
+                "code": body.code,
+                "redirect_uri": body.redirect_uri,
+                "environment": body.environment,
+            },
+            tenant_schema=tenant_schema,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Payer callback failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Payer authentication failed: {e}")
+
+
+@router.post("/sync")
+async def sync_payer_data(
+    body: PayerSyncRequest,
+    current_user: dict = Depends(require_role(UserRole.mso_admin, UserRole.superadmin)),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Trigger data synchronization from a connected payer API.
+
+    Pulls FHIR resources, parses them, and upserts into the tenant database.
+    Returns counts of synced resources.
+    """
+    tenant_schema = current_user["tenant_schema"]
+
+    try:
+        result = await payer_api_service.sync_payer_data(
+            db=db,
+            payer_name=body.payer_name,
+            tenant_schema=tenant_schema,
+            data_types=body.data_types,
+        )
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("message"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Payer sync failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Payer sync failed: {e}")
+
+
+@router.get("/status")
+async def get_payer_status(
+    payer_name: str = Query(..., description="Payer adapter name"),
+    current_user: dict = Depends(require_role(UserRole.mso_admin, UserRole.superadmin)),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Check connection status, last sync time, and token validity for a payer."""
+    tenant_schema = current_user["tenant_schema"]
+    return await payer_api_service.get_payer_status(db, payer_name, tenant_schema)
+
+
+@router.delete("/disconnect")
+async def disconnect_payer(
+    body: PayerDisconnectRequest,
+    current_user: dict = Depends(require_role(UserRole.mso_admin, UserRole.superadmin)),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Remove a payer connection and delete stored credentials."""
+    tenant_schema = current_user["tenant_schema"]
+    return await payer_api_service.disconnect_payer(db, body.payer_name, tenant_schema)
+
+
+@router.get("/available")
+async def list_available_payers(
+    current_user: dict = Depends(require_role(UserRole.mso_admin, UserRole.superadmin)),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """List all available payer integrations with their connection status."""
+    tenant_schema = current_user["tenant_schema"]
+    return await payer_api_service.get_available_payers(db, tenant_schema)
