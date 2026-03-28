@@ -3,15 +3,22 @@ Conversational AI Query Service.
 
 Takes natural-language questions and returns AI-powered answers
 with data points, related members, recommended actions, and follow-up questions.
+
+Includes a self-learning feedback loop: user corrections are stored and
+injected into future prompts so the AI improves over time.
 """
 
 import json
 import logging
-from typing import Optional
+import re
+from collections import Counter
+from typing import Any, Optional
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models.learning import QueryFeedback
 from app.services.llm_guard import guarded_llm_call
 
 logger = logging.getLogger(__name__)
@@ -66,6 +73,179 @@ SUGGESTED_QUESTIONS: dict[str, list[str]] = {
         "What are the most common coding errors?",
     ],
 }
+
+
+# ---------------------------------------------------------------------------
+# Stop-words excluded from keyword extraction
+# ---------------------------------------------------------------------------
+
+_STOP_WORDS = frozenset(
+    "a an the is are was were be been am do does did has have had "
+    "will would shall should can could may might must of in on at to for "
+    "with by from and or not but if then else so because about between "
+    "through after before during without what which who whom how where "
+    "when why all each every some any no my our your their its this that "
+    "these those i me we you he she it they him her us them".split()
+)
+
+
+def _extract_keywords(text: str) -> set[str]:
+    """Return a set of meaningful lowercase tokens from *text*."""
+    tokens = re.findall(r"[a-z0-9]+", text.lower())
+    return {t for t in tokens if t not in _STOP_WORDS and len(t) > 1}
+
+
+# ---------------------------------------------------------------------------
+# Self-learning: log feedback & retrieve past learnings
+# ---------------------------------------------------------------------------
+
+
+async def log_query_feedback(
+    db: AsyncSession,
+    question: str,
+    ai_answer: str,
+    user_feedback: str,
+    corrected_answer: str | None = None,
+    tenant_schema: str = "default",
+) -> QueryFeedback:
+    """Persist user feedback on an AI-generated query answer.
+
+    Args:
+        db: Async database session.
+        question: The original natural-language question.
+        ai_answer: The AI-generated answer that was shown to the user.
+        user_feedback: ``"positive"`` or ``"negative"``.
+        corrected_answer: Optional user-supplied correct answer or SQL.
+        tenant_schema: Tenant identifier for multi-tenant isolation.
+
+    Returns:
+        The persisted ``QueryFeedback`` row.
+    """
+    keywords = " ".join(sorted(_extract_keywords(question)))
+
+    record = QueryFeedback(
+        tenant_schema=tenant_schema,
+        question=question,
+        ai_answer=ai_answer,
+        feedback=user_feedback,
+        corrected_answer=corrected_answer,
+        keywords=keywords,
+    )
+    db.add(record)
+    await db.flush()
+
+    logger.info(
+        "Logged query feedback: feedback=%s, question=%r, corrected=%s",
+        user_feedback,
+        question[:80],
+        corrected_answer is not None,
+    )
+    return record
+
+
+async def _get_relevant_learnings(
+    db: AsyncSession,
+    question: str,
+    tenant_schema: str = "default",
+    min_keyword_overlap: int = 2,
+) -> str:
+    """Search past *negative* feedback for questions similar to *question*.
+
+    Similarity is determined by keyword overlap — if the incoming question
+    shares ``min_keyword_overlap`` or more keywords with a stored correction,
+    it is considered relevant.
+
+    Returns a prompt fragment ready for injection, or an empty string if
+    there are no relevant learnings.
+
+    Three-tier autonomy:
+      - Corrections seen 1-2 times → labelled **suggestions**
+      - Corrections seen 3+ times → labelled **rules** the AI must obey
+    """
+    incoming_kws = _extract_keywords(question)
+    if not incoming_kws:
+        return ""
+
+    # Fetch all negative-feedback rows for this tenant
+    stmt = (
+        select(QueryFeedback)
+        .where(
+            QueryFeedback.feedback == "negative",
+            QueryFeedback.tenant_schema == tenant_schema,
+            QueryFeedback.corrected_answer.is_not(None),
+        )
+        .order_by(QueryFeedback.created_at.desc())
+        .limit(200)  # cap to avoid loading unbounded data
+    )
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+
+    if not rows:
+        return ""
+
+    # Group corrections by their keyword signature and count occurrences
+    # so we can apply the three-tier autonomy logic.
+    matched: list[dict[str, Any]] = []
+    signature_counts: Counter[str, int] = Counter()
+
+    # First pass: count how many times each correction signature appears
+    for row in rows:
+        row_kws = set(row.keywords.split()) if row.keywords else set()
+        sig = row.keywords or ""
+        signature_counts[sig] += 1
+
+    # Second pass: collect matches
+    seen_sigs: set[str] = set()
+    for row in rows:
+        row_kws = set(row.keywords.split()) if row.keywords else set()
+        overlap = incoming_kws & row_kws
+        if len(overlap) >= min_keyword_overlap:
+            sig = row.keywords or ""
+            if sig in seen_sigs:
+                continue  # one entry per unique signature
+            seen_sigs.add(sig)
+            matched.append({
+                "question": row.question,
+                "corrected_answer": row.corrected_answer,
+                "count": signature_counts[sig],
+            })
+
+    if not matched:
+        return ""
+
+    # Build prompt sections
+    suggestions: list[str] = []
+    rules: list[str] = []
+    for m in matched:
+        entry = f'- When asked "{m["question"]}", the correct answer was: {m["corrected_answer"]}'
+        if m["count"] >= 3:
+            rules.append(entry)
+        else:
+            suggestions.append(entry)
+
+    parts: list[str] = []
+    if rules:
+        parts.append(
+            "RULES (you MUST follow these — users have corrected this multiple times):\n"
+            + "\n".join(rules)
+        )
+    if suggestions:
+        parts.append(
+            "SUGGESTIONS (consider these past corrections when answering):\n"
+            + "\n".join(suggestions)
+        )
+
+    learning_block = "\n\n".join(parts)
+    logger.info(
+        "Injecting %d learnings (%d rules, %d suggestions) for query: %s",
+        len(matched), len(rules), len(suggestions), question[:80],
+    )
+    return (
+        "\n\n--- Past Learnings ---\n"
+        "Previously, when asked similar questions, these corrections were made:\n\n"
+        + learning_block
+        + "\n--- End Past Learnings ---\n"
+    )
 
 
 def _resolve_context(page_context: Optional[str]) -> str:
@@ -142,10 +322,18 @@ async def answer_question(
         logger.warning("Could not fetch dashboard metrics for query context: %s", e)
         data_context = "\n\n(Population data unavailable — answer based on general knowledge.)\n"
 
+    # ----- inject learnings from past feedback -----
+    learnings_block = ""
+    try:
+        learnings_block = await _get_relevant_learnings(db, question, tenant_schema)
+    except Exception as e:
+        logger.warning("Could not fetch learnings for query context: %s", e)
+
     context_block = (
         f"The user is currently viewing the '{ctx_label}' page. "
         "Answer with data relevant to that context when possible."
         f"{data_context}"
+        f"{learnings_block}"
     )
 
     system_prompt = (
