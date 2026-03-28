@@ -280,9 +280,9 @@ async def sync_payer_data(
     access_token = _decrypt_value(connection["access_token"])
     token_expires_at = connection.get("token_expires_at", 0)
 
-    # Refresh token if expired
+    # Refresh token if expired or about to expire (5-minute buffer)
     now = datetime.now(timezone.utc).timestamp()
-    if now >= token_expires_at:
+    if now >= (token_expires_at - 300):
         logger.info("Access token expired for %s, refreshing...", payer_name)
         refresh_creds = {
             "client_id": _decrypt_value(connection["client_id"]),
@@ -404,6 +404,21 @@ async def sync_payer_data(
     await _upsert_payer_connection(db, tenant_schema, payer_name, connection)
 
     await db.commit()
+
+    # Trigger post-sync HCC analysis if patients or claims were synced
+    synced_keys = set(results.get("synced", {}).keys())
+    if synced_keys & {"patients", "claims", "conditions"}:
+        try:
+            from app.services.hcc_engine import analyze_population
+            logger.info("Triggering post-sync HCC analysis for %s", tenant_schema)
+            hcc_results = await analyze_population(tenant_schema, db)
+            results["hcc_analysis"] = {
+                "members_analyzed": hcc_results.get("members_analyzed", 0),
+                "suspects_found": hcc_results.get("total_suspects", 0),
+            }
+        except Exception as e:
+            logger.warning("Post-sync HCC analysis failed (non-fatal): %s", e)
+            results["hcc_analysis"] = {"error": str(e)}
 
     logger.info("Payer sync completed for %s/%s: %s", tenant_schema, payer_name, results["synced"])
     return results
@@ -566,6 +581,18 @@ async def _upsert_patients(db: AsyncSession, resources: list[dict]) -> int:
         )
         existing = existing_q.scalar_one_or_none()
 
+        # Fallback: check by fhir_id in extra (handles re-sync with different member_id)
+        if not existing and res.get("fhir_id"):
+            fhir_q = await db.execute(
+                select(Member).where(
+                    Member.extra["fhir_id"].astext == res["fhir_id"]
+                )
+            )
+            existing = fhir_q.scalar_one_or_none()
+            if existing:
+                # Update member_id if we found a better one (MBI > FHIR ID)
+                existing.member_id = member_id
+
         if existing:
             existing.first_name = res.get("first_name") or existing.first_name
             existing.last_name = res.get("last_name") or existing.last_name
@@ -601,6 +628,30 @@ async def _upsert_patients(db: AsyncSession, resources: list[dict]) -> int:
     return count
 
 
+async def _resolve_member(db: AsyncSession, member_id_str: str) -> "Member | None":
+    """Resolve a member by member_id, falling back to fhir_id in extra JSONB.
+
+    Payer FHIR APIs reference patients by FHIR resource ID (e.g. 'Patient/12345'),
+    but the member_id stored in the DB may be an MBI or plan member ID.
+    This fallback ensures data linkage works regardless.
+    """
+    # Primary lookup by member_id
+    result = await db.execute(
+        select(Member).where(Member.member_id == member_id_str)
+    )
+    member = result.scalar_one_or_none()
+    if member:
+        return member
+
+    # Fallback: search by fhir_id in extra JSONB
+    result = await db.execute(
+        select(Member).where(
+            Member.extra["fhir_id"].astext == member_id_str
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def _upsert_coverage(db: AsyncSession, resources: list[dict]) -> int:
     """Apply Coverage data to existing Member records (eligibility fields)."""
     count = 0
@@ -609,10 +660,7 @@ async def _upsert_coverage(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id:
             continue
 
-        existing_q = await db.execute(
-            select(Member).where(Member.member_id == member_id)
-        )
-        member = existing_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id)
         if not member:
             logger.warning("Coverage references unknown member: %s", member_id)
             continue
@@ -637,6 +685,16 @@ async def _upsert_coverage(db: AsyncSession, resources: list[dict]) -> int:
     return count
 
 
+def _decimal(val: Any) -> Decimal | None:
+    """Parse a value to Decimal safely, returning None on failure."""
+    if val is None:
+        return None
+    try:
+        return Decimal(str(val))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 async def _upsert_claims(db: AsyncSession, resources: list[dict]) -> int:
     """Map payer-parsed EOB dicts to Claim rows."""
     count = 0
@@ -645,32 +703,39 @@ async def _upsert_claims(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id_str:
             continue
 
-        # Resolve member FK
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        # Resolve member FK (with fhir_id fallback)
+        member = await _resolve_member(db, member_id_str)
         if not member:
             logger.warning("Claim references unknown member: %s", member_id_str)
             continue
 
-        # Check for duplicate claim_id
+        # Check for duplicate claim_id — update existing if found
         claim_id = res.get("claim_id")
         if claim_id:
             dup_q = await db.execute(
                 select(Claim).where(Claim.claim_id == claim_id)
             )
-            if dup_q.scalar_one_or_none():
-                continue  # Skip duplicate
+            existing_claim = dup_q.scalar_one_or_none()
+            if existing_claim:
+                # Update existing claim with newer data from payer
+                if res.get("paid_amount") is not None:
+                    existing_claim.paid_amount = _decimal(res["paid_amount"])
+                if res.get("allowed_amount") is not None:
+                    existing_claim.allowed_amount = _decimal(res["allowed_amount"])
+                if res.get("status"):
+                    existing_claim.status = res["status"]
+                if res.get("paid_date"):
+                    existing_claim.paid_date = res["paid_date"]
+                if res.get("extra"):
+                    merged_extra = dict(existing_claim.extra or {})
+                    merged_extra.update({k: v for k, v in res["extra"].items() if v is not None})
+                    existing_claim.extra = merged_extra
+                count += 1
+                continue
 
-        # Parse amounts safely
-        def _decimal(val: Any) -> Decimal | None:
-            if val is None:
-                return None
-            try:
-                return Decimal(str(val))
-            except (InvalidOperation, ValueError):
-                return None
+        # Compute primary_diagnosis from first diagnosis code
+        diag_codes = res.get("diagnosis_codes")
+        primary_diagnosis = diag_codes[0] if diag_codes else None
 
         claim = Claim(
             member_id=member.id,
@@ -678,7 +743,7 @@ async def _upsert_claims(db: AsyncSession, resources: list[dict]) -> int:
             claim_type=res.get("claim_type", "professional"),
             service_date=res.get("service_date", date.today()),
             paid_date=res.get("paid_date"),
-            diagnosis_codes=res.get("diagnosis_codes"),
+            diagnosis_codes=diag_codes,
             procedure_code=res.get("procedure_code"),
             drg_code=res.get("drg_code"),
             ndc_code=res.get("ndc_code"),
@@ -697,6 +762,7 @@ async def _upsert_claims(db: AsyncSession, resources: list[dict]) -> int:
             days_supply=res.get("days_supply"),
             los=res.get("los"),
             status=res.get("status", "paid"),
+            primary_diagnosis=primary_diagnosis,
             extra=res.get("extra"),
             data_tier="record",
             is_estimated=False,
@@ -717,10 +783,7 @@ async def _upsert_conditions(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 
@@ -733,6 +796,7 @@ async def _upsert_conditions(db: AsyncSession, resources: list[dict]) -> int:
             claim_type="professional",
             service_date=res.get("onset_date", date.today()),
             diagnosis_codes=icd_codes,
+            primary_diagnosis=icd_codes[0] if icd_codes else None,
             service_category="professional",
             extra=res.get("extra"),
             data_tier="signal",
@@ -801,10 +865,7 @@ async def _upsert_medications(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 
@@ -843,10 +904,7 @@ async def _upsert_observations(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 
@@ -954,10 +1012,7 @@ async def _upsert_care_plans(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 
@@ -1003,10 +1058,7 @@ async def _upsert_care_teams(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 
@@ -1057,10 +1109,7 @@ async def _upsert_allergy_intolerances(db: AsyncSession, resources: list[dict]) 
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 
@@ -1106,10 +1155,7 @@ async def _upsert_document_references(db: AsyncSession, resources: list[dict]) -
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 
@@ -1153,10 +1199,7 @@ async def _upsert_immunizations(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 
@@ -1203,10 +1246,7 @@ async def _upsert_procedures(db: AsyncSession, resources: list[dict]) -> int:
         if not member_id_str:
             continue
 
-        member_q = await db.execute(
-            select(Member).where(Member.member_id == member_id_str)
-        )
-        member = member_q.scalar_one_or_none()
+        member = await _resolve_member(db, member_id_str)
         if not member:
             continue
 

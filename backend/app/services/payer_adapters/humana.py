@@ -401,7 +401,19 @@ class HumanaAdapter(PayerAdapter):
                     await asyncio.sleep(wait)
                     continue
 
-                # 4xx (not 429) -- don't retry
+                # 401/403 — auth failure, raise so caller can handle
+                if response.status_code in (401, 403):
+                    logger.error(
+                        "Humana auth failure %d on %s: %s",
+                        response.status_code, url, response.text[:500],
+                    )
+                    raise httpx.HTTPStatusError(
+                        f"Authentication failed ({response.status_code})",
+                        request=response.request,
+                        response=response,
+                    )
+
+                # Other 4xx (not 429) -- don't retry
                 logger.error(
                     "Humana %d on %s: %s",
                     response.status_code, url, response.text[:500],
