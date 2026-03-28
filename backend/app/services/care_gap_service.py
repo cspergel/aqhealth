@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
 from app.models.claim import Claim, ClaimType
+from app.models.learning import GapClosureLearn
 from app.models.member import Member
 from app.models.provider import Provider
 
@@ -633,7 +634,7 @@ async def get_gap_population_summary(db: AsyncSession) -> list[dict[str, Any]]:
 
 
 async def get_member_gaps(db: AsyncSession, member_id: int) -> list[dict[str, Any]]:
-    """All gaps for a specific member with measure details."""
+    """All gaps for a specific member with measure details and learned recommendations."""
     result = await db.execute(
         select(MemberGap, GapMeasure)
         .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
@@ -641,11 +642,25 @@ async def get_member_gaps(db: AsyncSession, member_id: int) -> list[dict[str, An
         .order_by(MemberGap.status, GapMeasure.code)
     )
 
+    # Collect unique measure codes for open gaps to batch-fetch recommendations
+    rows = result.all()
+    open_measure_codes = {row[1].code for row in rows if row[0].status == GapStatus.open.value}
+
+    # Pre-fetch recommended actions for all open gap measures
+    recommendations_cache: dict[str, list[dict[str, Any]]] = {}
+    for code in open_measure_codes:
+        try:
+            recs = await get_recommended_actions(db, code)
+            if recs:
+                recommendations_cache[code] = recs
+        except Exception:
+            pass  # non-fatal — gap data is more important than recommendations
+
     gaps = []
-    for row in result.all():
+    for row in rows:
         gap: MemberGap = row[0]
         measure: GapMeasure = row[1]
-        gaps.append({
+        gap_dict: dict[str, Any] = {
             "id": gap.id,
             "measure_code": measure.code,
             "measure_name": measure.name,
@@ -654,7 +669,11 @@ async def get_member_gaps(db: AsyncSession, member_id: int) -> list[dict[str, An
             "closed_date": str(gap.closed_date) if gap.closed_date else None,
             "measurement_year": gap.measurement_year,
             "stars_weight": measure.stars_weight,
-        })
+        }
+        # Attach recommended actions for open gaps
+        if gap.status == GapStatus.open.value and measure.code in recommendations_cache:
+            gap_dict["recommended_actions"] = recommendations_cache[measure.code]
+        gaps.append(gap_dict)
 
     return gaps
 
@@ -688,7 +707,7 @@ async def get_provider_gaps(db: AsyncSession, provider_id: int) -> dict[str, Any
 
 
 async def close_gap(db: AsyncSession, gap_id: int) -> MemberGap:
-    """Mark a gap as closed with today's date."""
+    """Mark a gap as closed with today's date, then learn from the closure."""
     gap = await db.get(MemberGap, gap_id)
     if not gap:
         raise ValueError(f"Gap {gap_id} not found")
@@ -696,6 +715,14 @@ async def close_gap(db: AsyncSession, gap_id: int) -> MemberGap:
     gap.closed_date = date.today()
     await db.commit()
     await db.refresh(gap)
+
+    # Self-learning: record what closed this gap (non-fatal)
+    try:
+        await learn_gap_closure(db, gap_id)
+        await db.commit()
+    except Exception as e:
+        logger.warning("Self-learning: gap closure learning failed (non-fatal): %s", e)
+
     return gap
 
 
@@ -862,3 +889,151 @@ async def _auto_create_actions_for_critical_gaps(
         logger.info("Auto-created %d action items for triple-weighted care gaps", created)
 
     return created
+
+
+# ---------------------------------------------------------------------------
+# Self-learning: gap closure feedback loop
+# ---------------------------------------------------------------------------
+
+async def learn_gap_closure(db: AsyncSession, gap_id: int) -> None:
+    """Record which procedure/provider closed a gap so the system can recommend
+    successful closure strategies for similar open gaps.
+
+    Looks at recent claims near the closure date to infer which procedure
+    code actually closed the gap, then logs a GapClosureLearn record.
+    """
+    gap = await db.get(MemberGap, gap_id)
+    if not gap or gap.status != GapStatus.closed.value:
+        return
+
+    # Fetch the measure code for this gap
+    measure = await db.get(GapMeasure, gap.measure_id)
+    if not measure:
+        return
+
+    # Find the most recent claim near the closure date that likely closed this gap
+    # Look at claims within 14 days before the closure date
+    closed_dt = gap.closed_date or date.today()
+    lookback = closed_dt - timedelta(days=14)
+
+    detection_logic = measure.detection_logic or {}
+    required_cpt = detection_logic.get("required_cpt", [])
+    compliance = detection_logic.get("compliance_criteria", {})
+    compliance_cpt = compliance.get("cpt_codes", [])
+    candidate_cpts = required_cpt + compliance_cpt
+
+    procedure_code = None
+    provider_id = gap.responsible_provider_id
+
+    if candidate_cpts:
+        # Find matching claim with one of the expected procedure codes
+        claim_result = await db.execute(
+            select(Claim)
+            .where(
+                Claim.member_id == gap.member_id,
+                Claim.procedure_code.in_(candidate_cpts),
+                Claim.service_date >= lookback,
+                Claim.service_date <= closed_dt,
+            )
+            .order_by(Claim.service_date.desc())
+            .limit(1)
+        )
+        claim = claim_result.scalars().first()
+        if claim:
+            procedure_code = claim.procedure_code
+            if claim.provider_id:
+                provider_id = claim.provider_id
+    else:
+        # No specific CPT expected — grab most recent professional claim
+        claim_result = await db.execute(
+            select(Claim)
+            .where(
+                Claim.member_id == gap.member_id,
+                Claim.service_date >= lookback,
+                Claim.service_date <= closed_dt,
+            )
+            .order_by(Claim.service_date.desc())
+            .limit(1)
+        )
+        claim = claim_result.scalars().first()
+        if claim:
+            procedure_code = claim.procedure_code
+            if claim.provider_id:
+                provider_id = claim.provider_id
+
+    db.add(GapClosureLearn(
+        measure_code=measure.code,
+        procedure_code=procedure_code,
+        provider_id=provider_id,
+        member_id=gap.member_id,
+        gap_id=gap_id,
+        closed_date=closed_dt,
+        closure_source="manual",
+    ))
+    await db.flush()
+    logger.info(
+        "Learned gap closure: measure=%s procedure=%s provider=%s",
+        measure.code, procedure_code, provider_id,
+    )
+
+
+async def get_recommended_actions(
+    db: AsyncSession, measure_code: str
+) -> list[dict[str, Any]]:
+    """Return the most common successful closure procedures for a measure.
+
+    Only surfaces recommendations after 3+ occurrences (tier 2+).
+    Returns list of {procedure_code, count, providers} sorted by count desc.
+    """
+    result = await db.execute(
+        select(
+            GapClosureLearn.procedure_code,
+            func.count(GapClosureLearn.id).label("cnt"),
+        )
+        .where(
+            GapClosureLearn.measure_code == measure_code,
+            GapClosureLearn.procedure_code.isnot(None),
+        )
+        .group_by(GapClosureLearn.procedure_code)
+        .having(func.count(GapClosureLearn.id) >= 3)
+        .order_by(func.count(GapClosureLearn.id).desc())
+        .limit(5)
+    )
+    rows = result.all()
+    if not rows:
+        return []
+
+    recommendations = []
+    for row in rows:
+        proc_code = row[0]
+        count = int(row[1])
+
+        # Gather provider breakdown for this procedure
+        prov_result = await db.execute(
+            select(
+                GapClosureLearn.provider_id,
+                func.count(GapClosureLearn.id),
+            )
+            .where(
+                GapClosureLearn.measure_code == measure_code,
+                GapClosureLearn.procedure_code == proc_code,
+                GapClosureLearn.provider_id.isnot(None),
+            )
+            .group_by(GapClosureLearn.provider_id)
+            .order_by(func.count(GapClosureLearn.id).desc())
+            .limit(3)
+        )
+        providers = [
+            {"provider_id": r[0], "closures": int(r[1])}
+            for r in prov_result.all()
+        ]
+
+        tier = "auto_suggest" if count >= 5 else "recommendation"
+        recommendations.append({
+            "procedure_code": proc_code,
+            "success_count": count,
+            "tier": tier,
+            "top_providers": providers,
+        })
+
+    return recommendations

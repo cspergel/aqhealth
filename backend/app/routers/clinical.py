@@ -111,6 +111,14 @@ async def capture_suspect(
     except Exception as e:
         logger.warning("Cross-module: BOI feed failed (non-fatal): %s", e)
 
+    # --- Self-learning: record suspect outcome for future confidence adjustments ---
+    try:
+        from app.services.hcc_engine import learn_suspect_outcome
+        await learn_suspect_outcome(db, suspect.id, "captured")
+        await db.commit()
+    except Exception as e:
+        logger.warning("Self-learning: suspect outcome recording failed (non-fatal): %s", e)
+
     return {
         "success": True,
         "suspect_id": suspect.id,
@@ -138,6 +146,14 @@ async def close_gap(
     gap.status = GapStatus.closed.value
     gap.closed_date = date.today()
     await db.commit()
+
+    # --- Self-learning: record gap closure for procedure recommendations ---
+    try:
+        from app.services.care_gap_service import learn_gap_closure
+        await learn_gap_closure(db, gap.id)
+        await db.commit()
+    except Exception as e:
+        logger.warning("Self-learning: gap closure learning failed (non-fatal): %s", e)
 
     return {
         "success": True,

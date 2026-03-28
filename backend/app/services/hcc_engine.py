@@ -22,8 +22,11 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import func as sa_func
+
 from app.models.claim import Claim, ClaimType
 from app.models.hcc import HccSuspect, RafHistory, SuspectStatus, SuspectType
+from app.models.learning import SuspectOutcomeLearn
 from app.models.member import Member, RiskTier
 from app.services.snf_client import SNFClient
 
@@ -498,6 +501,132 @@ def _detect_historical_dropoffs(
 
 
 # ---------------------------------------------------------------------------
+# Self-learning: suspect outcome feedback loop
+# ---------------------------------------------------------------------------
+
+async def learn_suspect_outcome(
+    db: AsyncSession,
+    suspect_id: int,
+    outcome: str,
+    reason: str | None = None,
+) -> None:
+    """Record the outcome of a suspect (captured/dismissed) for provider learning.
+
+    Called from routers after a suspect status is updated. Logs the outcome
+    with provider context so _get_provider_capture_patterns can adjust
+    future confidence scores.
+    """
+    suspect = await db.get(HccSuspect, suspect_id)
+    if not suspect:
+        return
+
+    # Determine the responsible provider via the member's PCP
+    member = await db.get(Member, suspect.member_id)
+    provider_id = member.pcp_provider_id if member else None
+
+    db.add(SuspectOutcomeLearn(
+        suspect_id=suspect_id,
+        provider_id=provider_id,
+        suspect_type=suspect.suspect_type or "",
+        hcc_code=suspect.hcc_code,
+        outcome=outcome,
+        dismissed_reason=reason,
+        original_confidence=suspect.confidence,
+        outcome_date=date.today(),
+    ))
+    await db.flush()
+    logger.info(
+        "Learned suspect outcome: suspect=%d hcc=%d outcome=%s provider=%s",
+        suspect_id, suspect.hcc_code, outcome, provider_id,
+    )
+
+
+async def _get_provider_capture_patterns(
+    db: AsyncSession, provider_id: int
+) -> dict[str, dict[str, Any]]:
+    """Return capture vs dismiss rates by suspect_type for a provider.
+
+    Returns: {suspect_type: {captured: N, dismissed: N, capture_rate: float, tier: str}}
+    Tier thresholds:
+      - 1-2 total: "silent" (no adjustment)
+      - 3-4 total: "recommend" (informational)
+      - 5+  total: "auto_adjust" (confidence boost/reduction)
+    """
+    result = await db.execute(
+        select(
+            SuspectOutcomeLearn.suspect_type,
+            SuspectOutcomeLearn.outcome,
+            sa_func.count(SuspectOutcomeLearn.id),
+        )
+        .where(SuspectOutcomeLearn.provider_id == provider_id)
+        .group_by(SuspectOutcomeLearn.suspect_type, SuspectOutcomeLearn.outcome)
+    )
+
+    patterns: dict[str, dict[str, Any]] = {}
+    for row in result.all():
+        stype = row[0]
+        outcome = row[1]
+        count = int(row[2])
+
+        if stype not in patterns:
+            patterns[stype] = {"captured": 0, "dismissed": 0}
+        if outcome == "captured":
+            patterns[stype]["captured"] = count
+        elif outcome == "dismissed":
+            patterns[stype]["dismissed"] = count
+
+    # Compute rates and tiers
+    for stype, data in patterns.items():
+        total = data["captured"] + data["dismissed"]
+        data["capture_rate"] = data["captured"] / total if total > 0 else 0.0
+        if total >= 5:
+            data["tier"] = "auto_adjust"
+        elif total >= 3:
+            data["tier"] = "recommend"
+        else:
+            data["tier"] = "silent"
+
+    return patterns
+
+
+def _adjust_confidence_from_patterns(
+    base_confidence: int,
+    suspect_type: str,
+    provider_patterns: dict[str, dict[str, Any]],
+) -> int:
+    """Adjust a suspect's confidence based on provider capture history.
+
+    Only applies at the 'auto_adjust' tier (5+ outcomes):
+      - capture_rate > 0.7 → boost by 10 points
+      - capture_rate > 0.5 → boost by 5 points
+      - capture_rate < 0.3 → reduce by 10 points
+      - capture_rate < 0.5 → reduce by 5 points
+    """
+    pattern = provider_patterns.get(suspect_type)
+    if not pattern or pattern.get("tier") != "auto_adjust":
+        return base_confidence
+
+    rate = pattern["capture_rate"]
+    adjustment = 0
+    if rate > 0.7:
+        adjustment = 10
+    elif rate > 0.5:
+        adjustment = 5
+    elif rate < 0.3:
+        adjustment = -10
+    elif rate < 0.5:
+        adjustment = -5
+
+    adjusted = max(1, min(99, base_confidence + adjustment))
+    if adjustment != 0:
+        logger.debug(
+            "Confidence adjusted: %d → %d (suspect_type=%s, capture_rate=%.2f)",
+            base_confidence, adjusted, suspect_type, rate,
+        )
+    return adjusted
+
+
+# ---------------------------------------------------------------------------
 # Main: analyse a single member
 # ---------------------------------------------------------------------------
 
@@ -522,6 +651,14 @@ async def analyze_member(
         return {"suspects_found": 0, "raf_current": 0.0, "raf_projected": 0.0, "uplift": 0.0}
 
     age = _calculate_age(member.date_of_birth)
+
+    # ---- self-learning: load provider capture patterns ----
+    provider_patterns: dict[str, dict[str, Any]] = {}
+    if member.pcp_provider_id:
+        try:
+            provider_patterns = await _get_provider_capture_patterns(db, member.pcp_provider_id)
+        except Exception:
+            pass  # non-fatal — analysis proceeds without adjustments
 
     # ---- county-level PMPM rate (if available) ----
     _county_pmpm: float | None = None
@@ -705,10 +842,17 @@ async def analyze_member(
         raf_val = s.get("raf_value", Decimal("0"))
         annual_val = _annual_dollar_value(raf_val, county_pmpm=_county_pmpm)
 
+        # Self-learning: adjust confidence based on provider capture history
+        base_confidence = s.get("confidence", 50)
+        suspect_type_str = s["suspect_type"] if isinstance(s["suspect_type"], str) else s["suspect_type"].value
+        adjusted_confidence = _adjust_confidence_from_patterns(
+            base_confidence, suspect_type_str, provider_patterns,
+        )
+
         if existing_suspect:
             existing_suspect.raf_value = raf_val
             existing_suspect.annual_value = annual_val
-            existing_suspect.confidence = s.get("confidence", 50)
+            existing_suspect.confidence = adjusted_confidence
             existing_suspect.evidence_summary = s.get("evidence_summary", "")
             if s.get("icd10_code"):
                 existing_suspect.icd10_code = s["icd10_code"]
@@ -726,7 +870,7 @@ async def analyze_member(
                 annual_value=annual_val,
                 suspect_type=s["suspect_type"],
                 status=SuspectStatus.open.value,
-                confidence=s.get("confidence", 50),
+                confidence=adjusted_confidence,
                 evidence_summary=s.get("evidence_summary", ""),
                 identified_date=today,
             ))

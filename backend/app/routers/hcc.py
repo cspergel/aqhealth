@@ -381,6 +381,16 @@ async def update_suspect(
         except Exception as e:
             logger.warning("Cross-module: BOI feed failed (non-fatal): %s", e)
 
+    # --- Self-learning: record suspect outcome for future confidence adjustments ---
+    try:
+        from app.services.hcc_engine import learn_suspect_outcome
+        await learn_suspect_outcome(
+            db, suspect.id, body.status, reason=getattr(body, "dismissed_reason", None)
+        )
+        await db.commit()
+    except Exception as e:
+        logger.warning("Self-learning: suspect outcome recording failed (non-fatal): %s", e)
+
     return SuspectUpdateOut(
         id=suspect.id,
         status=suspect.status,
