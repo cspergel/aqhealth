@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { tokens, fonts } from "../../lib/tokens";
+import { useAuth } from "../../lib/auth";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { AskBar } from "../query/AskBar";
@@ -58,8 +59,10 @@ import { DataManagementPage } from "../../pages/DataManagementPage";
 export function AppShell() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { isDemo } = useAuth();
 
   const sidebarWidth = sidebarCollapsed ? 60 : 240;
+  const bannerHeight = isDemo ? 36 : 0;
 
   return (
     <div
@@ -69,18 +72,62 @@ export function AppShell() {
         fontFamily: fonts.body,
       }}
     >
+      {/* Demo banner — full-width, fixed at top */}
+      {isDemo && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            height: bannerHeight,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            background: "#1e40af",
+            color: "#ffffff",
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: "0.02em",
+            fontFamily: fonts.body,
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              padding: "1px 6px",
+              borderRadius: 3,
+              background: "rgba(255,255,255,0.2)",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            DEMO
+          </span>
+          <span>
+            You are viewing a demo with simulated data. No real patient information is displayed.
+          </span>
+        </div>
+      )}
+
       {/* Fixed left sidebar */}
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((c) => !c)}
+        topOffset={bannerHeight}
       />
 
       {/* Right-side wrapper (top bar + main content) */}
       <div
         style={{
           marginLeft: sidebarWidth,
+          marginTop: bannerHeight,
           transition: "margin-left 200ms ease",
-          minHeight: "100vh",
+          minHeight: `calc(100vh - ${bannerHeight}px)`,
           display: "flex",
           flexDirection: "column",
         }}

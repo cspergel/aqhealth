@@ -179,12 +179,14 @@ function saveSectionState(state: Record<string, boolean>) {
 export function Sidebar({
   collapsed,
   onToggle,
+  topOffset = 0,
 }: {
   collapsed: boolean;
   onToggle: () => void;
+  topOffset?: number;
 }) {
   const width = collapsed ? 60 : 240;
-  const { user } = useAuth();
+  const { user, isDemo } = useAuth();
   const userRole = user?.role || "mso_admin";
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(loadSectionState);
@@ -213,9 +215,9 @@ export function Sidebar({
       style={{
         width,
         minWidth: width,
-        height: "100vh",
+        height: `calc(100vh - ${topOffset}px)`,
         position: "fixed",
-        top: 0,
+        top: topOffset,
         left: 0,
         zIndex: 40,
         background: "#ffffff",
@@ -248,18 +250,38 @@ export function Sidebar({
           }}
         />
         {!collapsed && (
-          <span
-            style={{
-              fontFamily: fonts.heading,
-              fontWeight: 700,
-              fontSize: 15,
-              color: tokens.text,
-              letterSpacing: "-0.01em",
-              whiteSpace: "nowrap",
-            }}
-          >
-            AQSoft Health
-          </span>
+          <>
+            <span
+              style={{
+                fontFamily: fonts.heading,
+                fontWeight: 700,
+                fontSize: 15,
+                color: tokens.text,
+                letterSpacing: "-0.01em",
+                whiteSpace: "nowrap",
+              }}
+            >
+              AQSoft Health
+            </span>
+            {isDemo && (
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase" as const,
+                  padding: "1px 5px",
+                  borderRadius: 3,
+                  background: "#1e40af",
+                  color: "#ffffff",
+                  lineHeight: 1.4,
+                  flexShrink: 0,
+                }}
+              >
+                DEMO
+              </span>
+            )}
+          </>
         )}
       </div>
 

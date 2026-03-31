@@ -48,7 +48,7 @@ export function OnboardingPage() {
   const [step1Confirmed, setStep1Confirmed] = useState(false);
   const [hasData, setHasData] = useState(false);
   const [latestJobId, setLatestJobId] = useState<string | null>(null);
-  const [structureConfirmed, setStructureConfirmed] = useState(false);
+
   const [step5Complete, setStep5Complete] = useState(false);
 
   const handleStepChange = useCallback((step: number) => {
@@ -80,11 +80,11 @@ export function OnboardingPage() {
   }, []);
 
   const handleStructureConfirm = useCallback(() => {
-    setStructureConfirmed(true);
+    // Structure confirmed — advance wizard
   }, []);
 
   const handleStructureSkip = useCallback(() => {
-    setStructureConfirmed(true);
+    // Structure skipped — advance wizard
   }, []);
 
   const handleGoToDataSources = useCallback(() => {
