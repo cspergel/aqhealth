@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/aqhealth/',
+  base: process.env.VITE_BASE || '/aqhealth/',
   server: {
     port: 5180,
   },
