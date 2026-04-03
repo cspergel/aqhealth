@@ -25,7 +25,11 @@ class TuvaRunnerService:
 
     def _build_command(self, verb: str, select: str | None = None) -> list[str]:
         """Build the dbt CLI command."""
-        cmd = ["dbt", verb, "--project-dir", self.project_dir]
+        cmd = [
+            "dbt", verb,
+            "--project-dir", self.project_dir,
+            "--profiles-dir", self.project_dir,
+        ]
         if select:
             cmd.extend(["--select", select])
         return cmd

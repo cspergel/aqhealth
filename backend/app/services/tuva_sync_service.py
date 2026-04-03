@@ -6,12 +6,12 @@ Preserves both values and flags discrepancies.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 import duckdb
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tuva_baseline import TuvaRafBaseline, TuvaPmpmBaseline
@@ -69,8 +69,16 @@ class TuvaSyncService:
             con.close()
 
     async def sync_raf_baselines(self, session: AsyncSession) -> dict[str, int]:
-        """Compare Tuva RAF scores against AQSoft's and store both."""
+        """Compare Tuva RAF scores against AQSoft's and store both.
+
+        Deletes previous baselines before inserting new ones to avoid duplicates.
+        """
         tuva_scores = self._read_tuva_hcc()
+
+        # Clear previous baselines to prevent duplicate accumulation on re-runs
+        await session.execute(delete(TuvaRafBaseline))
+        await session.flush()
+
         synced = 0
         discrepancies = 0
 
@@ -105,7 +113,7 @@ class TuvaSyncService:
                 has_discrepancy=has_discrepancy,
                 discrepancy_detail=detail,
                 raf_difference=raf_diff,
-                computed_at=datetime.utcnow(),
+                computed_at=datetime.now(timezone.utc),
             )
             session.add(baseline)
             synced += 1
@@ -117,6 +125,11 @@ class TuvaSyncService:
     async def sync_pmpm_baselines(self, session: AsyncSession) -> dict[str, int]:
         """Compare Tuva PMPM against AQSoft's expenditure engine."""
         tuva_pmpm = self._read_tuva_pmpm()
+
+        # Clear previous baselines
+        await session.execute(delete(TuvaPmpmBaseline))
+        await session.flush()
+
         synced = 0
         discrepancies = 0
 
@@ -134,7 +147,7 @@ class TuvaSyncService:
                 has_discrepancy=has_discrepancy,
                 discrepancy_pct=disc_pct,
                 member_months=row.get("member_months"),
-                computed_at=datetime.utcnow(),
+                computed_at=datetime.now(timezone.utc),
             )
             session.add(baseline)
             synced += 1

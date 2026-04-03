@@ -15,17 +15,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "data", "tuva_warehouse.duckdb"
-)
+# Project root — one level above backend/
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+_DATA_DIR = os.path.join(_PROJECT_ROOT, "data")
+
+
+def get_duckdb_path(tenant_schema: str | None = None) -> str:
+    """Get the DuckDB file path, optionally scoped to a tenant.
+
+    Multi-tenant isolation: each tenant gets its own DuckDB file so
+    concurrent/sequential pipeline runs don't overwrite each other.
+    """
+    os.makedirs(_DATA_DIR, exist_ok=True)
+    if tenant_schema:
+        return os.path.join(_DATA_DIR, f"tuva_{tenant_schema}.duckdb")
+    return os.path.join(_DATA_DIR, "tuva_warehouse.duckdb")
 
 
 class TuvaExportService:
     """Exports AQSoft PostgreSQL data into DuckDB raw schema for Tuva."""
 
     def __init__(self, duckdb_path: str | None = None):
-        self.duckdb_path = duckdb_path or _DEFAULT_DB_PATH
+        self.duckdb_path = duckdb_path or get_duckdb_path()
         self._con: duckdb.DuckDBPyConnection | None = None
 
     def _get_connection(self) -> duckdb.DuckDBPyConnection:
@@ -87,21 +98,23 @@ class TuvaExportService:
             )
         """)
 
+        _CLAIMS_COLS = [
+            "id", "member_id", "claim_id", "claim_type", "service_date",
+            "paid_date", "diagnosis_codes", "procedure_code", "drg_code",
+            "ndc_code", "billing_npi", "billing_tin", "facility_npi",
+            "billed_amount", "allowed_amount", "paid_amount",
+            "member_liability", "service_category", "pos_code",
+            "drug_name", "drug_class", "quantity", "days_supply", "los",
+            "status", "data_tier",
+        ]
         if rows:
             for r in rows:
                 d = dict(r)
-                # Convert diagnosis_codes list to DuckDB array format
                 diag = d.get("diagnosis_codes")
-                if diag and isinstance(diag, (list, tuple)):
-                    d["diagnosis_codes"] = list(diag)
-                elif diag is None:
-                    d["diagnosis_codes"] = []
-
+                d["diagnosis_codes"] = list(diag) if diag else []
                 con.execute(
-                    """INSERT INTO raw.claims VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                    )""",
-                    list(d.values())
+                    f"INSERT INTO raw.claims ({', '.join(_CLAIMS_COLS)}) VALUES ({', '.join('?' for _ in _CLAIMS_COLS)})",
+                    [d[c] for c in _CLAIMS_COLS],
                 )
 
         count = con.execute("SELECT count(*) FROM raw.claims").fetchone()[0]
@@ -139,11 +152,18 @@ class TuvaExportService:
             )
         """)
 
+        _MEMBER_COLS = [
+            "member_id", "first_name", "last_name", "date_of_birth",
+            "gender", "zip_code", "health_plan", "plan_product",
+            "coverage_start", "coverage_end",
+            "medicaid_status", "disability_status", "institutional",
+        ]
         if rows:
             for r in rows:
+                d = dict(r)
                 con.execute(
-                    "INSERT INTO raw.members VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    list(dict(r).values())
+                    f"INSERT INTO raw.members ({', '.join(_MEMBER_COLS)}) VALUES ({', '.join('?' for _ in _MEMBER_COLS)})",
+                    [d[c] for c in _MEMBER_COLS],
                 )
 
         count = con.execute("SELECT count(*) FROM raw.members").fetchone()[0]

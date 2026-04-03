@@ -12,17 +12,12 @@ import os
 from typing import Any
 
 from app.config import settings
-from app.services.tuva_export_service import TuvaExportService
+from app.services.tuva_export_service import TuvaExportService, get_duckdb_path
 from app.services.tuva_runner_service import TuvaRunnerService
 from app.services.tuva_sync_service import TuvaSyncService
 from app.workers import get_tenant_session
 
 logger = logging.getLogger(__name__)
-
-_DUCKDB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "data", "tuva_warehouse.duckdb",
-)
 
 
 async def tuva_pipeline_job(ctx: dict, tenant_schema: str) -> dict[str, Any]:
@@ -37,8 +32,11 @@ async def tuva_pipeline_job(ctx: dict, tenant_schema: str) -> dict[str, Any]:
     logger.info("Starting Tuva pipeline for tenant: %s", tenant_schema)
     results: dict[str, Any] = {"tenant": tenant_schema, "phases": {}}
 
+    # Per-tenant DuckDB file for data isolation
+    duckdb_path = get_duckdb_path(tenant_schema)
+
     # ── Phase 1: Export PG → DuckDB ──────────────────────────────────────
-    export_service = TuvaExportService(duckdb_path=_DUCKDB_PATH)
+    export_service = TuvaExportService(duckdb_path=duckdb_path)
     db = await get_tenant_session(tenant_schema)
     try:
         export_counts = await export_service.export_all(db)
@@ -71,7 +69,7 @@ async def tuva_pipeline_job(ctx: dict, tenant_schema: str) -> dict[str, Any]:
     # ── Phase 4: Sync Tuva outputs back to PG ────────────────────────────
     db = await get_tenant_session(tenant_schema)
     try:
-        sync_service = TuvaSyncService(duckdb_path=_DUCKDB_PATH)
+        sync_service = TuvaSyncService(duckdb_path=duckdb_path)
         sync_result = await sync_service.sync_all(db)
         await db.commit()
         results["phases"]["sync"] = {"success": True, **sync_result}
