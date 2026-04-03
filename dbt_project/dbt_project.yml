@@ -11,7 +11,7 @@ macro-paths: ["macros"]
 
 vars:
   # Tuva configuration
-  cms_hcc_payment_year: 2026
+  cms_hcc_payment_year: 2027
 
   # Enable all claims-based Tuva marts (core + downstream)
   claims_enabled: true
