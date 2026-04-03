@@ -1004,6 +1004,32 @@ function MemberDetailModal({
               </div>
             )}
 
+            {/* Watch Items — no evidence, monitor only */}
+            {detail.watch_items && detail.watch_items.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.amber, margin: "0 0 4px" }}>
+                  Watch Items ({detail.watch_items.length}) — No Evidence Yet
+                </h3>
+                <p style={{ fontSize: 11, color: tokens.textSecondary, margin: "0 0 8px" }}>
+                  These interaction bonuses would apply IF the condition is eventually diagnosed.
+                  No supporting evidence in current claims or medications. Monitor for future data.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {detail.watch_items.map((w: any, i: number) => (
+                    <div key={i} style={{ padding: "8px 10px", borderRadius: 6, background: tokens.amberSoft, border: `1px solid ${tokens.border}` }}>
+                      <div style={{ fontSize: 12, color: tokens.text }}>
+                        <span style={{ fontWeight: 600 }}>HCC {w.hcc_code}</span>: {w.hcc_label}
+                        <span style={{ marginLeft: 8, fontFamily: fonts.code, fontSize: 11, color: tokens.amber }}>
+                          potential +{w.raf_value.toFixed(3)} RAF
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>{w.evidence}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* All diagnosis codes */}
             <div style={{ marginTop: 20 }}>
               <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.text, margin: "0 0 8px" }}>

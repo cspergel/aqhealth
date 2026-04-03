@@ -18,9 +18,10 @@ class SuspectType(str, enum.Enum):
     med_dx_gap = "med_dx_gap"          # Medication without matching diagnosis
     specificity = "specificity"         # Unspecified code upgradeable
     recapture = "recapture"             # Prior year HCC not yet recaptured
-    near_miss = "near_miss"             # Close to disease interaction bonus
+    near_miss = "near_miss"             # Near-miss interaction WITH supporting evidence
     historical = "historical"           # Previously coded, dropped off
     new_suspect = "new_suspect"         # New evidence from claims patterns
+    watch_item = "watch_item"           # Near-miss interaction WITHOUT evidence (monitor only)
 
 
 class HccSuspect(Base, TimestampMixin):

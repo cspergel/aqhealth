@@ -348,8 +348,9 @@ async def get_member_detail(member_id: str):
     # AQSoft confirmed HCC codes
     aqsoft_hcc_codes = {h["hcc_code"] for h in aqsoft_confirmed_hccs}
 
-    # Opportunities: suspects not yet in confirmed
-    opportunities = [s for s in aqsoft_suspects if s["status"] == "open"]
+    # Separate evidence-backed opportunities from watch items
+    opportunities = [s for s in aqsoft_suspects if s["status"] == "open" and s["suspect_type"] != "watch_item"]
+    watch_items = [s for s in aqsoft_suspects if s["status"] == "open" and s["suspect_type"] == "watch_item"]
 
     return {
         "member_id": member_id,
@@ -369,6 +370,9 @@ async def get_member_detail(member_id: str):
         "opportunities": opportunities,
         "opportunity_count": len(opportunities),
         "opportunity_raf": round(sum(s["raf_value"] for s in opportunities), 3),
+        "watch_items": watch_items,
+        "watch_item_count": len(watch_items),
+        "watch_item_potential_raf": round(sum(s["raf_value"] for s in watch_items), 3),
     }
 
 

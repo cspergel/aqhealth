@@ -358,13 +358,118 @@ def _local_raf_calculation(
     }
 
 
+# ---------------------------------------------------------------------------
+# Evidence mapping for near-miss HCC groups
+# Maps HCC codes to clinical indicators that suggest the condition exists:
+# - medications: drug keywords that treat this condition
+# - related_dx: ICD-10 prefixes for related/precursor conditions
+# - description: human-readable condition name
+# ---------------------------------------------------------------------------
+
+HCC_EVIDENCE_MAP: dict[int, dict[str, Any]] = {
+    # CHF (HCC 226)
+    226: {
+        "description": "Congestive Heart Failure",
+        "medications": ["furosemide", "carvedilol", "spironolactone", "lisinopril", "enalapril", "metoprolol", "digoxin", "sacubitril", "entresto", "bumetanide"],
+        "related_dx": ["I11", "I13", "I25", "I42", "I43"],  # Hypertensive heart, cardiomyopathy
+        "icd10_suggestion": "I50.9",
+    },
+    # CKD (HCC 326-329)
+    326: {
+        "description": "Chronic Kidney Disease Stage 4",
+        "medications": ["epoetin", "darbepoetin", "sevelamer", "calcitriol", "cinacalcet", "sodium bicarbonate"],
+        "related_dx": ["N17", "N18", "N19", "E11.2", "I12", "I13"],  # Renal failure, diabetic nephropathy
+        "icd10_suggestion": "N18.4",
+    },
+    327: {
+        "description": "Chronic Kidney Disease Stage 5",
+        "medications": ["epoetin", "darbepoetin", "sevelamer"],
+        "related_dx": ["N18", "N19", "Z99.2"],
+        "icd10_suggestion": "N18.5",
+    },
+    328: {
+        "description": "Chronic Kidney Disease Stage 3",
+        "medications": [],
+        "related_dx": ["N18", "E11.2", "I12"],
+        "icd10_suggestion": "N18.3",
+    },
+    329: {
+        "description": "Chronic Kidney Disease Unspecified",
+        "medications": [],
+        "related_dx": ["N18", "N19"],
+        "icd10_suggestion": "N18.9",
+    },
+    # Stroke (HCC 100)
+    100: {
+        "description": "Ischemic Stroke",
+        "medications": ["clopidogrel", "warfarin", "apixaban", "rivaroxaban", "ticagrelor"],
+        "related_dx": ["I63", "I65", "I66", "G45"],  # Cerebral infarction, TIA, carotid stenosis
+        "icd10_suggestion": "I63.9",
+    },
+    # Depression (HCC 155)
+    155: {
+        "description": "Major Depression",
+        "medications": ["sertraline", "escitalopram", "fluoxetine", "venlafaxine", "duloxetine", "bupropion", "citalopram", "paroxetine", "mirtazapine"],
+        "related_dx": ["F32", "F33", "F34"],  # Depressive episodes
+        "icd10_suggestion": "F33.0",
+    },
+    # COPD (HCC 280)
+    280: {
+        "description": "COPD",
+        "medications": ["albuterol", "tiotropium", "ipratropium", "budesonide", "fluticasone", "umeclidinium", "roflumilast"],
+        "related_dx": ["J43", "J44", "J45", "J96"],  # Emphysema, asthma (may be COPD)
+        "icd10_suggestion": "J44.1",
+    },
+    # Diabetes (HCC 37, 38)
+    37: {
+        "description": "Diabetes without Complication",
+        "medications": ["metformin", "glipizide", "insulin", "semaglutide", "liraglutide", "sitagliptin", "empagliflozin", "dapagliflozin", "pioglitazone"],
+        "related_dx": ["E11", "E13", "R73"],  # Type 2, pre-diabetes
+        "icd10_suggestion": "E11.9",
+    },
+    38: {
+        "description": "Diabetes with Complication",
+        "medications": ["insulin", "semaglutide", "empagliflozin"],
+        "related_dx": ["E11.2", "E11.3", "E11.4", "E11.5", "E11.6"],  # Diabetic complications
+        "icd10_suggestion": "E11.65",
+    },
+    # Dementia (HCC 51, 52)
+    51: {
+        "description": "Dementia Without Complication",
+        "medications": ["donepezil", "memantine", "rivastigmine", "galantamine"],
+        "related_dx": ["G30", "F01", "F02", "F03"],
+        "icd10_suggestion": "G30.9",
+    },
+    52: {
+        "description": "Dementia With Complication",
+        "medications": ["donepezil", "memantine"],
+        "related_dx": ["G30", "F01", "F02", "F03"],
+        "icd10_suggestion": "G30.9",
+    },
+}
+
+
 def _detect_near_miss_interactions(
     member_hccs: set[int],
+    medications: list[str] | None = None,
+    all_dx_codes: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Check for near-miss disease interactions.
-    A near-miss means the member has all required HCC groups except one.
+    Check for near-miss disease interactions WITH evidence classification.
+
+    Returns two categories:
+    - evidence_backed: medication or related diagnosis supports the missing HCC
+    - watch_items: no evidence found, but the interaction bonus exists
+
+    Evidence sources checked:
+    - Medications that treat the missing condition
+    - Related diagnosis codes that suggest the condition may exist
     """
+    medications = medications or []
+    all_dx_codes = all_dx_codes or set()
+    med_lower = [m.lower() for m in medications]
+    dx_normalized = {c.upper().replace(".", "") for c in all_dx_codes}
+
     near_misses: list[dict[str, Any]] = []
 
     for name, hcc_groups, bonus_raf in DISEASE_INTERACTIONS:
@@ -382,11 +487,50 @@ def _detect_near_miss_interactions(
         # Near miss = missing exactly one group
         if present_count == total_groups - 1 and missing_group is not None:
             missing_desc = ", ".join(f"HCC {h}" for h in sorted(missing_group))
+
+            # Check for evidence supporting the missing HCC
+            evidence_found: list[str] = []
+            suggested_icd10 = None
+            best_hcc = None
+
+            for hcc_code in sorted(missing_group):
+                evidence_map = HCC_EVIDENCE_MAP.get(hcc_code)
+                if not evidence_map:
+                    continue
+
+                # Check medications
+                for med_keyword in evidence_map.get("medications", []):
+                    for med in med_lower:
+                        if med_keyword in med:
+                            evidence_found.append(f"Medication: {med} (treats {evidence_map['description']})")
+                            suggested_icd10 = suggested_icd10 or evidence_map.get("icd10_suggestion")
+                            best_hcc = best_hcc or hcc_code
+                            break
+
+                # Check related diagnoses
+                for dx_prefix in evidence_map.get("related_dx", []):
+                    prefix_norm = dx_prefix.upper().replace(".", "")
+                    for dx in dx_normalized:
+                        if dx.startswith(prefix_norm):
+                            # Find the original code with dots for display
+                            orig = next((c for c in all_dx_codes if c.upper().replace(".", "") == dx), dx)
+                            evidence_found.append(f"Related Dx: {orig} (associated with {evidence_map['description']})")
+                            suggested_icd10 = suggested_icd10 or evidence_map.get("icd10_suggestion")
+                            best_hcc = best_hcc or hcc_code
+                            break
+
             near_misses.append({
                 "name": name,
                 "potential_raf": float(bonus_raf),
                 "missing": missing_desc,
                 "missing_hccs": sorted(missing_group),
+                "has_evidence": len(evidence_found) > 0,
+                "evidence": evidence_found,
+                "suggested_icd10": suggested_icd10,
+                "best_hcc": best_hcc or (sorted(missing_group)[0] if missing_group else 0),
+                "condition_description": HCC_EVIDENCE_MAP.get(
+                    best_hcc or sorted(missing_group)[0], {}
+                ).get("description", ""),
             })
 
     return near_misses
@@ -812,7 +956,7 @@ async def analyze_member(
     else:
         raf_result = _local_raf_calculation(current_year_codes)
 
-    # ---- near-miss interactions ----
+    # ---- near-miss interactions (evidence-aware) ----
     member_hccs: set[int] = set()
     for item in raf_result.get("hcc_list", []):
         if item.get("hcc"):
@@ -821,30 +965,55 @@ async def analyze_member(
         if s.get("hcc_code") and s["hcc_code"] > 0:
             member_hccs.add(s["hcc_code"])
 
-    snf_near_misses = raf_result.get("near_misses", [])
-    local_near_misses = _detect_near_miss_interactions(member_hccs)
+    # Pass medications and diagnosis codes so evidence can be checked
+    local_near_misses = _detect_near_miss_interactions(
+        member_hccs, medications=medications, all_dx_codes=all_dx_codes,
+    )
 
-    seen_interaction_names = {nm.get("name") for nm in snf_near_misses}
-    all_near_misses = list(snf_near_misses)
     for nm in local_near_misses:
-        if nm["name"] not in seen_interaction_names:
-            all_near_misses.append(nm)
-
-    for nm in all_near_misses:
+        best_hcc = nm.get("best_hcc", 0)
         missing_hccs = nm.get("missing_hccs", [])
-        representative_hcc = missing_hccs[0] if missing_hccs else 0
-        if representative_hcc:
+        representative_hcc = best_hcc or (missing_hccs[0] if missing_hccs else 0)
+        if not representative_hcc:
+            continue
+
+        has_evidence = nm.get("has_evidence", False)
+        evidence_list = nm.get("evidence", [])
+        condition = nm.get("condition_description", "")
+        suggested_icd10 = nm.get("suggested_icd10")
+
+        if has_evidence:
+            # Evidence-backed near-miss → real suspect
+            evidence_text = "; ".join(evidence_list)
             suspects.append({
                 "suspect_type": SuspectType.near_miss,
+                "hcc_code": representative_hcc,
+                "hcc_label": f"{condition} (HCC {representative_hcc})" if condition else nm.get("missing", ""),
+                "icd10_code": suggested_icd10,
+                "icd10_label": condition,
+                "raf_value": Decimal(str(nm.get("potential_raf", 0))),
+                "confidence": 70,
+                "evidence_summary": (
+                    f"Evidence-backed near-miss: {nm['name']}. "
+                    f"Evidence: {evidence_text}. "
+                    f"Suggested code: {suggested_icd10 or 'TBD'}. "
+                    f"Potential RAF bonus: {nm.get('potential_raf', 0)}"
+                ),
+            })
+        else:
+            # No evidence → watch item (lower confidence, monitor only)
+            suspects.append({
+                "suspect_type": SuspectType.watch_item,
                 "hcc_code": representative_hcc,
                 "hcc_label": nm.get("missing", nm.get("name", "")),
                 "icd10_code": None,
                 "icd10_label": "",
                 "raf_value": Decimal(str(nm.get("potential_raf", 0))),
-                "confidence": 50,
+                "confidence": 20,
                 "evidence_summary": (
-                    f"Near-miss interaction: {nm['name']}. "
-                    f"Missing: {nm.get('missing', 'unknown')}. "
+                    f"Watch item: {nm['name']} interaction bonus available "
+                    f"if {condition or nm.get('missing', 'condition')} is diagnosed. "
+                    f"No supporting evidence found in current claims or medications. "
                     f"Potential RAF bonus: {nm.get('potential_raf', 0)}"
                 ),
             })
