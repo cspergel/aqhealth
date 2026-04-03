@@ -17,14 +17,27 @@ from app.services.tuva_export_service import get_duckdb_path
 logger = logging.getLogger(__name__)
 
 
-def _connect(tenant_schema: str | None = None, read_only: bool = True) -> duckdb.DuckDBPyConnection | None:
-    """Get a read-only DuckDB connection. Returns None if the file doesn't exist."""
-    path = get_duckdb_path(tenant_schema)
-    if not os.path.exists(path):
-        # Fall back to default warehouse
-        path = get_duckdb_path()
+_DEMO_DB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+    "data", "tuva_demo.duckdb"
+)
+
+
+def _connect(tenant_schema: str | None = None, read_only: bool = True, use_demo: bool = False) -> duckdb.DuckDBPyConnection | None:
+    """Get a read-only DuckDB connection. Returns None if the file doesn't exist.
+
+    If use_demo=True, connects to the 1,000-patient Tuva demo database.
+    """
+    if use_demo:
+        path = _DEMO_DB_PATH
+    else:
+        path = get_duckdb_path(tenant_schema)
         if not os.path.exists(path):
-            return None
+            path = get_duckdb_path()
+            if not os.path.exists(path):
+                return None
+    if not os.path.exists(path):
+        return None
     try:
         return duckdb.connect(path, read_only=read_only)
     except Exception as e:
@@ -32,17 +45,39 @@ def _connect(tenant_schema: str | None = None, read_only: bool = True) -> duckdb
         return None
 
 
-def get_risk_scores(tenant_schema: str | None = None) -> list[dict[str, Any]]:
+def _query_with_schema_fallback(con: duckdb.DuckDBPyConnection, query: str) -> list:
+    """Execute a query, trying alternative schema prefixes if the first fails.
+
+    Tuva uses different schema prefixes depending on how dbt was configured:
+    - Our project: main_cms_hcc, main_financial_pmpm, etc.
+    - Demo project: cms_hcc, financial_pmpm, etc.
+    """
+    try:
+        return con.execute(query).fetchall()
+    except Exception:
+        # Try without 'main_' prefix
+        alt_query = query.replace("main_cms_hcc.", "cms_hcc.").replace(
+            "main_financial_pmpm.", "financial_pmpm."
+        ).replace("main_chronic_conditions.", "chronic_conditions.").replace(
+            "main_quality_measures.", "quality_measures."
+        ).replace("main_hcc_suspecting.", "hcc_suspecting.")
+        try:
+            return con.execute(alt_query).fetchall()
+        except Exception as e:
+            logger.debug("Query failed with both schema prefixes: %s", e)
+            return []
+
+
+def get_risk_scores(tenant_schema: str | None = None, use_demo: bool = False) -> list[dict[str, Any]]:
     """Get Tuva's CMS-HCC risk scores for all members.
 
-    Returns list of dicts with: person_id, v24_risk_score, v28_risk_score,
-    blended_risk_score, payment_risk_score, member_months, payment_year.
+    Set use_demo=True to read from the 1,000-patient Tuva demo database.
     """
-    con = _connect(tenant_schema)
+    con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return []
     try:
-        result = con.execute("""
+        result = _query_with_schema_fallback(con, """
             SELECT
                 person_id,
                 v24_risk_score,
@@ -52,7 +87,7 @@ def get_risk_scores(tenant_schema: str | None = None) -> list[dict[str, Any]]:
                 member_months,
                 payment_year
             FROM main_cms_hcc.patient_risk_scores
-        """).fetchall()
+        """)
         columns = [
             "person_id", "v24_risk_score", "v28_risk_score",
             "blended_risk_score", "payment_risk_score",
@@ -166,29 +201,29 @@ def get_chronic_conditions(tenant_schema: str | None = None) -> list[dict[str, A
         con.close()
 
 
-def get_tuva_summary(tenant_schema: str | None = None) -> dict[str, Any]:
+def get_tuva_summary(tenant_schema: str | None = None, use_demo: bool = False) -> dict[str, Any]:
     """Get a high-level summary of all Tuva data for AI context.
 
     Uses a single DuckDB connection for efficiency.
-    Returns a dict suitable for inclusion in the insight context graph.
+    Set use_demo=True for the 1,000-patient demo dataset.
     """
-    con = _connect(tenant_schema)
+    con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return {}
 
     try:
         # Fetch scores and factors in one connection
-        scores_raw = con.execute("""
+        scores_raw = _query_with_schema_fallback(con, """
             SELECT person_id, v28_risk_score, payment_year
             FROM main_cms_hcc.patient_risk_scores
-        """).fetchall()
+        """)
         if not scores_raw:
             return {}
 
-        factors_raw = con.execute("""
+        factors_raw = _query_with_schema_fallback(con, """
             SELECT person_id, factor_type, risk_factor_description, coefficient, model_version
             FROM main_cms_hcc.patient_risk_factors
-        """).fetchall()
+        """)
     except Exception as e:
         logger.debug("Could not read Tuva summary data: %s", e)
         return {}
@@ -248,18 +283,18 @@ def get_tuva_summary(tenant_schema: str | None = None) -> dict[str, Any]:
     }
 
 
-def get_tuva_suspects(tenant_schema: str | None = None) -> list[dict[str, Any]]:
+def get_tuva_suspects(tenant_schema: str | None = None, use_demo: bool = False) -> list[dict[str, Any]]:
     """Get Tuva's HCC suspect list (from hcc_suspecting mart).
 
     Returns Tuva's independently-detected HCC opportunities with reason
     and contributing factor. Compare against AQSoft's suspects for
     cross-validation.
     """
-    con = _connect(tenant_schema)
+    con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return []
     try:
-        result = con.execute("""
+        result = _query_with_schema_fallback(con, """
             SELECT
                 person_id,
                 hcc_code,
@@ -267,8 +302,8 @@ def get_tuva_suspects(tenant_schema: str | None = None) -> list[dict[str, Any]]:
                 reason,
                 contributing_factor,
                 suspect_date
-            FROM hcc_suspecting.list
-        """).fetchall()
+            FROM main_hcc_suspecting.list
+        """)
         columns = [
             "person_id", "hcc_code", "hcc_description",
             "reason", "contributing_factor", "suspect_date",

@@ -461,6 +461,43 @@ async def get_member_detail(member_id: str):
     }
 
 
+@router.get("/demo/risk-scores")
+def get_demo_risk_scores():
+    """Risk scores from the 1,000-patient Tuva demo dataset."""
+    from app.services.tuva_data_service import get_risk_scores
+    scores = get_risk_scores(use_demo=True)
+    return {"items": scores, "count": len(scores), "source": "tuva_demo_1000_patients"}
+
+
+@router.get("/demo/suspects")
+def get_demo_suspects():
+    """HCC suspects from the 1,000-patient Tuva demo dataset."""
+    from app.services.tuva_data_service import get_tuva_suspects
+    suspects = get_tuva_suspects(use_demo=True)
+    # Summarize by reason
+    reasons: dict[str, int] = {}
+    for s in suspects:
+        r = s.get("reason", "unknown")
+        reasons[r] = reasons.get(r, 0) + 1
+    return {
+        "total_suspects": len(suspects),
+        "by_reason": reasons,
+        "items": suspects[:100],  # First 100
+        "source": "tuva_demo_1000_patients",
+    }
+
+
+@router.get("/demo/summary")
+def get_demo_summary():
+    """Full summary from the 1,000-patient Tuva demo dataset."""
+    from app.services.tuva_data_service import get_tuva_summary
+    summary = get_tuva_summary(use_demo=True)
+    if not summary:
+        return {"status": "no_data", "message": "Tuva demo database not found. Run: cd tuva_demo_data && dbt build --profiles-dir ."}
+    summary["source"] = "tuva_demo_1000_patients"
+    return summary
+
+
 @router.get("/status")
 def get_tuva_status():
     """Check if Tuva data is available and what's loaded."""
