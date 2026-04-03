@@ -124,8 +124,12 @@ async def trigger_tuva_pipeline(
     }
 
 
+# Note: These endpoints use plain `def` (not async) because they call synchronous
+# DuckDB I/O. FastAPI automatically runs plain `def` endpoints in a threadpool,
+# preventing them from blocking the async event loop.
+
 @router.get("/risk-scores")
-async def get_tuva_risk_scores():
+def get_tuva_risk_scores():
     """Read Tuva risk scores directly from DuckDB (bypass PostgreSQL sync)."""
     from app.services.tuva_data_service import get_risk_scores
     scores = get_risk_scores()
@@ -133,7 +137,7 @@ async def get_tuva_risk_scores():
 
 
 @router.get("/risk-factors")
-async def get_tuva_risk_factors():
+def get_tuva_risk_factors():
     """Read Tuva per-member HCC risk factors directly from DuckDB."""
     from app.services.tuva_data_service import get_risk_factors
     factors = get_risk_factors()
@@ -141,7 +145,7 @@ async def get_tuva_risk_factors():
 
 
 @router.get("/summary")
-async def get_tuva_full_summary():
+def get_tuva_full_summary():
     """Full Tuva analytics summary — suitable for AI context or dashboards."""
     from app.services.tuva_data_service import get_tuva_summary
     summary = get_tuva_summary()
@@ -151,13 +155,12 @@ async def get_tuva_full_summary():
 
 
 @router.get("/status")
-async def get_tuva_status():
+def get_tuva_status():
     """Check if Tuva data is available and what's loaded."""
-    from app.services.tuva_data_service import is_tuva_available, get_risk_scores
-    available = is_tuva_available()
-    scores = get_risk_scores() if available else []
+    from app.services.tuva_data_service import get_risk_scores
+    scores = get_risk_scores()
     return {
-        "available": available,
+        "available": len(scores) > 0,
         "members_scored": len(scores),
         "pipeline_ready": True,
     }

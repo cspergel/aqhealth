@@ -8,7 +8,6 @@ import and use these functions to get Tuva's community-validated numbers.
 
 import logging
 import os
-from decimal import Decimal
 from typing import Any
 
 import duckdb
@@ -170,13 +169,41 @@ def get_chronic_conditions(tenant_schema: str | None = None) -> list[dict[str, A
 def get_tuva_summary(tenant_schema: str | None = None) -> dict[str, Any]:
     """Get a high-level summary of all Tuva data for AI context.
 
+    Uses a single DuckDB connection for efficiency.
     Returns a dict suitable for inclusion in the insight context graph.
     """
-    scores = get_risk_scores(tenant_schema)
-    factors = get_risk_factors(tenant_schema)
-
-    if not scores:
+    con = _connect(tenant_schema)
+    if not con:
         return {}
+
+    try:
+        # Fetch scores and factors in one connection
+        scores_raw = con.execute("""
+            SELECT person_id, v28_risk_score, payment_year
+            FROM main_cms_hcc.patient_risk_scores
+        """).fetchall()
+        if not scores_raw:
+            return {}
+
+        factors_raw = con.execute("""
+            SELECT person_id, factor_type, risk_factor_description, coefficient, model_version
+            FROM main_cms_hcc.patient_risk_factors
+        """).fetchall()
+    except Exception as e:
+        logger.debug("Could not read Tuva summary data: %s", e)
+        return {}
+    finally:
+        con.close()
+
+    scores = [
+        {"person_id": r[0], "v28_risk_score": r[1], "payment_year": r[2]}
+        for r in scores_raw
+    ]
+    factors = [
+        {"person_id": r[0], "factor_type": r[1], "risk_factor_description": r[2],
+         "coefficient": r[3], "model_version": r[4]}
+        for r in factors_raw
+    ]
 
     # Aggregate risk scores
     v28_scores = [s["v28_risk_score"] for s in scores if s.get("v28_risk_score") is not None]
@@ -201,7 +228,7 @@ def get_tuva_summary(tenant_schema: str | None = None) -> dict[str, Any]:
     top_hccs = sorted(hcc_counts.items(), key=lambda x: -x[1])[:10]
 
     return {
-        "source": "tuva_health_v0.17.2",
+        "source": "tuva_health",
         "model": "CMS-HCC V28",
         "members_scored": len(scores),
         "avg_v28_risk_score": round(avg_v28, 3),
@@ -231,27 +258,5 @@ def is_tuva_available(tenant_schema: str | None = None) -> bool:
         return r[0] > 0 if r else False
     except Exception:
         return False
-    finally:
-        con.close()
-
-
-def run_custom_query(query: str, tenant_schema: str | None = None) -> list[dict[str, Any]]:
-    """Run a custom read-only SQL query against Tuva's DuckDB.
-
-    Use this for ad-hoc analysis from any service. The query runs read-only.
-    Returns list of dicts. Returns empty list on error.
-    """
-    con = _connect(tenant_schema, read_only=True)
-    if not con:
-        return []
-    try:
-        result = con.execute(query).fetchall()
-        if not result:
-            return []
-        columns = [desc[0] for desc in con.description]
-        return [dict(zip(columns, row)) for row in result]
-    except Exception as e:
-        logger.warning("Tuva custom query failed: %s", e)
-        return []
     finally:
         con.close()

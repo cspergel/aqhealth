@@ -16,6 +16,7 @@ select
     end                                         as claim_type,
     cast(member_id as varchar)                  as person_id,
     cast(member_id as varchar)                  as member_id,
+    -- TODO: derive from member plan_type when multi-payer support is added
     cast('medicare' as varchar)                  as payer,
     cast(null as varchar)                       as plan,
     service_date                                as claim_start_date,

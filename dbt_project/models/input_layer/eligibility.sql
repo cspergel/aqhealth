@@ -19,7 +19,7 @@ select
     cast(null as date)                          as death_date,
     cast(0 as integer)                          as death_flag,
     coverage_start                              as enrollment_start_date,
-    coalesce(coverage_end, cast('2026-12-31' as date)) as enrollment_end_date,
+    coalesce(coverage_end, cast(date_trunc('year', current_date) + interval '1 year' - interval '1 day' as date)) as enrollment_end_date,
     cast('medicare' as varchar)                  as payer,
     cast('medicare' as varchar)                   as payer_type,
     cast(plan_product as varchar)               as plan,
