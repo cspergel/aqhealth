@@ -301,27 +301,45 @@ async def get_member_detail(member_id: str):
         for s in suspects
     ]
 
-    # AQSoft confirmed HCCs from claims
+    # AQSoft confirmed HCCs from claims — with source traceability
     claim_result = await session.execute(
-        select(Claim.diagnosis_codes).where(
+        select(
+            Claim.claim_id, Claim.diagnosis_codes, Claim.service_date,
+            Claim.claim_type, Claim.facility_name, Claim.service_category,
+        ).where(
             Claim.member_id == member.id,
             Claim.diagnosis_codes.isnot(None),
-        )
+        ).order_by(Claim.service_date.desc())
     )
     all_dx_codes: set[str] = set()
+    # Track which claim each code came from
+    code_sources: dict[str, list[dict]] = {}
     for row in claim_result.all():
-        if row[0]:
-            all_dx_codes.update(row[0])
+        if row.diagnosis_codes:
+            for code in row.diagnosis_codes:
+                all_dx_codes.add(code)
+                if code not in code_sources:
+                    code_sources[code] = []
+                code_sources[code].append({
+                    "claim_id": row.claim_id,
+                    "service_date": row.service_date.isoformat() if row.service_date else None,
+                    "claim_type": row.claim_type,
+                    "facility": row.facility_name,
+                    "category": row.service_category,
+                })
 
     aqsoft_confirmed_hccs = []
     for code in sorted(all_dx_codes):
         entry = lookup_hcc_for_icd10(code)
         if entry and entry.get("hcc"):
+            sources = code_sources.get(code, [])
             aqsoft_confirmed_hccs.append({
                 "icd10_code": code,
                 "hcc_code": entry["hcc"],
                 "description": entry.get("description", ""),
                 "raf_weight": entry.get("raf", 0),
+                "found_in_claims": len(sources),
+                "latest_claim": sources[0] if sources else None,
             })
 
     # --- Build comparison ---

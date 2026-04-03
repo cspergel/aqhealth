@@ -941,8 +941,14 @@ function MemberDetailModal({
                       <div key={i} style={{ padding: "8px 10px", borderRadius: 6, background: tokens.surfaceAlt, border: `1px solid ${tokens.borderSoft}` }}>
                         <div style={{ fontSize: 12, fontWeight: 600, color: tokens.text }}>HCC {h.hcc_code}: {h.description}</div>
                         <div style={{ fontSize: 11, color: tokens.textSecondary, fontFamily: fonts.code }}>
-                          {h.icd10_code} | RAF: {h.raf_weight}
+                          {h.icd10_code} | RAF: {h.raf_weight} | {h.found_in_claims} claim{h.found_in_claims !== 1 ? "s" : ""}
                         </div>
+                        {h.latest_claim && (
+                          <div style={{ fontSize: 10, color: tokens.textMuted, marginTop: 2 }}>
+                            Source: {h.latest_claim.claim_type} claim {h.latest_claim.claim_id || ""} on {h.latest_claim.service_date}
+                            {h.latest_claim.facility ? ` at ${h.latest_claim.facility}` : ""}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -954,8 +960,11 @@ function MemberDetailModal({
             {detail.opportunities.length > 0 && (
               <div>
                 <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.accentText, margin: "0 0 8px" }}>
-                  Capture Opportunities ({detail.opportunities.length})
+                  Capture Opportunities ({detail.opportunities.length}) — +{detail.opportunity_raf} RAF potential
                 </h3>
+                <p style={{ fontSize: 11, color: tokens.textSecondary, margin: "0 0 8px" }}>
+                  These HCCs are suspected but not yet confirmed in claims. Capture them at the next encounter.
+                </p>
                 <div style={{ borderRadius: 8, border: `1px solid ${tokens.border}`, overflow: "hidden" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                     <thead>
