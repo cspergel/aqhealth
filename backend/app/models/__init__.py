@@ -30,3 +30,4 @@ from app.models.transformation_rule import TransformationRule, PipelineRun
 from app.models.skill import Skill, SkillExecution
 from app.models.data_protection import SourceFingerprint, GoldenRecord, DataContract, IngestionBatch
 from app.models.tag import Tag, EntityTag
+from app.models.tuva_baseline import TuvaRafBaseline, TuvaPmpmBaseline
