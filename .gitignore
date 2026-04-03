@@ -27,3 +27,10 @@ pgdata/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Tuva / DuckDB
+data/tuva_warehouse.duckdb
+data/tuva_warehouse.duckdb.wal
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
