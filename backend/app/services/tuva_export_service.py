@@ -51,15 +51,18 @@ class TuvaExportService:
             self._con = None
 
     async def export_claims(self, session: AsyncSession) -> int:
-        """Export claims from PostgreSQL to DuckDB raw.claims."""
+        """Export claims from PostgreSQL to DuckDB raw.claims.
+
+        Adapts to actual database schema — queries only columns that exist.
+        """
         result = await session.execute(text("""
             SELECT id, member_id, claim_id, claim_type, service_date,
                    paid_date, diagnosis_codes, procedure_code, drg_code,
-                   ndc_code, billing_npi, billing_tin, facility_npi,
+                   ndc_code, facility_npi,
                    billed_amount, allowed_amount, paid_amount,
                    member_liability, service_category, pos_code,
-                   drug_name, drug_class, quantity, days_supply, los,
-                   status, data_tier
+                   drug_name, drug_class, quantity, days_supply,
+                   data_tier
             FROM claims
             WHERE data_tier = 'record'
         """))
@@ -98,14 +101,14 @@ class TuvaExportService:
             )
         """)
 
-        _CLAIMS_COLS = [
+        _INSERT_COLS = [
             "id", "member_id", "claim_id", "claim_type", "service_date",
             "paid_date", "diagnosis_codes", "procedure_code", "drg_code",
-            "ndc_code", "billing_npi", "billing_tin", "facility_npi",
+            "ndc_code", "facility_npi",
             "billed_amount", "allowed_amount", "paid_amount",
             "member_liability", "service_category", "pos_code",
-            "drug_name", "drug_class", "quantity", "days_supply", "los",
-            "status", "data_tier",
+            "drug_name", "drug_class", "quantity", "days_supply",
+            "data_tier",
         ]
         if rows:
             for r in rows:
@@ -113,8 +116,8 @@ class TuvaExportService:
                 diag = d.get("diagnosis_codes")
                 d["diagnosis_codes"] = list(diag) if diag else []
                 con.execute(
-                    f"INSERT INTO raw.claims ({', '.join(_CLAIMS_COLS)}) VALUES ({', '.join('?' for _ in _CLAIMS_COLS)})",
-                    [d[c] for c in _CLAIMS_COLS],
+                    f"INSERT INTO raw.claims ({', '.join(_INSERT_COLS)}) VALUES ({', '.join('?' for _ in _INSERT_COLS)})",
+                    [d[c] for c in _INSERT_COLS],
                 )
 
         count = con.execute("SELECT count(*) FROM raw.claims").fetchone()[0]
