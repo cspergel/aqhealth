@@ -1268,16 +1268,36 @@ class EcwAdapter(PayerAdapter):
             performer_name = perf.get("display")
             break
 
+        # Normalize numeric value vs string value
+        result_value = None
+        result_string = None
+        if value_type in ("quantity", "integer") and value is not None:
+            try:
+                result_value = float(value)
+            except (ValueError, TypeError):
+                result_string = str(value)
+        elif value is not None:
+            result_string = str(value)
+
         return {
+            # Fields matching _upsert_observations expected format
             "fhir_id": fhir_id,
             "member_id": member_id,
             "category": category,
+            "test_code": loinc_code,           # LOINC code
+            "test_name": loinc_display or code_text,  # Human-readable name
+            "result_value": result_value,       # Numeric value (float)
+            "result_string": result_string,     # String value (for non-numeric)
+            "result_units": unit,               # Unit of measure
+            "abnormal_flag": interpretation,    # H/L/N/A etc.
+            "observation_date": effective_date,  # When observed
+            "status": status,
+            # Also preserve original fields for downstream use
             "loinc_code": loinc_code,
             "loinc_display": loinc_display,
             "value": value,
             "unit": unit,
             "effective_date": effective_date,
-            "status": status,
             "extra": {
                 "source": "ecw",
                 "value_type": value_type,

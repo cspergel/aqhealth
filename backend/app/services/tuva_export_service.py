@@ -290,4 +290,101 @@ class TuvaExportService:
         except Exception as e:
             logger.debug("Attribution export skipped: %s", e)
 
+        try:
+            counts["observations"] = await self.export_observations(session)
+        except Exception as e:
+            logger.debug("Observation export skipped: %s", e)
+
         return counts
+
+    async def export_observations(self, session: AsyncSession) -> int:
+        """Export observation/lab data from signal-tier claims to DuckDB.
+
+        Observations from eCW are stored as signal-tier claims with
+        structured data in the extra JSONB column. We extract them
+        into a proper lab_result table for Tuva.
+        """
+        result = await session.execute(text("""
+            SELECT
+                c.id,
+                m.member_id as person_id,
+                c.service_date,
+                c.procedure_code as loinc_code,
+                c.extra->>'test_name' as test_name,
+                c.extra->>'result_value' as result_value,
+                c.extra->>'result_string' as result_string,
+                c.extra->>'result_units' as result_units,
+                c.extra->>'abnormal_flag' as abnormal_flag,
+                c.extra->>'reference_range' as reference_range,
+                c.service_category
+            FROM claims c
+            JOIN members m ON c.member_id = m.id
+            WHERE c.signal_source IN ('payer_api_observation', 'ecw_observation')
+               OR c.service_category IN ('lab', 'vital-signs', 'social-history')
+        """))
+        rows = result.mappings().all()
+
+        con = self._get_connection()
+        con.execute("DROP TABLE IF EXISTS raw.lab_result")
+        con.execute("""
+            CREATE TABLE raw.lab_result (
+                lab_result_id VARCHAR,
+                person_id VARCHAR,
+                result_date DATE,
+                collection_date DATE,
+                source_code_type VARCHAR,
+                source_code VARCHAR,
+                source_description VARCHAR,
+                normalized_code_type VARCHAR,
+                normalized_code VARCHAR,
+                normalized_description VARCHAR,
+                result VARCHAR,
+                result_unit VARCHAR,
+                reference_range_low VARCHAR,
+                reference_range_high VARCHAR,
+                data_source VARCHAR
+            )
+        """)
+
+        _COLS = [
+            "lab_result_id", "person_id", "result_date", "collection_date",
+            "source_code_type", "source_code", "source_description",
+            "normalized_code_type", "normalized_code", "normalized_description",
+            "result", "result_unit", "reference_range_low", "reference_range_high",
+            "data_source",
+        ]
+        for r in rows:
+            d = dict(r)
+            # Parse reference range into low/high
+            ref_range = d.get("reference_range") or ""
+            ref_low, ref_high = None, None
+            if "-" in ref_range:
+                parts = ref_range.split("-", 1)
+                ref_low = parts[0].strip() or None
+                ref_high = parts[1].strip() or None
+
+            row_data = [
+                str(d["id"]),                # lab_result_id
+                str(d["person_id"]),          # person_id
+                d["service_date"],            # result_date
+                d["service_date"],            # collection_date
+                "loinc",                      # source_code_type
+                d.get("loinc_code"),          # source_code
+                d.get("test_name"),           # source_description
+                "loinc",                      # normalized_code_type
+                d.get("loinc_code"),          # normalized_code
+                d.get("test_name"),           # normalized_description
+                d.get("result_value") or d.get("result_string"),  # result
+                d.get("result_units"),        # result_unit
+                ref_low,                      # reference_range_low
+                ref_high,                     # reference_range_high
+                "aqsoft",                     # data_source
+            ]
+            con.execute(
+                f"INSERT INTO raw.lab_result ({', '.join(_COLS)}) VALUES ({', '.join('?' for _ in _COLS)})",
+                row_data,
+            )
+
+        count = con.execute("SELECT count(*) FROM raw.lab_result").fetchone()[0]
+        logger.info("Exported %d observations to DuckDB raw.lab_result", count)
+        return count

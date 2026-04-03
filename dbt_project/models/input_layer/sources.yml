@@ -13,3 +13,5 @@ sources:
         description: "Provider directory from AQSoft ingestion pipeline"
       - name: provider_attribution
         description: "Member-to-PCP attribution from AQSoft"
+      - name: lab_result
+        description: "Lab results and observations from eCW/EMR integration"

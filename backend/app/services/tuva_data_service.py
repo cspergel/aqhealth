@@ -248,6 +248,64 @@ def get_tuva_summary(tenant_schema: str | None = None) -> dict[str, Any]:
     }
 
 
+def get_tuva_suspects(tenant_schema: str | None = None) -> list[dict[str, Any]]:
+    """Get Tuva's HCC suspect list (from hcc_suspecting mart).
+
+    Returns Tuva's independently-detected HCC opportunities with reason
+    and contributing factor. Compare against AQSoft's suspects for
+    cross-validation.
+    """
+    con = _connect(tenant_schema)
+    if not con:
+        return []
+    try:
+        result = con.execute("""
+            SELECT
+                person_id,
+                hcc_code,
+                hcc_description,
+                reason,
+                contributing_factor,
+                suspect_date
+            FROM hcc_suspecting.list
+        """).fetchall()
+        columns = [
+            "person_id", "hcc_code", "hcc_description",
+            "reason", "contributing_factor", "suspect_date",
+        ]
+        return [dict(zip(columns, row)) for row in result]
+    except Exception as e:
+        logger.debug("Could not read Tuva suspects: %s", e)
+        return []
+    finally:
+        con.close()
+
+
+def get_tuva_recapture_opportunities(tenant_schema: str | None = None) -> list[dict[str, Any]]:
+    """Get Tuva's HCC recapture opportunities.
+
+    These are HCCs that were coded in a prior period but not the current year.
+    Cross-reference with AQSoft's recapture suspects.
+    """
+    con = _connect(tenant_schema)
+    if not con:
+        return []
+    try:
+        # Try the recapture mart
+        result = con.execute("""
+            SELECT * FROM hcc_recapture.summary LIMIT 100
+        """).fetchall()
+        if result:
+            columns = [desc[0] for desc in con.description]
+            return [dict(zip(columns, row)) for row in result]
+        return []
+    except Exception as e:
+        logger.debug("Could not read Tuva recapture: %s", e)
+        return []
+    finally:
+        con.close()
+
+
 def is_tuva_available(tenant_schema: str | None = None) -> bool:
     """Check if Tuva DuckDB has data (risk scores exist)."""
     con = _connect(tenant_schema)
