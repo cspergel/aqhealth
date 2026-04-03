@@ -42,7 +42,7 @@ import os
 _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
 
 def _load_hcc_mappings() -> dict:
-    """Load the full ICD-10 → HCC mapping from hcc_mappings.json (7,793 codes)."""
+    """Load the full ICD-10 -> HCC mapping from hcc_mappings.json (7,793 codes)."""
     path = os.path.join(_DATA_DIR, "hcc_mappings.json")
     if not os.path.exists(path):
         logger.warning("hcc_mappings.json not found at %s — using empty lookup", path)
@@ -52,7 +52,7 @@ def _load_hcc_mappings() -> dict:
     return data.get("codes_by_icd10", {})
 
 def _load_hcc_raf_lookup() -> dict[int, Decimal]:
-    """Build HCC code → RAF weight lookup from the real mappings."""
+    """Build HCC code -> RAF weight lookup from the real mappings."""
     codes = _load_hcc_mappings()
     raf_by_hcc: dict[int, Decimal] = {}
     for _icd, entry in codes.items():
@@ -69,7 +69,7 @@ HCC_RAF_LOOKUP = _load_hcc_raf_lookup()
 # Pre-computed stripped (dot-removed) lookup to avoid O(n) scan in lookup_hcc_for_icd10
 _HCC_MAPPINGS_STRIPPED: dict[str, dict] = {k.replace(".", ""): v for k, v in HCC_MAPPINGS.items()}
 
-logger.info("Loaded %d ICD-10→HCC mappings, %d unique HCC RAF weights", len(HCC_MAPPINGS), len(HCC_RAF_LOOKUP))
+logger.info("Loaded %d ICD-10->HCC mappings, %d unique HCC RAF weights", len(HCC_MAPPINGS), len(HCC_RAF_LOOKUP))
 
 
 def lookup_hcc_for_icd10(icd10_code: str) -> dict | None:
@@ -507,17 +507,49 @@ def _detect_near_miss_interactions(
                             best_hcc = best_hcc or hcc_code
                             break
 
-                # Check related diagnoses
+                # Check related diagnoses — use the ACTUAL code found, not the suggested one
                 for dx_prefix in evidence_map.get("related_dx", []):
                     prefix_norm = dx_prefix.upper().replace(".", "")
                     for dx in dx_normalized:
                         if dx.startswith(prefix_norm):
-                            # Find the original code with dots for display
                             orig = next((c for c in all_dx_codes if c.upper().replace(".", "") == dx), dx)
-                            evidence_found.append(f"Related Dx: {orig} (associated with {evidence_map['description']})")
-                            suggested_icd10 = suggested_icd10 or evidence_map.get("icd10_suggestion")
-                            best_hcc = best_hcc or hcc_code
+                            # Look up the actual HCC for the found code
+                            actual_hcc_entry = lookup_hcc_for_icd10(orig)
+                            # If the code doesn't map (truncated like N18.3), try appending "0" (N18.30)
+                            specific_code = orig
+                            if not (actual_hcc_entry and actual_hcc_entry.get("hcc")):
+                                extended = orig + "0" if "." in orig else orig[:3] + "." + orig[3:] + "0"
+                                extended_entry = lookup_hcc_for_icd10(extended)
+                                if extended_entry and extended_entry.get("hcc"):
+                                    actual_hcc_entry = extended_entry
+                                    specific_code = extended
+                                    evidence_found.append(
+                                        f"Truncated code: {orig} -> should be {extended} "
+                                        f"({extended_entry.get('description', '')}, HCC {extended_entry['hcc']}, RAF {extended_entry.get('raf', 0)})"
+                                    )
+                            actual_hcc_code = int(actual_hcc_entry["hcc"]) if actual_hcc_entry and actual_hcc_entry.get("hcc") else None
+                            actual_desc = actual_hcc_entry.get("description", "") if actual_hcc_entry else ""
+                            evidence_found.append(f"Related Dx: {orig} -> {actual_desc or evidence_map['description']}")
+                            suggested_icd10 = suggested_icd10 or specific_code
+                            if actual_hcc_code and actual_hcc_code in missing_group:
+                                best_hcc = actual_hcc_code
+                            elif not best_hcc:
+                                best_hcc = actual_hcc_code or hcc_code
                             break
+
+            # Resolve the best condition description from the actual evidence
+            best_hcc_final = best_hcc or (sorted(missing_group)[0] if missing_group else 0)
+            # Look up the suggested ICD10's actual HCC info for accurate description
+            condition_desc = ""
+            if suggested_icd10:
+                actual_entry = lookup_hcc_for_icd10(suggested_icd10)
+                if actual_entry:
+                    condition_desc = actual_entry.get("description", "")
+                    # Use the actual HCC code from the evidence, not the group representative
+                    if actual_entry.get("hcc"):
+                        best_hcc_final = int(actual_entry["hcc"])
+            if not condition_desc:
+                condition_desc = HCC_EVIDENCE_MAP.get(best_hcc_final, {}).get("description", "")
 
             near_misses.append({
                 "name": name,
@@ -527,10 +559,8 @@ def _detect_near_miss_interactions(
                 "has_evidence": len(evidence_found) > 0,
                 "evidence": evidence_found,
                 "suggested_icd10": suggested_icd10,
-                "best_hcc": best_hcc or (sorted(missing_group)[0] if missing_group else 0),
-                "condition_description": HCC_EVIDENCE_MAP.get(
-                    best_hcc or sorted(missing_group)[0], {}
-                ).get("description", ""),
+                "best_hcc": best_hcc_final,
+                "condition_description": condition_desc,
             })
 
     return near_misses
@@ -772,10 +802,10 @@ def _adjust_confidence_from_patterns(
     """Adjust a suspect's confidence based on provider capture history.
 
     Only applies at the 'auto_adjust' tier (5+ outcomes):
-      - capture_rate > 0.7 → boost by 10 points
-      - capture_rate > 0.5 → boost by 5 points
-      - capture_rate < 0.3 → reduce by 10 points
-      - capture_rate < 0.5 → reduce by 5 points
+      - capture_rate > 0.7 -> boost by 10 points
+      - capture_rate > 0.5 -> boost by 5 points
+      - capture_rate < 0.3 -> reduce by 10 points
+      - capture_rate < 0.5 -> reduce by 5 points
     """
     pattern = provider_patterns.get(suspect_type)
     if not pattern or pattern.get("tier") != "auto_adjust":
@@ -795,7 +825,7 @@ def _adjust_confidence_from_patterns(
     adjusted = max(1, min(99, base_confidence + adjustment))
     if adjustment != 0:
         logger.debug(
-            "Confidence adjusted: %d → %d (suspect_type=%s, capture_rate=%.2f)",
+            "Confidence adjusted: %d -> %d (suspect_type=%s, capture_rate=%.2f)",
             base_confidence, adjusted, suspect_type, rate,
         )
     return adjusted
@@ -983,25 +1013,72 @@ async def analyze_member(
         suggested_icd10 = nm.get("suggested_icd10")
 
         if has_evidence:
-            # Evidence-backed near-miss → real suspect
+            # Evidence-backed near-miss -> real suspect
             evidence_text = "; ".join(evidence_list)
-            suspects.append({
-                "suspect_type": SuspectType.near_miss,
-                "hcc_code": representative_hcc,
-                "hcc_label": f"{condition} (HCC {representative_hcc})" if condition else nm.get("missing", ""),
-                "icd10_code": suggested_icd10,
-                "icd10_label": condition,
-                "raf_value": Decimal(str(nm.get("potential_raf", 0))),
-                "confidence": 70,
-                "evidence_summary": (
-                    f"Evidence-backed near-miss: {nm['name']}. "
-                    f"Evidence: {evidence_text}. "
-                    f"Suggested code: {suggested_icd10 or 'TBD'}. "
-                    f"Potential RAF bonus: {nm.get('potential_raf', 0)}"
-                ),
-            })
+
+            # Check if the evidence code itself maps to an HCC
+            evidence_hcc_entry = lookup_hcc_for_icd10(suggested_icd10) if suggested_icd10 else None
+            evidence_maps_to_hcc = evidence_hcc_entry and evidence_hcc_entry.get("hcc")
+
+            if evidence_maps_to_hcc:
+                # The evidence code directly maps to the missing HCC — strong suspect
+                base_raf = Decimal(str(evidence_hcc_entry.get("raf", 0)))
+                interaction_raf = Decimal(str(nm.get("potential_raf", 0)))
+                total_raf = base_raf + interaction_raf
+                suspects.append({
+                    "suspect_type": SuspectType.near_miss,
+                    "hcc_code": representative_hcc,
+                    "hcc_label": f"{condition} (HCC {representative_hcc})" if condition else nm.get("missing", ""),
+                    "icd10_code": suggested_icd10,
+                    "icd10_label": condition,
+                    "raf_value": total_raf,
+                    "confidence": 75,
+                    "evidence_summary": (
+                        f"Evidence-backed: {nm['name']}. "
+                        f"{evidence_text}. "
+                        f"Code {suggested_icd10} -> HCC {representative_hcc} (base RAF {base_raf}) + interaction bonus {interaction_raf} = total +{total_raf}"
+                    ),
+                })
+            else:
+                # Evidence code exists but doesn't map to HCC (e.g., CKD3 -> no HCC, but CKD4 would)
+                # This is a specificity/staging opportunity
+                missing_hcc_desc = condition or nm.get("missing", "")
+                # Find the actual HCC-mapped code for the missing condition
+                target_icd10 = None
+                target_raf = Decimal("0")
+                for hcc in sorted(nm.get("missing_hccs", [])):
+                    emap = HCC_EVIDENCE_MAP.get(hcc, {})
+                    target_code = emap.get("icd10_suggestion")
+                    if target_code:
+                        target_entry = lookup_hcc_for_icd10(target_code)
+                        if target_entry and target_entry.get("hcc"):
+                            target_icd10 = target_code
+                            target_raf = Decimal(str(target_entry.get("raf", 0)))
+                            missing_hcc_desc = target_entry.get("description", missing_hcc_desc)
+                            representative_hcc = int(target_entry["hcc"])
+                            break
+
+                interaction_raf = Decimal(str(nm.get("potential_raf", 0)))
+                total_raf = target_raf + interaction_raf
+                suspects.append({
+                    "suspect_type": SuspectType.near_miss,
+                    "hcc_code": representative_hcc,
+                    "hcc_label": f"{missing_hcc_desc} (HCC {representative_hcc})" if missing_hcc_desc else nm.get("missing", ""),
+                    "icd10_code": target_icd10 or suggested_icd10,
+                    "icd10_label": missing_hcc_desc,
+                    "raf_value": total_raf,
+                    "confidence": 60,
+                    "evidence_summary": (
+                        f"Staging opportunity: {nm['name']}. "
+                        f"Patient has {suggested_icd10} (non-HCC) — review for possible progression to "
+                        f"{target_icd10} ({missing_hcc_desc}, HCC {representative_hcc}, RAF {target_raf}). "
+                        f"{evidence_text}. "
+                        f"If confirmed: base RAF {target_raf} + interaction bonus {interaction_raf} = total +{total_raf}. "
+                        f"Action: review labs (eGFR, A1c, etc.) to determine current staging."
+                    ),
+                })
         else:
-            # No evidence → watch item (lower confidence, monitor only)
+            # No evidence -> watch item (lower confidence, monitor only)
             suspects.append({
                 "suspect_type": SuspectType.watch_item,
                 "hcc_code": representative_hcc,
