@@ -11,7 +11,9 @@ interface RafBaseline {
   member_id: string;
   payment_year: number;
   tuva_raf: number | null;
-  aqsoft_raf: number | null;
+  aqsoft_confirmed_raf: number | null;
+  aqsoft_projected_raf: number | null;
+  capture_opportunity: number | null;
   has_discrepancy: boolean;
   raf_difference: number | null;
   detail: string | null;
@@ -23,6 +25,27 @@ interface RafSummary {
   discrepancies: number;
   agreement_rate: number;
   avg_discrepancy_raf: number;
+}
+
+interface Comparison {
+  member_id: string;
+  name: string;
+  tuva_confirmed_raf: number | null;
+  aqsoft_confirmed_raf: number;
+  aqsoft_projected_raf: number;
+  capture_opportunity: number;
+  engine_discrepancy: number | null;
+  has_discrepancy: boolean;
+}
+
+interface ComparisonSummary {
+  total_members: number;
+  tuva_scored: number;
+  total_capture_opportunity_raf: number;
+  engine_discrepancies: number;
+  avg_tuva_raf: number;
+  avg_aqsoft_confirmed_raf: number;
+  avg_aqsoft_projected_raf: number;
 }
 
 interface PmpmBaseline {
@@ -40,7 +63,7 @@ interface PipelineStatus {
   message: string;
 }
 
-type Tab = "overview" | "raf" | "pmpm" | "pipeline";
+type Tab = "overview" | "comparison" | "raf" | "pmpm" | "pipeline";
 
 // ---------------------------------------------------------------------------
 // Synthetic demo data — used when no backend is running
@@ -54,17 +77,25 @@ const DEMO_SUMMARY: RafSummary = {
 };
 
 const DEMO_RAF_BASELINES: RafBaseline[] = [
-  { member_id: "M001", payment_year: 2026, tuva_raf: 1.452, aqsoft_raf: 1.398, has_discrepancy: true, raf_difference: 0.054, detail: "Tuva found HCC 85 (Congestive Heart Failure) not in AQSoft", computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M002", payment_year: 2026, tuva_raf: 2.108, aqsoft_raf: 2.108, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M003", payment_year: 2026, tuva_raf: 0.892, aqsoft_raf: 0.892, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M004", payment_year: 2026, tuva_raf: 1.756, aqsoft_raf: 1.682, has_discrepancy: true, raf_difference: 0.074, detail: "Tuva V28 interaction bonus (CHF+COPD) differs", computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M005", payment_year: 2026, tuva_raf: 0.421, aqsoft_raf: 0.421, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M006", payment_year: 2026, tuva_raf: 3.214, aqsoft_raf: 3.214, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M007", payment_year: 2026, tuva_raf: 1.105, aqsoft_raf: 1.032, has_discrepancy: true, raf_difference: 0.073, detail: "AQSoft missing CKD stage mapping", computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M008", payment_year: 2026, tuva_raf: 0.562, aqsoft_raf: 0.562, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M009", payment_year: 2026, tuva_raf: 1.890, aqsoft_raf: 1.890, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
-  { member_id: "M010", payment_year: 2026, tuva_raf: 2.445, aqsoft_raf: 2.445, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
+  { member_id: "M001", payment_year: 2026, tuva_raf: 1.452, aqsoft_confirmed_raf: 1.398, aqsoft_projected_raf: 1.890, capture_opportunity: 0.492, has_discrepancy: true, raf_difference: 0.054, detail: "Tuva found HCC 85 (CHF) not in AQSoft confirmed", computed_at: "2026-04-02T10:30:00" },
+  { member_id: "M002", payment_year: 2026, tuva_raf: 2.108, aqsoft_confirmed_raf: 2.108, aqsoft_projected_raf: 2.650, capture_opportunity: 0.542, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
+  { member_id: "M003", payment_year: 2026, tuva_raf: 0.892, aqsoft_confirmed_raf: 0.892, aqsoft_projected_raf: 1.340, capture_opportunity: 0.448, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
+  { member_id: "M004", payment_year: 2026, tuva_raf: 1.756, aqsoft_confirmed_raf: 1.682, aqsoft_projected_raf: 2.100, capture_opportunity: 0.418, has_discrepancy: true, raf_difference: 0.074, detail: "Tuva V28 interaction bonus differs", computed_at: "2026-04-02T10:30:00" },
+  { member_id: "M005", payment_year: 2026, tuva_raf: 0.421, aqsoft_confirmed_raf: 0.421, aqsoft_projected_raf: 0.421, capture_opportunity: 0.0, has_discrepancy: false, raf_difference: 0.0, detail: null, computed_at: "2026-04-02T10:30:00" },
 ];
+
+const DEMO_COMPARISONS: Comparison[] = [
+  { member_id: "M001", name: "John Smith", tuva_confirmed_raf: 1.452, aqsoft_confirmed_raf: 1.398, aqsoft_projected_raf: 1.890, capture_opportunity: 0.492, engine_discrepancy: 0.054, has_discrepancy: true },
+  { member_id: "M002", name: "Mary Johnson", tuva_confirmed_raf: 2.108, aqsoft_confirmed_raf: 2.108, aqsoft_projected_raf: 2.650, capture_opportunity: 0.542, engine_discrepancy: 0.0, has_discrepancy: false },
+  { member_id: "M003", name: "Robert Williams", tuva_confirmed_raf: 0.892, aqsoft_confirmed_raf: 0.892, aqsoft_projected_raf: 1.340, capture_opportunity: 0.448, engine_discrepancy: 0.0, has_discrepancy: false },
+  { member_id: "M004", name: "Patricia Brown", tuva_confirmed_raf: 1.756, aqsoft_confirmed_raf: 1.682, aqsoft_projected_raf: 2.100, capture_opportunity: 0.418, engine_discrepancy: 0.074, has_discrepancy: true },
+  { member_id: "M005", name: "James Davis", tuva_confirmed_raf: 0.421, aqsoft_confirmed_raf: 0.421, aqsoft_projected_raf: 0.421, capture_opportunity: 0.0, engine_discrepancy: 0.0, has_discrepancy: false },
+];
+
+const DEMO_COMPARISON_SUMMARY: ComparisonSummary = {
+  total_members: 5, tuva_scored: 5, total_capture_opportunity_raf: 1.900,
+  engine_discrepancies: 2, avg_tuva_raf: 1.326, avg_aqsoft_confirmed_raf: 1.300, avg_aqsoft_projected_raf: 1.680,
+};
 
 const DEMO_PMPM_BASELINES: PmpmBaseline[] = [
   { period: "2026-01", service_category: "inpatient", tuva_pmpm: 482.30, aqsoft_pmpm: 478.15, has_discrepancy: false, member_months: 1247, computed_at: "2026-04-02T10:30:00" },
@@ -86,6 +117,8 @@ export function TuvaPage() {
   const [summary, setSummary] = useState<RafSummary | null>(null);
   const [rafBaselines, setRafBaselines] = useState<RafBaseline[]>([]);
   const [pmpmBaselines, setPmpmBaselines] = useState<PmpmBaseline[]>([]);
+  const [comparisons, setComparisons] = useState<Comparison[]>([]);
+  const [compSummary, setCompSummary] = useState<ComparisonSummary | null>(null);
   const [showDiscrepanciesOnly, setShowDiscrepanciesOnly] = useState(false);
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [pipelineResult, setPipelineResult] = useState<string | null>(null);
@@ -97,16 +130,19 @@ export function TuvaPage() {
 
   async function loadData() {
     try {
-      const [summaryRes, rafRes, pmpmRes] = await Promise.all([
+      const [summaryRes, rafRes, pmpmRes, compRes] = await Promise.all([
         api.get("/api/tuva/raf-baselines/summary"),
         api.get("/api/tuva/raf-baselines", {
           params: { discrepancies_only: showDiscrepanciesOnly, limit: 50 },
         }),
         api.get("/api/tuva/pmpm-baselines", { params: { limit: 50 } }),
+        api.get("/api/tuva/comparison"),
       ]);
       setSummary(summaryRes.data);
       setRafBaselines(rafRes.data.items);
       setPmpmBaselines(pmpmRes.data.items);
+      setComparisons(compRes.data.items);
+      setCompSummary(compRes.data.summary);
       setUseDemo(false);
     } catch {
       // Backend not running — use demo data
@@ -118,6 +154,8 @@ export function TuvaPage() {
           : DEMO_RAF_BASELINES
       );
       setPmpmBaselines(DEMO_PMPM_BASELINES);
+      setComparisons(DEMO_COMPARISONS);
+      setCompSummary(DEMO_COMPARISON_SUMMARY);
     }
   }
 
@@ -135,6 +173,7 @@ export function TuvaPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
+    { key: "comparison", label: "3-Tier Comparison" },
     { key: "raf", label: "RAF Baselines" },
     { key: "pmpm", label: "PMPM Baselines" },
     { key: "pipeline", label: "Pipeline" },
@@ -214,7 +253,10 @@ export function TuvaPage() {
       </div>
 
       {/* Tab content */}
-      {tab === "overview" && summary && <OverviewTab summary={summary} />}
+      {tab === "overview" && summary && <OverviewTab summary={summary} compSummary={compSummary} />}
+      {tab === "comparison" && (
+        <ComparisonTab comparisons={comparisons} summary={compSummary} />
+      )}
       {tab === "raf" && (
         <RafTab
           baselines={rafBaselines}
@@ -238,27 +280,46 @@ export function TuvaPage() {
 // Overview Tab
 // ---------------------------------------------------------------------------
 
-function OverviewTab({ summary }: { summary: RafSummary }) {
+function OverviewTab({ summary, compSummary }: { summary: RafSummary; compSummary: ComparisonSummary | null }) {
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
-        <MetricCard label="Total Baselines" value={summary.total_baselines.toLocaleString()} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+        <MetricCard label="Members Scored" value={compSummary?.total_members.toLocaleString() ?? summary.total_baselines.toLocaleString()} />
+        <MetricCard
+          label="Tuva Avg RAF"
+          value={compSummary?.avg_tuva_raf.toFixed(3) ?? "—"}
+          trend="Claims-validated baseline"
+        />
+        <MetricCard
+          label="AQSoft Confirmed Avg"
+          value={compSummary?.avg_aqsoft_confirmed_raf.toFixed(3) ?? "—"}
+          trend="Claims-based engine RAF"
+        />
+        <MetricCard
+          label="AQSoft Projected Avg"
+          value={compSummary?.avg_aqsoft_projected_raf.toFixed(3) ?? "—"}
+          trend="With suspect HCCs"
+          trendDirection="up"
+        />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
+        <MetricCard
+          label="Total Capture Opportunity"
+          value={`+${compSummary?.total_capture_opportunity_raf.toFixed(3) ?? "0.000"} RAF`}
+          trend="Projected - Confirmed across all members"
+          trendDirection="up"
+        />
+        <MetricCard
+          label="Engine Discrepancies"
+          value={compSummary?.engine_discrepancies.toString() ?? summary.discrepancies.toString()}
+          trend="Tuva vs AQSoft confirmed differ >0.05"
+          trendDirection={(compSummary?.engine_discrepancies ?? 0) === 0 ? "up" : "down"}
+        />
         <MetricCard
           label="Agreement Rate"
           value={`${summary.agreement_rate}%`}
-          trend={summary.agreement_rate >= 95 ? "Excellent" : summary.agreement_rate >= 90 ? "Good" : "Review needed"}
-          trendDirection={summary.agreement_rate >= 95 ? "up" : summary.agreement_rate >= 90 ? "flat" : "down"}
-        />
-        <MetricCard
-          label="Discrepancies"
-          value={summary.discrepancies.toString()}
-          trend={summary.discrepancies === 0 ? "None found" : `${summary.discrepancies} members differ`}
-          trendDirection={summary.discrepancies === 0 ? "up" : "down"}
-        />
-        <MetricCard
-          label="Avg RAF Difference"
-          value={summary.avg_discrepancy_raf.toFixed(3)}
-          trend="Among discrepant members"
+          trend={summary.agreement_rate >= 95 ? "Excellent" : "Review needed"}
+          trendDirection={summary.agreement_rate >= 95 ? "up" : "flat"}
         />
       </div>
 
@@ -311,6 +372,107 @@ function StatusItem({ label, status }: { label: string; status: string }) {
       <span style={{ fontSize: 12, fontWeight: 600, color: tokens.text, fontFamily: fonts.code }}>
         {status}
       </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 3-Tier Comparison Tab
+// ---------------------------------------------------------------------------
+
+function ComparisonTab({
+  comparisons,
+  summary,
+}: {
+  comparisons: Comparison[];
+  summary: ComparisonSummary | null;
+}) {
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: tokens.text, margin: "0 0 4px" }}>
+          Tuva Confirmed vs AQSoft Confirmed vs AQSoft Projected
+        </h3>
+        <p style={{ fontSize: 12, color: tokens.textSecondary, margin: 0 }}>
+          Sorted by capture opportunity (projected - confirmed). The gap is your revenue upside.
+        </p>
+      </div>
+
+      {summary && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+          <MetricCard label="Total Capture Opportunity" value={`+${summary.total_capture_opportunity_raf.toFixed(3)} RAF`} trendDirection="up" trend="Projected - Confirmed" />
+          <MetricCard label="Avg Tuva Confirmed" value={summary.avg_tuva_raf.toFixed(3)} trend="Community-validated" />
+          <MetricCard label="Avg AQSoft Confirmed" value={summary.avg_aqsoft_confirmed_raf.toFixed(3)} trend="Engine claims-based" />
+          <MetricCard label="Avg AQSoft Projected" value={summary.avg_aqsoft_projected_raf.toFixed(3)} trend="With suspects" trendDirection="up" />
+        </div>
+      )}
+
+      <div style={{ borderRadius: 10, border: `1px solid ${tokens.border}`, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: tokens.surfaceAlt }}>
+              <Th>Member</Th>
+              <Th>Name</Th>
+              <Th align="right">Tuva Confirmed</Th>
+              <Th align="right">AQSoft Confirmed</Th>
+              <Th align="right">AQSoft Projected</Th>
+              <Th align="right">Capture Opportunity</Th>
+              <Th>Validation</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {comparisons.map((c, i) => (
+              <tr
+                key={`${c.member_id}-${i}`}
+                style={{
+                  borderTop: `1px solid ${tokens.borderSoft}`,
+                  background: c.capture_opportunity > 0.1 ? tokens.accentSoft : "transparent",
+                }}
+              >
+                <Td style={{ fontFamily: fonts.code, fontWeight: 600, fontSize: 11 }}>{c.member_id}</Td>
+                <Td>{c.name}</Td>
+                <Td align="right" style={{ fontFamily: fonts.code }}>
+                  {c.tuva_confirmed_raf?.toFixed(3) ?? "—"}
+                </Td>
+                <Td align="right" style={{ fontFamily: fonts.code }}>
+                  {c.aqsoft_confirmed_raf.toFixed(3)}
+                </Td>
+                <Td align="right" style={{ fontFamily: fonts.code, fontWeight: 600 }}>
+                  {c.aqsoft_projected_raf.toFixed(3)}
+                </Td>
+                <Td
+                  align="right"
+                  style={{
+                    fontFamily: fonts.code,
+                    fontWeight: 700,
+                    color: c.capture_opportunity > 0 ? tokens.accentText : tokens.textMuted,
+                  }}
+                >
+                  {c.capture_opportunity > 0 ? `+${c.capture_opportunity.toFixed(3)}` : "—"}
+                </Td>
+                <Td>
+                  {c.has_discrepancy ? (
+                    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: tokens.amberSoft, color: tokens.amber }}>
+                      Engines differ
+                    </span>
+                  ) : (
+                    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: tokens.accentSoft, color: tokens.accentText }}>
+                      Validated
+                    </span>
+                  )}
+                </Td>
+              </tr>
+            ))}
+            {comparisons.length === 0 && (
+              <tr>
+                <Td colSpan={7} style={{ textAlign: "center", color: tokens.textMuted, padding: 32 }}>
+                  Run the Tuva pipeline to see the 3-tier comparison
+                </Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

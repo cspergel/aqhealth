@@ -90,26 +90,41 @@ class TuvaSyncService:
                 select(Member).where(Member.member_id == person_id)
             )
             member = member_result.scalar_one_or_none()
-            aqsoft_raf = Decimal(str(member.current_raf)) if member and member.current_raf else None
 
+            # Three-tier RAF comparison:
+            # - confirmed = current_raf (claims-only from HCC engine)
+            # - projected = projected_raf (confirmed + suspects)
+            confirmed_raf = Decimal(str(member.current_raf)) if member and member.current_raf else None
+            projected_raf = Decimal(str(member.projected_raf)) if member and member.projected_raf else None
+
+            # Capture opportunity = projected - confirmed
+            capture_opp = None
+            if projected_raf is not None and confirmed_raf is not None:
+                capture_opp = projected_raf - confirmed_raf
+
+            # Discrepancy = between Tuva confirmed and AQSoft confirmed
             has_discrepancy = False
             raf_diff = None
             detail = None
-            if tuva_raf is not None and aqsoft_raf is not None:
-                raf_diff = abs(tuva_raf - aqsoft_raf)
+            if tuva_raf is not None and confirmed_raf is not None:
+                raf_diff = abs(tuva_raf - confirmed_raf)
                 if raf_diff > RAF_DISCREPANCY_THRESHOLD:
                     has_discrepancy = True
                     discrepancies += 1
                     detail = (
-                        f"Tuva={tuva_raf}, AQSoft={aqsoft_raf}, "
-                        f"diff={raf_diff} (threshold={RAF_DISCREPANCY_THRESHOLD})"
+                        f"Tuva confirmed={tuva_raf}, AQSoft confirmed={confirmed_raf}, "
+                        f"diff={raf_diff} | AQSoft projected={projected_raf}, "
+                        f"capture opportunity={capture_opp}"
                     )
 
             baseline = TuvaRafBaseline(
                 member_id=person_id,
                 payment_year=score.get("payment_year", 2026),
                 tuva_raf_score=tuva_raf,
-                aqsoft_raf_score=aqsoft_raf,
+                aqsoft_confirmed_raf=confirmed_raf,
+                aqsoft_projected_raf=projected_raf,
+                aqsoft_hcc_list=None,
+                capture_opportunity_raf=capture_opp,
                 has_discrepancy=has_discrepancy,
                 discrepancy_detail=detail,
                 raf_difference=raf_diff,
