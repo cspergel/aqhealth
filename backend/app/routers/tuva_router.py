@@ -358,8 +358,79 @@ async def get_member_detail(member_id: str):
     aqsoft_hcc_codes = {h["hcc_code"] for h in aqsoft_confirmed_hccs}
 
     # Separate evidence-backed opportunities from watch items
-    opportunities = [s for s in aqsoft_suspects if s["status"] == "open" and s["suspect_type"] != "watch_item"]
+    raw_opportunities = [s for s in aqsoft_suspects if s["status"] == "open" and s["suspect_type"] != "watch_item"]
     watch_items = [s for s in aqsoft_suspects if s["status"] == "open" and s["suspect_type"] == "watch_item"]
+
+    # Tier the opportunities by actionability
+    def _tier_opportunity(opp: dict) -> dict:
+        """Classify opportunity into tiers based on evidence strength + RAF value."""
+        raf = opp.get("raf_value", 0)
+        conf = opp.get("confidence", 0)
+        suspect_type = opp.get("suspect_type", "")
+
+        # Tier 1: HIGH VALUE EASY CAPTURE
+        # Strong evidence (high confidence) OR direct claims evidence (recapture, med_dx_gap)
+        # These are "go capture now" items
+        if suspect_type in ("recapture", "historical"):
+            tier = "high_value"
+            tier_label = "Easy Capture"
+            tier_reason = "Previously coded — likely still present, just needs recapture at next visit"
+        elif suspect_type == "med_dx_gap" and conf >= 60:
+            tier = "high_value"
+            tier_label = "Easy Capture"
+            tier_reason = f"Patient is on medication for this condition — add diagnosis at next visit"
+        elif suspect_type == "specificity" and conf >= 70:
+            tier = "high_value"
+            tier_label = "Easy Capture"
+            tier_reason = "Code already documented — just needs specificity upgrade"
+        # Tier 2: LIKELY CAPTURE
+        # Evidence-backed near-miss or moderate confidence
+        elif suspect_type == "near_miss" and conf >= 65:
+            tier = "likely"
+            tier_label = "Likely Capture"
+            tier_reason = "Supporting evidence found in claims — review clinical data to confirm"
+        elif conf >= 50:
+            tier = "likely"
+            tier_label = "Likely Capture"
+            tier_reason = "Moderate evidence — clinical review recommended"
+        # Tier 3: INVESTIGATE
+        # Lower confidence, needs clinical review
+        else:
+            tier = "investigate"
+            tier_label = "Needs Investigation"
+            tier_reason = "Some evidence exists but clinical confirmation needed"
+
+        # Add source tracing — where was this found?
+        source_info = []
+        evidence_text = opp.get("evidence", "")
+        if "Medication:" in evidence_text:
+            source_info.append({"type": "medication", "detail": "Patient medication list"})
+        if "Related Dx:" in evidence_text or "Truncated code:" in evidence_text:
+            source_info.append({"type": "claims", "detail": "Claims diagnosis codes"})
+        if suspect_type == "recapture":
+            source_info.append({"type": "prior_year", "detail": "Prior year claims history"})
+        if suspect_type == "historical":
+            source_info.append({"type": "historical", "detail": "Historical claims (2+ years)"})
+        if not source_info:
+            source_info.append({"type": "engine", "detail": "AQSoft HCC engine analysis"})
+
+        return {
+            **opp,
+            "tier": tier,
+            "tier_label": tier_label,
+            "tier_reason": tier_reason,
+            "sources": source_info,
+        }
+
+    opportunities = [_tier_opportunity(o) for o in raw_opportunities]
+    # Sort: high_value first, then likely, then investigate; within tier by RAF desc
+    tier_order = {"high_value": 0, "likely": 1, "investigate": 2}
+    opportunities.sort(key=lambda x: (tier_order.get(x["tier"], 9), -x["raf_value"]))
+
+    # Summary by tier
+    high_value = [o for o in opportunities if o["tier"] == "high_value"]
+    likely = [o for o in opportunities if o["tier"] == "likely"]
+    investigate = [o for o in opportunities if o["tier"] == "investigate"]
 
     return {
         "member_id": member_id,
@@ -379,6 +450,11 @@ async def get_member_detail(member_id: str):
         "opportunities": opportunities,
         "opportunity_count": len(opportunities),
         "opportunity_raf": round(sum(s["raf_value"] for s in opportunities), 3),
+        "opportunity_tiers": {
+            "high_value": {"count": len(high_value), "raf": round(sum(o["raf_value"] for o in high_value), 3)},
+            "likely": {"count": len(likely), "raf": round(sum(o["raf_value"] for o in likely), 3)},
+            "investigate": {"count": len(investigate), "raf": round(sum(o["raf_value"] for o in investigate), 3)},
+        },
         "watch_items": watch_items,
         "watch_item_count": len(watch_items),
         "watch_item_potential_raf": round(sum(s["raf_value"] for s in watch_items), 3),

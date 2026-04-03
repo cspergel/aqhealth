@@ -965,38 +965,70 @@ function MemberDetailModal({
             {/* Opportunities / Suspects */}
             {detail.opportunities.length > 0 && (
               <div>
-                <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.accentText, margin: "0 0 8px" }}>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.accentText, margin: "0 0 4px" }}>
                   Capture Opportunities ({detail.opportunities.length}) — +{detail.opportunity_raf} RAF potential
                 </h3>
-                <p style={{ fontSize: 11, color: tokens.textSecondary, margin: "0 0 8px" }}>
-                  These HCCs are suspected but not yet confirmed in claims. Capture them at the next encounter.
-                </p>
+                {/* Tier summary badges */}
+                {detail.opportunity_tiers && (
+                  <div style={{ display: "flex", gap: 10, margin: "6px 0 10px" }}>
+                    {detail.opportunity_tiers.high_value?.count > 0 && (
+                      <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: tokens.accentSoft, color: tokens.accentText }}>
+                        {detail.opportunity_tiers.high_value.count} Easy Capture (+{detail.opportunity_tiers.high_value.raf} RAF)
+                      </span>
+                    )}
+                    {detail.opportunity_tiers.likely?.count > 0 && (
+                      <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: tokens.blueSoft, color: tokens.blue }}>
+                        {detail.opportunity_tiers.likely.count} Likely (+{detail.opportunity_tiers.likely.raf} RAF)
+                      </span>
+                    )}
+                    {detail.opportunity_tiers.investigate?.count > 0 && (
+                      <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: tokens.amberSoft, color: tokens.amber }}>
+                        {detail.opportunity_tiers.investigate.count} Investigate (+{detail.opportunity_tiers.investigate.raf} RAF)
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div style={{ borderRadius: 8, border: `1px solid ${tokens.border}`, overflow: "hidden" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                     <thead>
                       <tr style={{ background: tokens.accentSoft }}>
-                        <Th>HCC</Th>
-                        <Th>Type</Th>
+                        <Th>HCC / Condition</Th>
+                        <Th>Priority</Th>
                         <Th>ICD-10</Th>
                         <Th align="right">RAF Value</Th>
                         <Th align="right">Confidence</Th>
-                        <Th>Evidence</Th>
+                        <Th>Found In</Th>
                       </tr>
                     </thead>
                     <tbody>
                       {detail.opportunities.map((s: any, i: number) => (
                         <React.Fragment key={i}>
                           <tr style={{ borderTop: `1px solid ${tokens.borderSoft}` }}>
-                            <Td style={{ fontWeight: 600 }}>HCC {s.hcc_code}: {s.hcc_label}</Td>
                             <Td>
-                              <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: tokens.blueSoft, color: tokens.blue }}>
-                                {s.suspect_type}
+                              <div style={{ fontWeight: 600, fontSize: 12 }}>HCC {s.hcc_code}: {s.hcc_label}</div>
+                              {s.tier_reason && (
+                                <div style={{ fontSize: 10, color: tokens.textSecondary, marginTop: 2 }}>{s.tier_reason}</div>
+                              )}
+                            </Td>
+                            <Td>
+                              <span style={{
+                                padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+                                background: s.tier === "high_value" ? tokens.accentSoft : s.tier === "likely" ? tokens.blueSoft : tokens.amberSoft,
+                                color: s.tier === "high_value" ? tokens.accentText : s.tier === "likely" ? tokens.blue : tokens.amber,
+                              }}>
+                                {s.tier_label || s.suspect_type}
                               </span>
                             </Td>
                             <Td style={{ fontFamily: fonts.code }}>{s.icd10_code || "—"}</Td>
                             <Td align="right" style={{ fontFamily: fonts.code, fontWeight: 600, color: tokens.accentText }}>+{s.raf_value.toFixed(3)}</Td>
                             <Td align="right">{s.confidence}%</Td>
-                            <Td style={{ fontSize: 11, color: tokens.textSecondary, maxWidth: 200 }}>{s.evidence || "—"}</Td>
+                            <Td>
+                              {s.sources && s.sources.map((src: any, si: number) => (
+                                <div key={si} style={{ fontSize: 10, color: tokens.textSecondary }}>
+                                  <span style={{ fontWeight: 600 }}>{src.type}:</span> {src.detail}
+                                </div>
+                              ))}
+                            </Td>
                           </tr>
                           {/* Code Ladder — suggested codes for this opportunity */}
                           {s.code_ladder && s.code_ladder.length > 0 && (
