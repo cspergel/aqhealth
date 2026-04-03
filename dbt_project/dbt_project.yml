@@ -1,0 +1,31 @@
+name: aqsoft_health
+version: '1.0.0'
+
+profile: 'aqsoft_health'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+
+vars:
+  # Tuva configuration
+  cms_hcc_payment_year: 2026
+
+  # Enable the marts we need
+  cms_hcc_enabled: true
+  quality_measures_enabled: true
+  financial_pmpm_enabled: true
+  readmissions_enabled: true
+  ed_classification_enabled: true
+  chronic_conditions_enabled: true
+  cms_chronic_conditions_enabled: true
+  ahrq_measures_enabled: true
+
+  # Input layer
+  input_database: aqsoft_health
+  input_schema: raw
+
+  # Tuva seed version
+  tuva_seed_version: "0.18.0"
