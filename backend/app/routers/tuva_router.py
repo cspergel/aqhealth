@@ -1,16 +1,27 @@
 """
 Tuva baseline API — view Tuva's trusted numbers and any discrepancies
 with AQSoft's calculations.
+
+All endpoints are accessible without auth for demo purposes.
+Uses demo_mso tenant schema directly.
 """
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func
+from fastapi import APIRouter, Query
+from sqlalchemy import select, func, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_tenant_session
+from app.database import async_session_factory
 from app.models.tuva_baseline import TuvaRafBaseline, TuvaPmpmBaseline
 
 router = APIRouter(prefix="/api/tuva", tags=["tuva"])
+
+
+async def _get_demo_session() -> AsyncSession:
+    """Get a session scoped to demo_mso — no auth required."""
+    session = async_session_factory()
+    await session.__aenter__()
+    await session.execute(sa_text('SET search_path TO demo_mso, public'))
+    return session
 
 
 @router.get("/raf-baselines")
@@ -18,9 +29,9 @@ async def list_raf_baselines(
     discrepancies_only: bool = False,
     limit: int = Query(default=50, le=200),
     offset: int = 0,
-    session: AsyncSession = Depends(get_tenant_session),
 ):
     """List Tuva RAF baselines with optional discrepancy filter."""
+    session = await _get_demo_session()
     query = select(TuvaRafBaseline).order_by(TuvaRafBaseline.computed_at.desc())
     if discrepancies_only:
         query = query.where(TuvaRafBaseline.has_discrepancy == True)  # noqa: E712
@@ -50,10 +61,9 @@ async def list_raf_baselines(
 
 
 @router.get("/raf-baselines/summary")
-async def raf_baseline_summary(
-    session: AsyncSession = Depends(get_tenant_session),
-):
+async def raf_baseline_summary():
     """Summary stats on Tuva vs AQSoft RAF agreement."""
+    session = await _get_demo_session()
     total = await session.execute(
         select(func.count(TuvaRafBaseline.id))
     )
@@ -84,9 +94,9 @@ async def raf_baseline_summary(
 async def list_pmpm_baselines(
     limit: int = Query(default=50, le=200),
     offset: int = 0,
-    session: AsyncSession = Depends(get_tenant_session),
 ):
     """List Tuva PMPM baselines."""
+    session = await _get_demo_session()
     query = (
         select(TuvaPmpmBaseline)
         .order_by(TuvaPmpmBaseline.period.desc())
@@ -114,9 +124,7 @@ async def list_pmpm_baselines(
 
 
 @router.post("/run")
-async def trigger_tuva_pipeline(
-    session: AsyncSession = Depends(get_tenant_session),
-):
+async def trigger_tuva_pipeline():
     """Manually trigger the Tuva pipeline. Returns immediately — runs async."""
     # In production, this would enqueue tuva_pipeline_job via arq.
     # For now, return a placeholder acknowledging the request.
@@ -127,12 +135,10 @@ async def trigger_tuva_pipeline(
 
 
 @router.get("/comparison")
-async def get_live_comparison(
-    session: AsyncSession = Depends(get_tenant_session),
-):
+async def get_live_comparison():
     """Live 3-tier comparison: Tuva confirmed vs AQSoft confirmed vs AQSoft projected.
 
-    Reads directly from both data sources — no sync needed.
+    Reads directly from both data sources — no auth needed for demo access.
     """
     from app.services.tuva_data_service import get_risk_scores
     from app.models.member import Member
@@ -142,6 +148,7 @@ async def get_live_comparison(
     tuva_by_member = {str(s["person_id"]): s for s in tuva_scores}
 
     # Get AQSoft scores from PostgreSQL
+    session = await _get_demo_session()
     result = await session.execute(
         select(
             Member.member_id,
