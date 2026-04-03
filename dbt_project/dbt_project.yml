@@ -13,15 +13,8 @@ vars:
   # Tuva configuration
   cms_hcc_payment_year: 2026
 
-  # Enable the marts we need
-  cms_hcc_enabled: true
-  quality_measures_enabled: true
-  financial_pmpm_enabled: true
-  readmissions_enabled: true
-  ed_classification_enabled: true
-  chronic_conditions_enabled: true
-  cms_chronic_conditions_enabled: true
-  ahrq_measures_enabled: true
+  # Enable all claims-based Tuva marts (core + downstream)
+  claims_enabled: true
 
   # Input layer
   input_database: aqsoft_health
@@ -29,3 +22,7 @@ vars:
 
   # Tuva seed version
   tuva_seed_version: "0.18.0"
+
+# Suppress ref-resolution warnings (Tuva refs resolve to our root models)
+flags:
+  require_ref_prefers_node_package_to_root: True

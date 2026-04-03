@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: aqsoft
+    schema: raw
+    description: "Raw data exported from AQSoft PostgreSQL into DuckDB"
+    tables:
+      - name: claims
+        description: "Claims data from AQSoft ingestion pipeline"
+      - name: members
+        description: "Member roster from AQSoft ingestion pipeline"
+      - name: providers
+        description: "Provider directory from AQSoft ingestion pipeline"
