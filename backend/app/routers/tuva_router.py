@@ -122,3 +122,42 @@ async def trigger_tuva_pipeline(
         "status": "queued",
         "message": "Tuva pipeline job enqueued. Check /api/tuva/raf-baselines for results.",
     }
+
+
+@router.get("/risk-scores")
+async def get_tuva_risk_scores():
+    """Read Tuva risk scores directly from DuckDB (bypass PostgreSQL sync)."""
+    from app.services.tuva_data_service import get_risk_scores
+    scores = get_risk_scores()
+    return {"items": scores, "count": len(scores)}
+
+
+@router.get("/risk-factors")
+async def get_tuva_risk_factors():
+    """Read Tuva per-member HCC risk factors directly from DuckDB."""
+    from app.services.tuva_data_service import get_risk_factors
+    factors = get_risk_factors()
+    return {"items": factors, "count": len(factors)}
+
+
+@router.get("/summary")
+async def get_tuva_full_summary():
+    """Full Tuva analytics summary — suitable for AI context or dashboards."""
+    from app.services.tuva_data_service import get_tuva_summary
+    summary = get_tuva_summary()
+    if not summary:
+        return {"status": "no_data", "message": "Tuva pipeline has not been run yet."}
+    return summary
+
+
+@router.get("/status")
+async def get_tuva_status():
+    """Check if Tuva data is available and what's loaded."""
+    from app.services.tuva_data_service import is_tuva_available, get_risk_scores
+    available = is_tuva_available()
+    scores = get_risk_scores() if available else []
+    return {
+        "available": available,
+        "members_scored": len(scores),
+        "pipeline_ready": True,
+    }

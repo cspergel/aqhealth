@@ -393,6 +393,17 @@ async def build_context_graph(db: AsyncSession) -> dict:
 
     cross_module_members.sort(key=lambda x: len(x["flags"]), reverse=True)
 
+    # --- Tuva baseline comparison ---
+    tuva_context = {}
+    try:
+        from app.services.tuva_data_service import get_tuva_summary
+        tuva_context = get_tuva_summary()
+        if tuva_context:
+            logger.info("Included Tuva baseline data in context graph (%d members scored)",
+                        tuva_context.get("members_scored", 0))
+    except Exception as e:
+        logger.debug("Tuva data unavailable for context graph: %s", e)
+
     return {
         "generated_date": today.isoformat(),
         "population": {
@@ -426,6 +437,7 @@ async def build_context_graph(db: AsyncSession) -> dict:
         "cross_module": {
             "members_with_multiple_alerts": cross_module_members[:20],
         },
+        **({"tuva_baseline": tuva_context} if tuva_context else {}),
     }
 
 
@@ -447,6 +459,13 @@ Examples of the kind of cross-module intelligence you should surface:
 - A drug class driving high pharmacy spend AND members on those drugs having adherence gaps
 - A facility with high SNF discharge rates AND those patients having lower HCC capture
 - Triple-weighted Stars measures at risk AND the providers whose panels drive those gaps
+
+If "tuva_baseline" data is present in the context, it contains community-validated CMS-HCC V28 risk
+scores from the Tuva Health open-source analytics framework. Compare Tuva's scores against AQSoft's
+scores to identify:
+- Members where Tuva found HCCs that AQSoft missed (potential coding gaps)
+- Members where AQSoft found HCCs that Tuva missed (potential AQSoft-specific intelligence)
+- Systematic differences in RAF scoring between the two engines
 
 Be specific. Name dollar amounts. Name member counts. Be actionable."""
 

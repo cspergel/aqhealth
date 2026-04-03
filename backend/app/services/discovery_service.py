@@ -1071,6 +1071,15 @@ async def _gather_cross_module_context(db: AsyncSession) -> dict:
     except Exception as e:
         logger.debug("Cross-module: TCM unavailable: %s", e)
 
+    # --- Tuva Health baseline analytics ---
+    try:
+        from app.services.tuva_data_service import get_tuva_summary
+        tuva_data = get_tuva_summary()
+        if tuva_data:
+            context["tuva_baseline"] = tuva_data
+    except Exception as e:
+        logger.debug("Cross-module: Tuva data unavailable: %s", e)
+
     return context
 
 
