@@ -31,6 +31,11 @@ htmlcov/
 # Tuva / DuckDB
 data/tuva_warehouse.duckdb
 data/tuva_warehouse.duckdb.wal
+data/tuva_demo.duckdb
+data/tuva_demo.duckdb.wal
+data/tuva_*.duckdb
+data/tuva_*.duckdb.wal
+tuva_demo_data/
 dbt_project/target/
 dbt_project/dbt_packages/
 dbt_project/logs/
