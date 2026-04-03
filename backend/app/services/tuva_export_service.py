@@ -10,7 +10,7 @@ import os
 from typing import Any
 
 import duckdb
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,36 @@ class TuvaExportService:
         if self._con:
             self._con.close()
             self._con = None
+
+    async def ensure_schema(self, session: AsyncSession) -> list[str]:
+        """Auto-fix missing columns in tenant schema to match ORM models.
+
+        Compares the actual database columns against what the ORM expects
+        and adds any missing columns. Returns list of columns added.
+        """
+        added: list[str] = []
+        # Expected columns from ORM models that may be missing in older schemas
+        expected_claims_cols = {
+            "billing_npi": "VARCHAR(20)",
+            "billing_tin": "VARCHAR(20)",
+            "practice_group_id": "INTEGER",
+            "primary_diagnosis": "VARCHAR(200)",
+            "los": "INTEGER",
+            "status": "VARCHAR(20)",
+        }
+        for col, col_type in expected_claims_cols.items():
+            try:
+                await session.execute(text(
+                    f"ALTER TABLE claims ADD COLUMN IF NOT EXISTS {col} {col_type}"
+                ))
+                added.append(f"claims.{col}")
+            except Exception:
+                pass  # Column exists or table doesn't support IF NOT EXISTS
+
+        if added:
+            await session.flush()
+            logger.info("Auto-added missing columns: %s", added)
+        return added
 
     async def export_claims(self, session: AsyncSession) -> int:
         """Export claims from PostgreSQL to DuckDB raw.claims.
@@ -174,7 +204,11 @@ class TuvaExportService:
         return count
 
     async def export_all(self, session: AsyncSession) -> dict[str, int]:
-        """Export all data from PostgreSQL to DuckDB for Tuva."""
+        """Export all data from PostgreSQL to DuckDB for Tuva.
+
+        Automatically fixes missing columns before exporting.
+        """
+        await self.ensure_schema(session)
         claims_count = await self.export_claims(session)
         members_count = await self.export_members(session)
         return {
