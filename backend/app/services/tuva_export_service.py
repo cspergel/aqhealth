@@ -203,15 +203,91 @@ class TuvaExportService:
         logger.info("Exported %d members to DuckDB raw.members", count)
         return count
 
+    async def export_providers(self, session: AsyncSession) -> int:
+        """Export providers from PostgreSQL to DuckDB raw.providers."""
+        result = await session.execute(text("""
+            SELECT npi, first_name, last_name, specialty
+            FROM providers
+        """))
+        rows = result.mappings().all()
+
+        con = self._get_connection()
+        con.execute("DROP TABLE IF EXISTS raw.providers")
+        con.execute("""
+            CREATE TABLE raw.providers (
+                npi VARCHAR,
+                first_name VARCHAR,
+                last_name VARCHAR,
+                specialty VARCHAR
+            )
+        """)
+
+        _COLS = ["npi", "first_name", "last_name", "specialty"]
+        for r in rows:
+            d = dict(r)
+            con.execute(
+                f"INSERT INTO raw.providers ({', '.join(_COLS)}) VALUES ({', '.join('?' for _ in _COLS)})",
+                [d[c] for c in _COLS],
+            )
+
+        count = con.execute("SELECT count(*) FROM raw.providers").fetchone()[0]
+        logger.info("Exported %d providers to DuckDB raw.providers", count)
+        return count
+
+    async def export_provider_attribution(self, session: AsyncSession) -> int:
+        """Export member-to-PCP attribution from PostgreSQL to DuckDB."""
+        result = await session.execute(text("""
+            SELECT m.member_id as person_id, p.npi as provider_npi,
+                   m.coverage_start as attribution_start, m.coverage_end as attribution_end
+            FROM members m
+            JOIN providers p ON m.pcp_provider_id = p.id
+            WHERE m.pcp_provider_id IS NOT NULL
+        """))
+        rows = result.mappings().all()
+
+        con = self._get_connection()
+        con.execute("DROP TABLE IF EXISTS raw.provider_attribution")
+        con.execute("""
+            CREATE TABLE raw.provider_attribution (
+                person_id VARCHAR,
+                provider_npi VARCHAR,
+                attribution_start DATE,
+                attribution_end DATE
+            )
+        """)
+
+        _COLS = ["person_id", "provider_npi", "attribution_start", "attribution_end"]
+        for r in rows:
+            d = dict(r)
+            con.execute(
+                f"INSERT INTO raw.provider_attribution ({', '.join(_COLS)}) VALUES ({', '.join('?' for _ in _COLS)})",
+                [d[c] for c in _COLS],
+            )
+
+        count = con.execute("SELECT count(*) FROM raw.provider_attribution").fetchone()[0]
+        logger.info("Exported %d attributions to DuckDB", count)
+        return count
+
     async def export_all(self, session: AsyncSession) -> dict[str, int]:
-        """Export all data from PostgreSQL to DuckDB for Tuva.
+        """Export all available data from PostgreSQL to DuckDB for Tuva.
 
         Automatically fixes missing columns before exporting.
+        Exports everything we have — claims, members, providers, attribution.
         """
         await self.ensure_schema(session)
-        claims_count = await self.export_claims(session)
-        members_count = await self.export_members(session)
-        return {
-            "claims": claims_count,
-            "members": members_count,
-        }
+        counts: dict[str, int] = {}
+        counts["claims"] = await self.export_claims(session)
+        counts["members"] = await self.export_members(session)
+
+        # Optional exports — don't fail if table doesn't exist
+        try:
+            counts["providers"] = await self.export_providers(session)
+        except Exception as e:
+            logger.debug("Provider export skipped: %s", e)
+
+        try:
+            counts["provider_attribution"] = await self.export_provider_attribution(session)
+        except Exception as e:
+            logger.debug("Attribution export skipped: %s", e)
+
+        return counts

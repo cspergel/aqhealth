@@ -11,3 +11,5 @@ sources:
         description: "Member roster from AQSoft ingestion pipeline"
       - name: providers
         description: "Provider directory from AQSoft ingestion pipeline"
+      - name: provider_attribution
+        description: "Member-to-PCP attribution from AQSoft"
