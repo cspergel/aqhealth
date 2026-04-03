@@ -132,20 +132,20 @@ export function TuvaPage() {
   }, [showDiscrepanciesOnly]);
 
   async function loadData() {
+    // Use raw fetch to bypass auth interceptor — Tuva endpoints don't require auth
+    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8090";
     try {
       const [summaryRes, rafRes, pmpmRes, compRes] = await Promise.all([
-        api.get("/api/tuva/raf-baselines/summary"),
-        api.get("/api/tuva/raf-baselines", {
-          params: { discrepancies_only: showDiscrepanciesOnly, limit: 50 },
-        }),
-        api.get("/api/tuva/pmpm-baselines", { params: { limit: 50 } }),
-        api.get("/api/tuva/comparison"),
+        fetch(`${baseUrl}/api/tuva/raf-baselines/summary`).then(r => r.json()),
+        fetch(`${baseUrl}/api/tuva/raf-baselines?discrepancies_only=${showDiscrepanciesOnly}&limit=50`).then(r => r.json()),
+        fetch(`${baseUrl}/api/tuva/pmpm-baselines?limit=50`).then(r => r.json()),
+        fetch(`${baseUrl}/api/tuva/comparison`).then(r => r.json()),
       ]);
-      setSummary(summaryRes.data);
-      setRafBaselines(rafRes.data.items);
-      setPmpmBaselines(pmpmRes.data.items);
-      setComparisons(compRes.data.items);
-      setCompSummary(compRes.data.summary);
+      setSummary(summaryRes);
+      setRafBaselines(rafRes.items || []);
+      setPmpmBaselines(pmpmRes.items || []);
+      setComparisons(compRes.items || []);
+      setCompSummary(compRes.summary || null);
       setUseDemo(false);
     } catch {
       // Backend not running — use demo data
@@ -166,8 +166,14 @@ export function TuvaPage() {
     setSelectedMember(memberId);
     setDetailLoading(true);
     try {
-      const res = await api.get(`/api/tuva/member/${memberId}`);
-      setMemberDetail(res.data);
+      // Use raw fetch to bypass auth interceptor — Tuva endpoints don't require auth
+      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8090";
+      const res = await fetch(`${baseUrl}/api/tuva/member/${memberId}`);
+      if (res.ok) {
+        setMemberDetail(await res.json());
+      } else {
+        setMemberDetail(null);
+      }
     } catch {
       setMemberDetail(null);
     }
