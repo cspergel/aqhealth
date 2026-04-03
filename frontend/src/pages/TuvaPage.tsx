@@ -63,7 +63,7 @@ interface PipelineStatus {
   message: string;
 }
 
-type Tab = "overview" | "comparison" | "raf" | "pmpm" | "pipeline";
+type Tab = "overview" | "comparison" | "raf" | "pmpm" | "pipeline" | "demo1k";
 
 // ---------------------------------------------------------------------------
 // Synthetic demo data — used when no backend is running
@@ -195,6 +195,7 @@ export function TuvaPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
     { key: "comparison", label: "3-Tier Comparison" },
+    { key: "demo1k", label: "1,000 Patient Demo" },
     { key: "raf", label: "RAF Baselines" },
     { key: "pmpm", label: "PMPM Baselines" },
     { key: "pipeline", label: "Pipeline" },
@@ -302,6 +303,7 @@ export function TuvaPage() {
           onTrigger={triggerPipeline}
         />
       )}
+      {tab === "demo1k" && <Demo1kTab />}
     </div>
   );
 }
@@ -830,6 +832,213 @@ function PipelineTab({
           }}
         >
           {result}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 1,000 Patient Demo Tab
+// ---------------------------------------------------------------------------
+
+function Demo1kTab() {
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<any>(null);
+  const [suspects, setSuspects] = useState<any>(null);
+  const [scores, setScores] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadDemoData();
+  }, []);
+
+  async function loadDemoData() {
+    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8090";
+    try {
+      const [sumRes, susRes, scrRes] = await Promise.all([
+        fetch(`${baseUrl}/api/tuva/demo/summary`).then(r => r.json()),
+        fetch(`${baseUrl}/api/tuva/demo/suspects`).then(r => r.json()),
+        fetch(`${baseUrl}/api/tuva/demo/risk-scores`).then(r => r.json()),
+      ]);
+      setSummary(sumRes);
+      setSuspects(susRes);
+      setScores(scrRes.items || []);
+    } catch {
+      setSummary(null);
+      setSuspects(null);
+    }
+    setLoading(false);
+  }
+
+  if (loading) return <p style={{ color: tokens.textMuted, padding: 20 }}>Loading 1,000 patient demo...</p>;
+  if (!summary || summary.status === "no_data") return (
+    <div style={{ padding: 20, color: tokens.textSecondary }}>
+      <p>Tuva demo database not found. Run the demo build:</p>
+      <pre style={{ fontFamily: fonts.code, background: tokens.surfaceAlt, padding: 12, borderRadius: 8, fontSize: 12 }}>
+        cd tuva_demo_data && dbt deps --profiles-dir . && dbt build --profiles-dir .
+      </pre>
+    </div>
+  );
+
+  // Compute score distribution
+  const scoreRanges = [
+    { label: "0.0-0.5", min: 0, max: 0.5 },
+    { label: "0.5-1.0", min: 0.5, max: 1.0 },
+    { label: "1.0-2.0", min: 1.0, max: 2.0 },
+    { label: "2.0-3.0", min: 2.0, max: 3.0 },
+    { label: "3.0+", min: 3.0, max: 999 },
+  ];
+  const distribution = scoreRanges.map(r => ({
+    ...r,
+    count: scores.filter(s => {
+      const v = s.v24_risk_score ?? s.v28_risk_score ?? 0;
+      return v >= r.min && v < r.max;
+    }).length,
+  }));
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: tokens.text, margin: "0 0 4px" }}>
+          Tuva Health 1,000 Patient Synthetic Dataset
+        </h3>
+        <p style={{ fontSize: 12, color: tokens.textSecondary, margin: 0 }}>
+          Community-validated CMS synthetic data processed through all 18 Tuva data marts.
+          This demonstrates Tuva's full analytical capability — HCC scoring, suspect detection, quality measures, PMPM.
+        </p>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+        <MetricCard label="Patients Scored" value={summary.members_scored?.toString() || "0"} />
+        <MetricCard label="Avg V28 RAF" value={summary.avg_v28_risk_score?.toFixed(3) || "0.000"} />
+        <MetricCard label="HCC Suspects" value={suspects?.total_suspects?.toLocaleString() || "0"} trend="Tuva's independent detection" trendDirection="up" />
+        <MetricCard label="Min / Max RAF" value={`${summary.min_v28_risk_score?.toFixed(2) || 0} - ${summary.max_v28_risk_score?.toFixed(2) || 0}`} />
+      </div>
+
+      {/* Suspect breakdown by reason */}
+      {suspects?.by_reason && (
+        <div style={{ marginBottom: 24 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, color: tokens.text, margin: "0 0 12px" }}>
+            Suspect Detection Methods — How Tuva Finds Opportunities
+          </h4>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+            {Object.entries(suspects.by_reason as Record<string, number>).map(([reason, count]) => (
+              <div key={reason} style={{ padding: 14, borderRadius: 8, border: `1px solid ${tokens.border}`, background: tokens.surface }}>
+                <div style={{ fontSize: 20, fontWeight: 700, fontFamily: fonts.code, color: tokens.text }}>{(count as number).toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: tokens.textSecondary, marginTop: 2 }}>{reason}</div>
+                <div style={{ fontSize: 10, color: tokens.textMuted, marginTop: 4 }}>
+                  {reason === "Prior coding history" && "HCC coded in prior period, not yet recaptured"}
+                  {reason === "Observation suspect" && "BMI/vitals + comorbidity suggest uncoded condition"}
+                  {reason === "Lab result suspect" && "Lab value (eGFR, A1c) indicates higher severity"}
+                  {reason === "Comorbidity suspect" && "Two existing conditions imply more specific code"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* RAF score distribution */}
+      <div style={{ marginBottom: 24 }}>
+        <h4 style={{ fontSize: 13, fontWeight: 600, color: tokens.text, margin: "0 0 12px" }}>
+          RAF Score Distribution
+        </h4>
+        <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 120 }}>
+          {distribution.map(d => {
+            const maxCount = Math.max(...distribution.map(x => x.count), 1);
+            const height = Math.max((d.count / maxCount) * 100, 4);
+            return (
+              <div key={d.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <div style={{ fontSize: 10, fontFamily: fonts.code, color: tokens.text, fontWeight: 600 }}>{d.count}</div>
+                <div style={{ width: "100%", height, background: tokens.accent, borderRadius: "4px 4px 0 0", minHeight: 4 }} />
+                <div style={{ fontSize: 10, color: tokens.textMuted }}>{d.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Top HCCs */}
+      {summary.top_hccs_by_prevalence && summary.top_hccs_by_prevalence.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h4 style={{ fontSize: 13, fontWeight: 600, color: tokens.text, margin: "0 0 12px" }}>
+            Most Prevalent HCCs
+          </h4>
+          <div style={{ borderRadius: 8, border: `1px solid ${tokens.border}`, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: tokens.surfaceAlt }}>
+                  <Th>HCC</Th>
+                  <Th align="right">Patients</Th>
+                  <Th>Prevalence</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.top_hccs_by_prevalence.map((h: any) => (
+                  <tr key={h.hcc} style={{ borderTop: `1px solid ${tokens.borderSoft}` }}>
+                    <Td style={{ fontWeight: 600 }}>{h.hcc}</Td>
+                    <Td align="right" style={{ fontFamily: fonts.code }}>{h.count}</Td>
+                    <Td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ flex: 1, height: 6, background: tokens.surfaceAlt, borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ width: `${Math.min((h.count / (summary.members_scored || 1)) * 100, 100)}%`, height: "100%", background: tokens.accent, borderRadius: 3 }} />
+                        </div>
+                        <span style={{ fontSize: 11, color: tokens.textMuted, fontFamily: fonts.code, minWidth: 40 }}>
+                          {Math.round((h.count / (summary.members_scored || 1)) * 100)}%
+                        </span>
+                      </div>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Sample suspects */}
+      {suspects?.items && suspects.items.length > 0 && (
+        <div>
+          <h4 style={{ fontSize: 13, fontWeight: 600, color: tokens.text, margin: "0 0 12px" }}>
+            Sample Suspects (first 20 of {suspects.total_suspects.toLocaleString()})
+          </h4>
+          <div style={{ borderRadius: 8, border: `1px solid ${tokens.border}`, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: tokens.surfaceAlt }}>
+                  <Th>Patient</Th>
+                  <Th>HCC</Th>
+                  <Th>Reason</Th>
+                  <Th>Evidence</Th>
+                  <Th>Date</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {suspects.items.slice(0, 20).map((s: any, i: number) => (
+                  <tr key={i} style={{ borderTop: `1px solid ${tokens.borderSoft}` }}>
+                    <Td style={{ fontFamily: fonts.code, fontSize: 11 }}>{s.person_id}</Td>
+                    <Td style={{ fontWeight: 600 }}>HCC {s.hcc_code}{s.hcc_description ? `: ${s.hcc_description}` : ""}</Td>
+                    <Td>
+                      <span style={{
+                        padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600,
+                        background: s.reason === "Lab result suspect" ? tokens.blueSoft :
+                                   s.reason === "Observation suspect" ? tokens.amberSoft :
+                                   s.reason === "Comorbidity suspect" ? tokens.accentSoft : tokens.surfaceAlt,
+                        color: s.reason === "Lab result suspect" ? tokens.blue :
+                               s.reason === "Observation suspect" ? tokens.amber :
+                               s.reason === "Comorbidity suspect" ? tokens.accentText : tokens.textSecondary,
+                      }}>
+                        {s.reason}
+                      </span>
+                    </Td>
+                    <Td style={{ fontSize: 11, color: tokens.textSecondary, maxWidth: 250 }}>{s.contributing_factor}</Td>
+                    <Td style={{ fontFamily: fonts.code, fontSize: 11 }}>{s.suspect_date}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
