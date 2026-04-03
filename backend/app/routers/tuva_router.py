@@ -248,6 +248,112 @@ def get_tuva_full_summary():
     return summary
 
 
+@router.get("/member/{member_id}")
+async def get_member_detail(member_id: str):
+    """Granular HCC comparison for a single member — shows exactly which HCCs
+    each engine found, where they agree, and where the opportunities are."""
+    from app.services.tuva_data_service import get_risk_scores, get_risk_factors
+    from app.models.member import Member
+    from app.models.hcc import HccSuspect
+    from app.models.claim import Claim
+    from app.services.hcc_engine import lookup_hcc_for_icd10
+
+    # --- Tuva data ---
+    tuva_scores = get_risk_scores()
+    tuva_score = next((s for s in tuva_scores if str(s["person_id"]) == member_id), None)
+
+    tuva_factors = get_risk_factors()
+    tuva_member_factors = [f for f in tuva_factors if str(f["person_id"]) == member_id]
+    tuva_disease_hccs = [
+        {"description": f["risk_factor_description"], "coefficient": f["coefficient"], "model": f["model_version"]}
+        for f in tuva_member_factors if f.get("factor_type") == "disease"
+    ]
+    tuva_demographic_factors = [
+        {"description": f["risk_factor_description"], "coefficient": f["coefficient"]}
+        for f in tuva_member_factors if f.get("factor_type") == "demographic"
+    ]
+
+    # --- AQSoft data ---
+    session = await _get_demo_session()
+    member_result = await session.execute(
+        select(Member).where(Member.member_id == member_id)
+    )
+    member = member_result.scalar_one_or_none()
+    if not member:
+        return {"error": f"Member {member_id} not found"}
+
+    # AQSoft suspects
+    suspect_result = await session.execute(
+        select(HccSuspect).where(HccSuspect.member_id == member.id)
+    )
+    suspects = suspect_result.scalars().all()
+    aqsoft_suspects = [
+        {
+            "hcc_code": s.hcc_code,
+            "hcc_label": s.hcc_label,
+            "suspect_type": s.suspect_type,
+            "raf_value": float(s.raf_value) if s.raf_value else 0,
+            "confidence": s.confidence,
+            "status": s.status,
+            "evidence": s.evidence_summary,
+            "icd10_code": s.icd10_code,
+        }
+        for s in suspects
+    ]
+
+    # AQSoft confirmed HCCs from claims
+    claim_result = await session.execute(
+        select(Claim.diagnosis_codes).where(
+            Claim.member_id == member.id,
+            Claim.diagnosis_codes.isnot(None),
+        )
+    )
+    all_dx_codes: set[str] = set()
+    for row in claim_result.all():
+        if row[0]:
+            all_dx_codes.update(row[0])
+
+    aqsoft_confirmed_hccs = []
+    for code in sorted(all_dx_codes):
+        entry = lookup_hcc_for_icd10(code)
+        if entry and entry.get("hcc"):
+            aqsoft_confirmed_hccs.append({
+                "icd10_code": code,
+                "hcc_code": entry["hcc"],
+                "description": entry.get("description", ""),
+                "raf_weight": entry.get("raf", 0),
+            })
+
+    # --- Build comparison ---
+    # Tuva HCC codes
+    tuva_hcc_descriptions = {h["description"] for h in tuva_disease_hccs}
+    # AQSoft confirmed HCC codes
+    aqsoft_hcc_codes = {h["hcc_code"] for h in aqsoft_confirmed_hccs}
+
+    # Opportunities: suspects not yet in confirmed
+    opportunities = [s for s in aqsoft_suspects if s["status"] == "open"]
+
+    return {
+        "member_id": member_id,
+        "name": f"{member.first_name} {member.last_name}",
+        "date_of_birth": member.date_of_birth.isoformat() if member.date_of_birth else None,
+        "gender": member.gender,
+        "scores": {
+            "tuva_v28": round(float(tuva_score["v28_risk_score"]), 3) if tuva_score and tuva_score.get("v28_risk_score") else None,
+            "aqsoft_confirmed": round(float(member.current_raf), 3) if member.current_raf else 0,
+            "aqsoft_projected": round(float(member.projected_raf), 3) if member.projected_raf else 0,
+        },
+        "tuva_hccs": tuva_disease_hccs,
+        "tuva_demographics": tuva_demographic_factors,
+        "aqsoft_confirmed_hccs": aqsoft_confirmed_hccs,
+        "aqsoft_suspects": aqsoft_suspects,
+        "diagnosis_codes": sorted(all_dx_codes),
+        "opportunities": opportunities,
+        "opportunity_count": len(opportunities),
+        "opportunity_raf": round(sum(s["raf_value"] for s in opportunities), 3),
+    }
+
+
 @router.get("/status")
 def get_tuva_status():
     """Check if Tuva data is available and what's loaded."""

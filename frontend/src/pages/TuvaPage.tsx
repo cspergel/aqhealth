@@ -123,6 +123,9 @@ export function TuvaPage() {
   const [pipelineRunning, setPipelineRunning] = useState(false);
   const [pipelineResult, setPipelineResult] = useState<string | null>(null);
   const [useDemo, setUseDemo] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<string | null>(null);
+  const [memberDetail, setMemberDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -157,6 +160,18 @@ export function TuvaPage() {
       setComparisons(DEMO_COMPARISONS);
       setCompSummary(DEMO_COMPARISON_SUMMARY);
     }
+  }
+
+  async function openMemberDetail(memberId: string) {
+    setSelectedMember(memberId);
+    setDetailLoading(true);
+    try {
+      const res = await api.get(`/api/tuva/member/${memberId}`);
+      setMemberDetail(res.data);
+    } catch {
+      setMemberDetail(null);
+    }
+    setDetailLoading(false);
   }
 
   async function triggerPipeline() {
@@ -255,7 +270,16 @@ export function TuvaPage() {
       {/* Tab content */}
       {tab === "overview" && summary && <OverviewTab summary={summary} compSummary={compSummary} />}
       {tab === "comparison" && (
-        <ComparisonTab comparisons={comparisons} summary={compSummary} />
+        <ComparisonTab comparisons={comparisons} summary={compSummary} onMemberClick={openMemberDetail} />
+      )}
+
+      {/* Member Detail Modal */}
+      {selectedMember && (
+        <MemberDetailModal
+          detail={memberDetail}
+          loading={detailLoading}
+          onClose={() => { setSelectedMember(null); setMemberDetail(null); }}
+        />
       )}
       {tab === "raf" && (
         <RafTab
@@ -383,9 +407,11 @@ function StatusItem({ label, status }: { label: string; status: string }) {
 function ComparisonTab({
   comparisons,
   summary,
+  onMemberClick,
 }: {
   comparisons: Comparison[];
   summary: ComparisonSummary | null;
+  onMemberClick: (memberId: string) => void;
 }) {
   return (
     <div>
@@ -430,7 +456,24 @@ function ComparisonTab({
                 }}
               >
                 <Td style={{ fontFamily: fonts.code, fontWeight: 600, fontSize: 11 }}>{c.member_id}</Td>
-                <Td>{c.name}</Td>
+                <Td>
+                  <button
+                    onClick={() => onMemberClick(c.member_id)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: tokens.blue,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      padding: 0,
+                      fontSize: 13,
+                      textDecoration: "underline",
+                      textUnderlineOffset: 2,
+                    }}
+                  >
+                    {c.name}
+                  </button>
+                </Td>
                 <Td align="right" style={{ fontFamily: fonts.code }}>
                   {c.tuva_confirmed_raf?.toFixed(3) ?? "—"}
                 </Td>
@@ -783,6 +826,196 @@ function PipelineTab({
           {result}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Member Detail Modal
+// ---------------------------------------------------------------------------
+
+function MemberDetailModal({
+  detail,
+  loading,
+  onClose,
+}: {
+  detail: any;
+  loading: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 100,
+        background: "rgba(0,0,0,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: tokens.surface,
+          borderRadius: 12,
+          width: "90%",
+          maxWidth: 900,
+          maxHeight: "85vh",
+          overflow: "auto",
+          padding: 28,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+        }}
+      >
+        {loading && <p style={{ color: tokens.textMuted }}>Loading member detail...</p>}
+        {!loading && !detail && <p style={{ color: tokens.red }}>Could not load member detail.</p>}
+        {!loading && detail && (
+          <>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 700, fontFamily: fonts.heading, color: tokens.text, margin: 0 }}>
+                  {detail.name}
+                </h2>
+                <p style={{ fontSize: 12, color: tokens.textSecondary, margin: "4px 0 0" }}>
+                  {detail.member_id} | {detail.gender === "M" ? "Male" : "Female"} | DOB: {detail.date_of_birth}
+                </p>
+              </div>
+              <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: tokens.textMuted }}>&times;</button>
+            </div>
+
+            {/* Score cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+              <MetricCard label="Tuva Confirmed" value={detail.scores.tuva_v28?.toFixed(3) ?? "N/A"} trend="Community-validated" />
+              <MetricCard label="AQSoft Confirmed" value={detail.scores.aqsoft_confirmed.toFixed(3)} trend="Claims-based" />
+              <MetricCard label="AQSoft Projected" value={detail.scores.aqsoft_projected.toFixed(3)} trend="With suspects" trendDirection="up" />
+              <MetricCard
+                label="Capture Opportunity"
+                value={`+${detail.opportunity_raf} RAF`}
+                trend={`${detail.opportunity_count} open suspects`}
+                trendDirection={detail.opportunity_count > 0 ? "up" : "flat"}
+              />
+            </div>
+
+            {/* Two columns: Tuva HCCs vs AQSoft HCCs */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+              {/* Tuva HCCs */}
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.text, margin: "0 0 8px" }}>
+                  Tuva Confirmed HCCs
+                  <span style={{ fontWeight: 400, color: tokens.textMuted, marginLeft: 6 }}>
+                    ({detail.tuva_hccs.length})
+                  </span>
+                </h3>
+                {detail.tuva_hccs.length === 0 ? (
+                  <p style={{ fontSize: 12, color: tokens.textMuted }}>No HCCs found by Tuva</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {detail.tuva_hccs.map((h: any, i: number) => (
+                      <div key={i} style={{ padding: "8px 10px", borderRadius: 6, background: tokens.surfaceAlt, border: `1px solid ${tokens.borderSoft}` }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: tokens.text }}>{h.description}</div>
+                        <div style={{ fontSize: 11, color: tokens.textSecondary, fontFamily: fonts.code }}>
+                          {h.model} | coeff: {h.coefficient}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* AQSoft Confirmed HCCs */}
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.text, margin: "0 0 8px" }}>
+                  AQSoft Confirmed HCCs
+                  <span style={{ fontWeight: 400, color: tokens.textMuted, marginLeft: 6 }}>
+                    ({detail.aqsoft_confirmed_hccs.length})
+                  </span>
+                </h3>
+                {detail.aqsoft_confirmed_hccs.length === 0 ? (
+                  <p style={{ fontSize: 12, color: tokens.textMuted }}>No HCCs found by AQSoft</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {detail.aqsoft_confirmed_hccs.map((h: any, i: number) => (
+                      <div key={i} style={{ padding: "8px 10px", borderRadius: 6, background: tokens.surfaceAlt, border: `1px solid ${tokens.borderSoft}` }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: tokens.text }}>HCC {h.hcc_code}: {h.description}</div>
+                        <div style={{ fontSize: 11, color: tokens.textSecondary, fontFamily: fonts.code }}>
+                          {h.icd10_code} | RAF: {h.raf_weight}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Opportunities / Suspects */}
+            {detail.opportunities.length > 0 && (
+              <div>
+                <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.accentText, margin: "0 0 8px" }}>
+                  Capture Opportunities ({detail.opportunities.length})
+                </h3>
+                <div style={{ borderRadius: 8, border: `1px solid ${tokens.border}`, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: tokens.accentSoft }}>
+                        <Th>HCC</Th>
+                        <Th>Type</Th>
+                        <Th>ICD-10</Th>
+                        <Th align="right">RAF Value</Th>
+                        <Th align="right">Confidence</Th>
+                        <Th>Evidence</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.opportunities.map((s: any, i: number) => (
+                        <tr key={i} style={{ borderTop: `1px solid ${tokens.borderSoft}` }}>
+                          <Td style={{ fontWeight: 600 }}>HCC {s.hcc_code}: {s.hcc_label}</Td>
+                          <Td>
+                            <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: tokens.blueSoft, color: tokens.blue }}>
+                              {s.suspect_type}
+                            </span>
+                          </Td>
+                          <Td style={{ fontFamily: fonts.code }}>{s.icd10_code || "—"}</Td>
+                          <Td align="right" style={{ fontFamily: fonts.code, fontWeight: 600, color: tokens.accentText }}>+{s.raf_value.toFixed(3)}</Td>
+                          <Td align="right">{s.confidence}%</Td>
+                          <Td style={{ fontSize: 11, color: tokens.textSecondary, maxWidth: 200 }}>{s.evidence || "—"}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* All diagnosis codes */}
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: tokens.text, margin: "0 0 8px" }}>
+                All Diagnosis Codes ({detail.diagnosis_codes.length})
+              </h3>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {detail.diagnosis_codes.map((code: string) => (
+                  <span
+                    key={code}
+                    style={{
+                      padding: "2px 8px",
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontFamily: fonts.code,
+                      background: tokens.surfaceAlt,
+                      border: `1px solid ${tokens.borderSoft}`,
+                      color: tokens.text,
+                    }}
+                  >
+                    {code}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
