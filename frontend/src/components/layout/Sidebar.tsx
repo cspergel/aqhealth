@@ -126,6 +126,7 @@ const navSections: NavSection[] = [
       { path: "/data-quality", label: "Data Quality" },
       { path: "/data-protection", label: "Data Protection" },
       { path: "/data-exchange", label: "Data Exchange" },
+      { path: "/tuva", label: "Tuva Analytics" },
     ],
   },
   {

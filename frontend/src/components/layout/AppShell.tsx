@@ -51,6 +51,7 @@ import { SkillsPage } from "../../pages/SkillsPage";
 import { DataProtectionPage } from "../../pages/DataProtectionPage";
 import { OnboardingPage } from "../../pages/OnboardingPage";
 import { DataManagementPage } from "../../pages/DataManagementPage";
+import { TuvaPage } from "../../pages/TuvaPage";
 
 /* ------------------------------------------------------------------ */
 /* AppShell — sidebar + top bar + main content                         */
@@ -193,6 +194,7 @@ export function AppShell() {
             <Route path="/data-protection" element={<DataProtectionPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/data-management" element={<DataManagementPage />} />
+            <Route path="/tuva" element={<TuvaPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
