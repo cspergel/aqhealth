@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import api from "../lib/api";
 import { tokens, fonts } from "../lib/tokens";
 import { MetricCard } from "../components/ui/MetricCard";
@@ -985,18 +985,53 @@ function MemberDetailModal({
                     </thead>
                     <tbody>
                       {detail.opportunities.map((s: any, i: number) => (
-                        <tr key={i} style={{ borderTop: `1px solid ${tokens.borderSoft}` }}>
-                          <Td style={{ fontWeight: 600 }}>HCC {s.hcc_code}: {s.hcc_label}</Td>
-                          <Td>
-                            <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: tokens.blueSoft, color: tokens.blue }}>
-                              {s.suspect_type}
-                            </span>
-                          </Td>
-                          <Td style={{ fontFamily: fonts.code }}>{s.icd10_code || "—"}</Td>
-                          <Td align="right" style={{ fontFamily: fonts.code, fontWeight: 600, color: tokens.accentText }}>+{s.raf_value.toFixed(3)}</Td>
-                          <Td align="right">{s.confidence}%</Td>
-                          <Td style={{ fontSize: 11, color: tokens.textSecondary, maxWidth: 200 }}>{s.evidence || "—"}</Td>
-                        </tr>
+                        <React.Fragment key={i}>
+                          <tr style={{ borderTop: `1px solid ${tokens.borderSoft}` }}>
+                            <Td style={{ fontWeight: 600 }}>HCC {s.hcc_code}: {s.hcc_label}</Td>
+                            <Td>
+                              <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: tokens.blueSoft, color: tokens.blue }}>
+                                {s.suspect_type}
+                              </span>
+                            </Td>
+                            <Td style={{ fontFamily: fonts.code }}>{s.icd10_code || "—"}</Td>
+                            <Td align="right" style={{ fontFamily: fonts.code, fontWeight: 600, color: tokens.accentText }}>+{s.raf_value.toFixed(3)}</Td>
+                            <Td align="right">{s.confidence}%</Td>
+                            <Td style={{ fontSize: 11, color: tokens.textSecondary, maxWidth: 200 }}>{s.evidence || "—"}</Td>
+                          </tr>
+                          {/* Code Ladder — suggested codes for this opportunity */}
+                          {s.code_ladder && s.code_ladder.length > 0 && (
+                            <tr>
+                              <Td colSpan={6} style={{ padding: "4px 12px 12px" }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: tokens.textSecondary, marginBottom: 4 }}>
+                                  Coding Options (select the most specific code the evidence supports):
+                                </div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  {s.code_ladder.map((c: any) => (
+                                    <div
+                                      key={c.icd10_code}
+                                      style={{
+                                        padding: "4px 8px",
+                                        borderRadius: 6,
+                                        fontSize: 11,
+                                        fontFamily: fonts.code,
+                                        border: `1px solid ${c.is_current ? tokens.accent : c.hcc_code ? tokens.border : tokens.redSoft}`,
+                                        background: c.is_current ? tokens.accentSoft : c.hcc_code ? tokens.surface : tokens.redSoft,
+                                      }}
+                                    >
+                                      <span style={{ fontWeight: 600 }}>{c.icd10_code}</span>
+                                      {c.hcc_code ? (
+                                        <span style={{ color: tokens.accentText }}> HCC {c.hcc_code} RAF {c.raf_weight.toFixed(3)}</span>
+                                      ) : (
+                                        <span style={{ color: tokens.red }}> no HCC</span>
+                                      )}
+                                      <div style={{ fontSize: 10, color: tokens.textMuted, marginTop: 1 }}>{c.description}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </Td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>

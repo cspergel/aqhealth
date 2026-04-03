@@ -256,7 +256,7 @@ async def get_member_detail(member_id: str):
     from app.models.member import Member
     from app.models.hcc import HccSuspect
     from app.models.claim import Claim
-    from app.services.hcc_engine import lookup_hcc_for_icd10
+    from app.services.hcc_engine import lookup_hcc_for_icd10, build_code_ladder
 
     # --- Tuva data ---
     tuva_scores = get_risk_scores()
@@ -287,8 +287,9 @@ async def get_member_detail(member_id: str):
         select(HccSuspect).where(HccSuspect.member_id == member.id)
     )
     suspects = suspect_result.scalars().all()
-    aqsoft_suspects = [
-        {
+    aqsoft_suspects = []
+    for s in suspects:
+        suspect_data = {
             "hcc_code": s.hcc_code,
             "hcc_label": s.hcc_label,
             "suspect_type": s.suspect_type,
@@ -298,8 +299,10 @@ async def get_member_detail(member_id: str):
             "evidence": s.evidence_summary,
             "icd10_code": s.icd10_code,
         }
-        for s in suspects
-    ]
+        # Build code ladder for actionable suspects
+        if s.icd10_code and s.suspect_type in ("near_miss", "specificity", "med_dx_gap"):
+            suspect_data["code_ladder"] = build_code_ladder(s.icd10_code)
+        aqsoft_suspects.append(suspect_data)
 
     # AQSoft confirmed HCCs from claims — with source traceability
     claim_result = await session.execute(
@@ -333,6 +336,10 @@ async def get_member_detail(member_id: str):
         entry = lookup_hcc_for_icd10(code)
         if entry and entry.get("hcc"):
             sources = code_sources.get(code, [])
+            ladder = build_code_ladder(code)
+            # Check if there's a higher-value code in the same family
+            current_raf = float(entry.get("raf", 0))
+            upgrades = [c for c in ladder if c["raf_weight"] > current_raf and not c["is_current"]]
             aqsoft_confirmed_hccs.append({
                 "icd10_code": code,
                 "hcc_code": entry["hcc"],
@@ -340,6 +347,8 @@ async def get_member_detail(member_id: str):
                 "raf_weight": entry.get("raf", 0),
                 "found_in_claims": len(sources),
                 "latest_claim": sources[0] if sources else None,
+                "has_specificity_upgrade": len(upgrades) > 0,
+                "code_ladder": ladder[:8],  # Top 8 related codes
             })
 
     # --- Build comparison ---

@@ -92,6 +92,69 @@ def lookup_hcc_for_icd10(icd10_code: str) -> dict | None:
     stripped = icd10_code.replace(".", "")
     return _HCC_MAPPINGS_STRIPPED.get(stripped)
 
+
+def build_code_ladder(base_code: str) -> list[dict[str, Any]]:
+    """Build a code specificity ladder for a given ICD-10 code.
+
+    Shows all related codes from least to most specific, with their HCC
+    mappings and RAF values. Helps coders pick the most specific code
+    the clinical evidence supports.
+
+    Example for N18.3:
+      N18.3  -> no HCC (truncated)
+      N18.30 -> HCC 329, RAF 0.127 (CKD3 unspecified)
+      N18.31 -> HCC 329, RAF 0.127 (CKD3a)
+      N18.32 -> HCC 328, RAF 0.127 (CKD3b)
+      N18.4  -> HCC 327, RAF 0.514 (CKD4 — if labs support)
+      N18.5  -> HCC 326, RAF 0.815 (CKD5 — if labs support)
+    """
+    stripped = base_code.upper().replace(".", "")
+    # Get the family prefix (first 3-4 chars)
+    prefix = stripped[:3]
+
+    ladder: list[dict[str, Any]] = []
+    seen_codes: set[str] = set()
+
+    # Search the mappings for all codes in this family
+    for icd_code, entry in HCC_MAPPINGS.items():
+        code_stripped = icd_code.replace(".", "")
+        if code_stripped.startswith(prefix):
+            if code_stripped not in seen_codes:
+                seen_codes.add(code_stripped)
+                hcc = entry.get("hcc")
+                raf = entry.get("raf", 0)
+                ladder.append({
+                    "icd10_code": icd_code,
+                    "hcc_code": int(hcc) if hcc else None,
+                    "description": entry.get("description", ""),
+                    "raf_weight": float(raf) if raf else 0,
+                    "is_current": code_stripped == stripped or icd_code == base_code,
+                })
+
+    # Also check the base code itself (might be truncated / non-HCC)
+    base_entry = lookup_hcc_for_icd10(base_code)
+    base_stripped = stripped
+    if base_stripped not in seen_codes:
+        ladder.append({
+            "icd10_code": base_code,
+            "hcc_code": int(base_entry["hcc"]) if base_entry and base_entry.get("hcc") else None,
+            "description": base_entry.get("description", "Truncated/unspecified code") if base_entry else "Truncated/unspecified code — no HCC mapping",
+            "raf_weight": float(base_entry.get("raf", 0)) if base_entry else 0,
+            "is_current": True,
+        })
+
+    # Sort by RAF value descending so highest-value codes are first
+    ladder.sort(key=lambda x: (-x["raf_weight"], x["icd10_code"]))
+
+    # Limit to the most relevant codes (same 4-char prefix or direct extensions)
+    relevant = [c for c in ladder if c["icd10_code"].replace(".", "").startswith(stripped[:4]) or c["is_current"]]
+    # If too few relevant, include the broader family
+    if len(relevant) < 3:
+        relevant = ladder[:15]
+
+    return relevant
+
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
