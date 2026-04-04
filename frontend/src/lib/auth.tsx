@@ -30,6 +30,16 @@ const DEMO_USER: User = {
 let demoModeInitialized = false;
 
 function isDemoMode(): boolean {
+  // Demo mode is only available when VITE_DEMO_ENABLED=true at build time,
+  // OR when running on localhost (development). This prevents demo mode
+  // from being activated in production deployments that don't set the flag.
+  const demoAllowed = import.meta.env.VITE_DEMO_ENABLED === "true"
+    || window.location.hostname === "localhost"
+    || window.location.hostname === "127.0.0.1"
+    || window.location.hostname.endsWith(".github.io"); // GitHub Pages demo
+
+  if (!demoAllowed) return false;
+
   return new URLSearchParams(window.location.search).get("demo") === "true"
     || localStorage.getItem("demo_mode") === "true";
 }

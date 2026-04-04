@@ -114,20 +114,20 @@ PRESET_SKILLS = [
 # ---------------------------------------------------------------------------
 
 AVAILABLE_ACTIONS = [
-    {"action": "run_hcc_engine", "label": "Run HCC Engine", "description": "Analyze population for HCC suspect conditions", "category": "Revenue"},
-    {"action": "generate_chase_list", "label": "Generate Chase List", "description": "Create prioritized list of HCC suspects for provider review", "category": "Revenue"},
-    {"action": "detect_care_gaps", "label": "Detect Care Gaps", "description": "Run care gap detection for quality measures", "category": "Quality"},
-    {"action": "generate_insights", "label": "Generate Insights", "description": "Use AI to generate actionable insights from data", "category": "Intelligence"},
-    {"action": "run_discovery", "label": "Run Discovery", "description": "AI pattern discovery across population data", "category": "Intelligence"},
-    {"action": "create_action_items", "label": "Create Action Items", "description": "Create tasks and assign to team members", "category": "Workflow"},
-    {"action": "send_notification", "label": "Send Notification", "description": "Send in-app or email notifications", "category": "Communication"},
-    {"action": "generate_report", "label": "Generate Report", "description": "Generate PDF/Excel report from template", "category": "Reporting"},
-    {"action": "evaluate_alert_rules", "label": "Evaluate Alert Rules", "description": "Check all alert rules against current data", "category": "Monitoring"},
-    {"action": "refresh_dashboard", "label": "Refresh Dashboard", "description": "Recalculate all dashboard metrics", "category": "Data"},
-    {"action": "run_quality_checks", "label": "Run Quality Checks", "description": "Execute data quality validation rules", "category": "Data"},
-    {"action": "calculate_stars", "label": "Calculate Stars", "description": "Run Stars rating projection calculator", "category": "Quality"},
-    {"action": "refresh_provider_scorecards", "label": "Refresh Provider Scorecards", "description": "Recompute provider and practice-group scorecard metrics", "category": "Data"},
-    {"action": "process_learning_events", "label": "Process Learning Events", "description": "Process cross-loop learning events to trigger compound intelligence reactions", "category": "Intelligence"},
+    {"action": "run_hcc_engine", "label": "Run HCC Engine", "description": "Analyze population for HCC suspect conditions", "category": "Revenue", "implemented": True},
+    {"action": "generate_chase_list", "label": "Generate Chase List", "description": "Create prioritized list of HCC suspects for provider review", "category": "Revenue", "implemented": False},
+    {"action": "detect_care_gaps", "label": "Detect Care Gaps", "description": "Run care gap detection for quality measures", "category": "Quality", "implemented": True},
+    {"action": "generate_insights", "label": "Generate Insights", "description": "Use AI to generate actionable insights from data", "category": "Intelligence", "implemented": True},
+    {"action": "run_discovery", "label": "Run Discovery", "description": "AI pattern discovery across population data", "category": "Intelligence", "implemented": True},
+    {"action": "create_action_items", "label": "Create Action Items", "description": "Create tasks and assign to team members", "category": "Workflow", "implemented": False},
+    {"action": "send_notification", "label": "Send Notification", "description": "Send in-app or email notifications", "category": "Communication", "implemented": False},
+    {"action": "generate_report", "label": "Generate Report", "description": "Generate PDF/Excel report from template", "category": "Reporting", "implemented": False},
+    {"action": "evaluate_alert_rules", "label": "Evaluate Alert Rules", "description": "Check all alert rules against current data", "category": "Monitoring", "implemented": True},
+    {"action": "refresh_dashboard", "label": "Refresh Dashboard", "description": "Recalculate all dashboard metrics", "category": "Data", "implemented": False},
+    {"action": "run_quality_checks", "label": "Run Quality Checks", "description": "Execute data quality validation rules", "category": "Data", "implemented": True},
+    {"action": "calculate_stars", "label": "Calculate Stars", "description": "Run Stars rating projection calculator", "category": "Quality", "implemented": False},
+    {"action": "refresh_provider_scorecards", "label": "Refresh Provider Scorecards", "description": "Recompute provider and practice-group scorecard metrics", "category": "Data", "implemented": True},
+    {"action": "process_learning_events", "label": "Process Learning Events", "description": "Process cross-loop learning events to trigger compound intelligence reactions", "category": "Intelligence", "implemented": True},
 ]
 
 
