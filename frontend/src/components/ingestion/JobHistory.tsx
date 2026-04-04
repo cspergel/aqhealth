@@ -4,12 +4,12 @@ import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
 
 interface Job {
-  job_id: string;
+  id: number;
   filename: string;
   detected_type: string;
   status: "pending" | "processing" | "completed" | "failed";
-  rows_processed: number;
-  error_count: number;
+  processed_rows: number;
+  error_rows: number;
   errors?: Array<{ row: number; message: string }>;
   created_at: string;
 }
@@ -24,7 +24,7 @@ const STATUS_VARIANT: Record<string, "green" | "blue" | "red" | "default"> = {
 export function JobHistory() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandedErrors, setExpandedErrors] = useState<Array<{ row: number; message: string }>>([]);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export function JobHistory() {
   const fetchJobs = async () => {
     try {
       const res = await api.get("/api/ingestion/jobs");
-      setJobs(Array.isArray(res.data) ? res.data : []);
+      setJobs(Array.isArray(res.data?.items) ? res.data.items : []);
     } catch {
       // silent
     } finally {
@@ -43,15 +43,15 @@ export function JobHistory() {
   };
 
   const toggleExpand = async (job: Job) => {
-    if (expandedId === job.job_id) {
+    if (expandedId === job.id) {
       setExpandedId(null);
       setExpandedErrors([]);
       return;
     }
-    setExpandedId(job.job_id);
-    if (job.error_count > 0) {
+    setExpandedId(job.id);
+    if (job.error_rows > 0) {
       try {
-        const res = await api.get(`/api/ingestion/${job.job_id}`);
+        const res = await api.get(`/api/ingestion/jobs/${job.id}`);
         setExpandedErrors(res.data.errors || []);
       } catch {
         setExpandedErrors([]);
@@ -118,13 +118,13 @@ export function JobHistory() {
         </thead>
         <tbody>
           {jobs.map((job, i) => (
-            <React.Fragment key={job.job_id}>
+            <React.Fragment key={job.id}>
               <tr
                 onClick={() => toggleExpand(job)}
                 className="cursor-pointer transition-colors hover:opacity-80"
                 style={{
                   borderTop: i > 0 ? `1px solid ${tokens.borderSoft}` : undefined,
-                  background: expandedId === job.job_id ? tokens.surfaceAlt : tokens.surface,
+                  background: expandedId === job.id ? tokens.surfaceAlt : tokens.surface,
                 }}
               >
                 <td className="px-4 py-2.5 font-medium text-xs">{job.filename}</td>
@@ -138,16 +138,16 @@ export function JobHistory() {
                   className="px-4 py-2.5 text-right text-xs"
                   style={{ fontFamily: fonts.code, color: tokens.textSecondary }}
                 >
-                  {job.rows_processed.toLocaleString()}
+                  {(job.processed_rows ?? 0).toLocaleString()}
                 </td>
                 <td
                   className="px-4 py-2.5 text-right text-xs"
                   style={{
                     fontFamily: fonts.code,
-                    color: job.error_count > 0 ? tokens.red : tokens.textSecondary,
+                    color: (job.error_rows ?? 0) > 0 ? tokens.red : tokens.textSecondary,
                   }}
                 >
-                  {job.error_count}
+                  {job.error_rows ?? 0}
                 </td>
                 <td
                   className="px-4 py-2.5 text-right text-xs"
@@ -156,7 +156,7 @@ export function JobHistory() {
                   {formatDate(job.created_at)}
                 </td>
               </tr>
-              {expandedId === job.job_id && (
+              {expandedId === job.id && (
                 <tr>
                   <td colSpan={6} className="px-4 py-3" style={{ background: tokens.surfaceAlt }}>
                     {expandedErrors.length > 0 ? (
@@ -181,7 +181,7 @@ export function JobHistory() {
                       </div>
                     ) : (
                       <div className="text-xs" style={{ color: tokens.textMuted }}>
-                        {job.error_count === 0
+                        {(job.error_rows ?? 0) === 0
                           ? "No errors. All rows processed successfully."
                           : "Loading error details..."}
                       </div>

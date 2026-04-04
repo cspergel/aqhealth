@@ -120,7 +120,7 @@ export function ColumnMapper({
   const pollStatus = () => {
     const interval = setInterval(async () => {
       try {
-        const res = await api.get(`/api/ingestion/${jobId}`);
+        const res = await api.get(`/api/ingestion/jobs/${jobId}`);
         const s = res.data.status as ProcessingStatus;
         setStatus(s);
         if (s === "completed" || s === "failed") {
