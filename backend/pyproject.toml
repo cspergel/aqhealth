@@ -47,7 +47,7 @@ omit = ["app/workers/*", "app/prompts/*"]
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 15
+fail_under = 25
 exclude_lines = [
     "pragma: no cover",
     "if __name__",

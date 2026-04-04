@@ -104,11 +104,6 @@ async def receive_webhook(
     Authenticated via webhook secret in header (not JWT).
     Requires X-Tenant-Schema header to identify the target tenant.
     """
-    expected_secret = getattr(settings, "adt_webhook_secret", None)
-    if not expected_secret:
-        raise HTTPException(status_code=503, detail="Webhook secret not configured")
-    if not x_webhook_secret or not hmac.compare_digest(x_webhook_secret, expected_secret):
-        raise HTTPException(status_code=403, detail="Invalid webhook secret")
     if not x_tenant_schema:
         raise HTTPException(status_code=400, detail="X-Tenant-Schema header required")
     try:
@@ -116,18 +111,30 @@ async def receive_webhook(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid tenant schema name")
 
-    # Verify the tenant actually exists and is active before accepting writes.
-    # Prevents cross-tenant writes from callers who know the shared secret
-    # but supply an arbitrary/inactive schema name.
+    # Verify the tenant exists, is active, and validate the webhook secret.
+    # Supports per-tenant webhook secrets (stored in tenant config) with
+    # fallback to the global secret for backwards compatibility.
     from app.database import async_session_factory
     from sqlalchemy import text as sa_text
     async with async_session_factory() as platform_db:
         tenant_check = await platform_db.execute(
-            sa_text("SELECT id FROM platform.tenants WHERE schema_name = :schema AND status = 'active'"),
+            sa_text("SELECT id, config FROM platform.tenants WHERE schema_name = :schema AND status = 'active'"),
             {"schema": x_tenant_schema},
         )
-        if not tenant_check.scalar():
+        tenant_row = tenant_check.fetchone()
+        if not tenant_row:
             raise HTTPException(status_code=403, detail="Tenant not found or inactive")
+
+        # Check per-tenant webhook secret first, then fall back to global
+        tenant_config = tenant_row.config or {}
+        tenant_secret = tenant_config.get("adt_webhook_secret")
+        global_secret = getattr(settings, "adt_webhook_secret", None)
+        expected_secret = tenant_secret or global_secret
+
+        if not expected_secret:
+            raise HTTPException(status_code=503, detail="Webhook secret not configured")
+        if not x_webhook_secret or not hmac.compare_digest(x_webhook_secret, expected_secret):
+            raise HTTPException(status_code=403, detail="Invalid webhook secret")
 
     # Open a tenant-scoped DB session (bypasses JWT-based get_tenant_db)
     async with contextlib.asynccontextmanager(get_tenant_session)(x_tenant_schema) as db:
