@@ -173,7 +173,9 @@ LAB_LOINC_MAP = {
 # ---------------------------------------------------------------------------
 
 EGFR_CKD_STAGING = [
-    (90, None, "N18.1", "CKD Stage 1"),
+    # Stage 1 (eGFR >= 90) intentionally EXCLUDED — requires evidence of kidney
+    # damage (proteinuria, structural abnormality) beyond just the lab value.
+    # Auto-coding eGFR >= 90 as CKD1 would be a false HCC capture.
     (60, 89, "N18.2", "CKD Stage 2"),
     (45, 59, "N18.31", "CKD Stage 3a"),
     (30, 44, "N18.32", "CKD Stage 3b"),
@@ -403,8 +405,10 @@ def _handle_tool_call(tool_name: str, tool_input: dict) -> str:
                                        "hcc": entry.get("hcc") if entry else None, "raf": entry.get("raf", 0) if entry else 0})
 
         if lab == "bmi" and value >= 40:
+            bmi_entry = lookup_hcc_for_icd10("E66.01")
             return json.dumps({"lab": "BMI", "value": value, "suggested_code": "E66.01", "description": "Morbid obesity",
-                               "hcc": 48, "raf": 0.250})
+                               "hcc": int(bmi_entry["hcc"]) if bmi_entry and bmi_entry.get("hcc") else None,
+                               "raf": float(bmi_entry.get("raf", 0)) if bmi_entry else 0})
 
         return json.dumps({"lab": lab, "value": value, "message": "No staging rule for this lab/value"})
 

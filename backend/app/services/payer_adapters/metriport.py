@@ -286,13 +286,25 @@ class MetriportAdapter(PayerAdapter):
     # Required PayerAdapter interface methods (stubs)
     # -------------------------------------------------------------------
 
-    async def get_authorization_url(self, params: dict) -> dict:
-        """Metriport uses API key, not OAuth. Return direct connection."""
-        return {"auth_type": "api_key", "message": "Use connect() with api_key credential"}
+    # -------------------------------------------------------------------
+    # Required PayerAdapter abstract methods
+    # -------------------------------------------------------------------
 
-    async def exchange_code(self, params: dict) -> dict:
-        """Not applicable for API key auth."""
-        return await self.connect(params)
+    async def authenticate(self, credentials: dict) -> dict:
+        """Metriport uses API key auth, not OAuth code exchange."""
+        return await self.connect(credentials)
+
+    async def refresh_token(self, credentials: dict) -> dict:
+        """API keys don't expire — no refresh needed."""
+        return {"status": "ok", "message": "API key auth — no refresh needed"}
+
+    def get_authorization_url(self, credentials: dict) -> str:
+        """Metriport uses API key, not OAuth redirect."""
+        return ""
+
+    def get_scopes(self) -> str:
+        """No OAuth scopes for API key auth."""
+        return ""
 
     async def fetch_patients(self, token: str, params: dict) -> list[dict]:
         """Patients are created/matched, not fetched in bulk from Metriport."""
@@ -304,6 +316,14 @@ class MetriportAdapter(PayerAdapter):
 
     async def fetch_claims(self, token: str, params: dict) -> list[dict]:
         """Metriport is clinical data, not claims."""
+        return []
+
+    async def fetch_coverage(self, token: str, params: dict) -> list[dict]:
+        """Coverage comes from consolidated FHIR."""
+        return []
+
+    async def fetch_providers(self, token: str, params: dict) -> list[dict]:
+        """Providers come from consolidated FHIR."""
         return []
 
     async def fetch_medications(self, token: str, params: dict) -> list[dict]:

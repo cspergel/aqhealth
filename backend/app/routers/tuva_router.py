@@ -6,22 +6,25 @@ All endpoints are accessible without auth for demo purposes.
 Uses demo_mso tenant schema directly.
 """
 
-from fastapi import APIRouter, Body, Query
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy import select, func, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session_factory
 from app.models.tuva_baseline import TuvaRafBaseline, TuvaPmpmBaseline
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tuva", tags=["tuva"])
 
 
 async def _get_demo_session() -> AsyncSession:
-    """Get a session scoped to demo_mso — no auth required."""
-    session = async_session_factory()
-    await session.__aenter__()
-    await session.execute(sa_text('SET search_path TO demo_mso, public'))
-    return session
+    """FastAPI dependency that yields a demo_mso session and cleans up properly."""
+    async with async_session_factory() as session:
+        await session.execute(sa_text('SET search_path TO demo_mso, public'))
+        yield session
 
 
 @router.get("/raf-baselines")
