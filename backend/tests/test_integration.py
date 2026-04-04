@@ -486,13 +486,14 @@ class TestChaseListExport:
             {"hcc": 226, "raf": float(LOCAL_HCC_RAF[226]), "label": "CHF"},
             {"hcc": 37, "raf": float(LOCAL_HCC_RAF[37]), "label": "Diabetes"},
             {"hcc": 78, "raf": float(LOCAL_HCC_RAF[78]), "label": "Parkinson"},
-            {"hcc": 186, "raf": float(LOCAL_HCC_RAF[186]), "label": "Transplant"},
+            {"hcc": 280, "raf": float(LOCAL_HCC_RAF[280]), "label": "COPD"},
         ]
         sorted_suspects = sorted(suspects, key=lambda s: s["raf"], reverse=True)
-        # Transplant (0.825) > Parkinson (0.606) > CHF (0.360) > Diabetes (0.166)
-        assert sorted_suspects[0]["label"] == "Transplant"
+        # CHF (0.360) > Parkinson (0.326) > COPD (0.319) > Diabetes (0.166)
+        # Values from CMS V28 2026 hcc_mappings.json
+        assert sorted_suspects[0]["label"] == "CHF"
         assert sorted_suspects[1]["label"] == "Parkinson"
-        assert sorted_suspects[2]["label"] == "CHF"
+        assert sorted_suspects[2]["label"] == "COPD"
         assert sorted_suspects[3]["label"] == "Diabetes"
 
     def test_med_dx_mapping_coverage(self):
