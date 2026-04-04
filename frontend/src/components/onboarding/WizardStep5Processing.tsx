@@ -395,6 +395,7 @@ function PipelineStepRow({ step, isLast }: { step: PipelineStep; isLast: boolean
         )}
         {step.status === "running" && <Spinner />}
         {step.status === "complete" && <CheckIcon />}
+        {step.status === "warning" && <span style={{ fontSize: 14, fontWeight: 700, color: tokens.amber }}>!</span>}
         {step.status === "error" && <XIcon />}
       </div>
 
@@ -601,8 +602,12 @@ function statusIconStyle(status: StepStatus): React.CSSProperties {
       return { background: tokens.blueSoft, border: `2px solid ${tokens.blue}` };
     case "complete":
       return { background: tokens.accent, border: "none", color: "#fff" };
+    case "warning":
+      return { background: tokens.amberSoft, border: `2px solid ${tokens.amber}` };
     case "error":
       return { background: tokens.redSoft, border: `2px solid ${tokens.red}` };
+    default:
+      return { background: tokens.surfaceAlt, border: `2px solid ${tokens.border}` };
   }
 }
 

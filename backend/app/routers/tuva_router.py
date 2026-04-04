@@ -35,15 +35,32 @@ router = APIRouter(prefix="/api/tuva", tags=["tuva"])
 # ---------------------------------------------------------------------------
 
 
+@asynccontextmanager
+async def _demo_session():
+    """Context manager for demo_mso session with proper cleanup.
+
+    Usage: async with _demo_session() as session: ...
+
+    WARNING: Hardcodes demo_mso tenant access without auth.
+    Production deployments must replace with authenticated tenant resolution.
+    """
+    async with async_session_factory() as session:
+        await session.execute(sa_text('SET search_path TO demo_mso, public'))
+        try:
+            yield session
+        finally:
+            try:
+                await session.execute(sa_text('RESET search_path'))
+            except Exception:
+                pass
+
+
 async def _get_demo_session() -> AsyncSession:
     """Get a demo_mso session for use in endpoint bodies.
 
-    Returns a plain session (NOT a generator). Callers must manage lifecycle.
-    For short-lived request handlers this is acceptable since the session
-    is garbage-collected at end of request.
-
-    WARNING: This hardcodes demo_mso tenant access without auth.
-    Production deployments must replace with authenticated tenant resolution.
+    NOTE: This returns a session that must be explicitly closed by the caller
+    or will be closed when the async context exits. For proper lifecycle
+    management, prefer _demo_session() context manager.
     """
     session = async_session_factory()
     await session.__aenter__()
@@ -174,18 +191,18 @@ async def get_live_comparison():
     tuva_scores = get_risk_scores()
     tuva_by_member = {str(s["person_id"]): s for s in tuva_scores}
 
-    # Get AQSoft scores from PostgreSQL
-    session = await _get_demo_session()
-    result = await session.execute(
-        select(
-            Member.member_id,
-            Member.first_name,
-            Member.last_name,
-            Member.current_raf,
-            Member.projected_raf,
+    # Get AQSoft scores from PostgreSQL (with proper session cleanup)
+    async with _demo_session() as session:
+        result = await session.execute(
+            select(
+                Member.member_id,
+                Member.first_name,
+                Member.last_name,
+                Member.current_raf,
+                Member.projected_raf,
+            )
         )
-    )
-    members = result.all()
+        members = result.all()
 
     comparisons = []
     total_capture_opportunity = 0.0
