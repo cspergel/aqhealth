@@ -19,9 +19,28 @@ from app.models.tuva_baseline import TuvaRafBaseline, TuvaPmpmBaseline
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tuva", tags=["tuva"])
 
+# ---------------------------------------------------------------------------
+# DEMO-ONLY ACCESS: These endpoints bypass authentication and access the
+# demo_mso tenant directly. This is intentional for partner demos only.
+#
+# PRODUCTION SAFETY:
+# - demo_mso contains only synthetic data (no real PHI)
+# - Auth-free endpoints that read from DuckDB (risk-scores, summary, status)
+#   return only aggregate/opaque data (person_id, HCC codes, RAF scores)
+# - Endpoints that read from PostgreSQL (comparison, member detail) are
+#   scoped to demo_mso only and expose synthetic member names
+#
+# Before production deployment: either require auth on all endpoints or
+# replace _get_demo_session with authenticated tenant resolution.
+# ---------------------------------------------------------------------------
+
 
 async def _get_demo_session() -> AsyncSession:
-    """FastAPI dependency that yields a demo_mso session and cleans up properly."""
+    """FastAPI dependency that yields a demo_mso session and cleans up properly.
+
+    WARNING: This hardcodes demo_mso tenant access without auth.
+    Production deployments must replace this with authenticated tenant resolution.
+    """
     async with async_session_factory() as session:
         await session.execute(sa_text('SET search_path TO demo_mso, public'))
         yield session

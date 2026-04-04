@@ -147,3 +147,127 @@ async def test_process_note_rejects_short_text(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "error" in data
+
+
+# ---------------------------------------------------------------------------
+# Tuva comparison + population endpoints (no auth, demo data)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_tuva_comparison(client):
+    """Tuva comparison endpoint returns expected shape."""
+    resp = await client.get("/api/tuva/comparison")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "items" in data
+    assert "summary" in data
+
+
+@pytest.mark.asyncio
+async def test_tuva_population_opportunities(client):
+    """Population opportunities endpoint responds."""
+    resp = await client.get("/api/tuva/population-opportunities")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "total_opportunities" in data
+    assert "items" in data
+
+
+@pytest.mark.asyncio
+async def test_tuva_convergence(client):
+    """Convergence endpoint responds."""
+    resp = await client.get("/api/tuva/convergence")
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_tuva_stale_suspects(client):
+    """Stale suspects endpoint responds."""
+    resp = await client.get("/api/tuva/stale-suspects")
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Export endpoints require auth
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_providers_export_requires_auth(client):
+    """Provider export requires authentication."""
+    resp = await client.get("/api/providers/export")
+    assert resp.status_code in (401, 403, 422)
+
+
+@pytest.mark.asyncio
+async def test_expenditure_export_requires_auth(client):
+    """Expenditure export requires authentication."""
+    resp = await client.get("/api/expenditure/export")
+    assert resp.status_code in (401, 403, 422)
+
+
+@pytest.mark.asyncio
+async def test_care_gaps_export_requires_auth(client):
+    """Care gaps export requires authentication."""
+    resp = await client.get("/api/care-gaps/export")
+    assert resp.status_code in (401, 403, 422)
+
+
+# ---------------------------------------------------------------------------
+# Onboarding / dashboard summary endpoints
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dashboard_summary_requires_auth(client):
+    """Dashboard summary requires auth."""
+    resp = await client.get("/api/dashboard/summary")
+    assert resp.status_code in (401, 403, 422)
+
+
+@pytest.mark.asyncio
+async def test_data_quality_summary_requires_auth(client):
+    """Data quality summary requires auth."""
+    resp = await client.get("/api/data-quality/summary")
+    assert resp.status_code in (401, 403, 422)
+
+
+# ---------------------------------------------------------------------------
+# Interface and ADT admin endpoints require admin role
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_interface_requires_auth(client):
+    """Interface creation requires admin role."""
+    resp = await client.post("/api/interfaces/interfaces", json={"name": "test"})
+    assert resp.status_code in (401, 403, 422)
+
+
+@pytest.mark.asyncio
+async def test_create_adt_source_requires_auth(client):
+    """ADT source creation requires admin role."""
+    resp = await client.post("/api/adt/sources", json={"name": "test"})
+    assert resp.status_code in (401, 403, 422)
+
+
+@pytest.mark.asyncio
+async def test_data_protection_contract_requires_auth(client):
+    """Data protection contract creation requires admin role."""
+    resp = await client.post("/api/data-protection/contracts", json={"name": "test"})
+    assert resp.status_code in (401, 403, 422)
+
+
+# ---------------------------------------------------------------------------
+# Payer API endpoints
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_payer_status_requires_auth(client):
+    """Payer status requires auth."""
+    resp = await client.get("/api/payer/status")
+    assert resp.status_code in (401, 403, 422)
+
+
+@pytest.mark.asyncio
+async def test_payer_available_requires_auth(client):
+    """Available payers requires auth."""
+    resp = await client.get("/api/payer/available")
+    assert resp.status_code in (401, 403, 422)

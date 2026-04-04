@@ -1,17 +1,23 @@
 """
-LLM Guard -- ensures tenant isolation and output validation for all AI calls.
+LLM Guard -- tenant isolation and output validation for AI calls.
 
-Every LLM interaction goes through this guard to:
-1. Verify all input data belongs to the same tenant
-2. Add safety instructions to the prompt
-3. Validate output doesn't reference other tenants
-4. Log the interaction for audit
+Most LLM interactions go through guarded_llm_call() which:
+1. Verifies all input data belongs to the same tenant
+2. Adds safety instructions to the prompt
+3. Validates output doesn't reference other tenants
+4. Logs the interaction for audit
 
-NOTE: clinical_nlp_service.py calls the Anthropic API directly instead of using
-guarded_llm_call(). This is intentional -- clinical NLP requires the tool_use
-protocol (structured tool definitions and tool_result message blocks), which
-guarded_llm_call does not support. The clinical service applies its own tenant
-isolation and output validation.
+KNOWN BYPASS PATHS (intentional, scoped, audited):
+
+- clinical_nlp_service.py: Calls Anthropic API directly because it requires
+  the tool_use protocol (structured tool definitions and tool_result message
+  blocks) which guarded_llm_call does not support. Scoping guarantees:
+  * Only processes single-member note data (no cross-tenant risk in prompts)
+  * Uses structured JSON output validation (schema enforcement)
+  * All extracted codes validated against ICD-10 reference before storage
+  * No tenant identifiers or PHI from other tenants enters the prompt
+
+TODO: Add tool_use support to guarded_llm_call, then migrate clinical_nlp_service.
 """
 
 import json
