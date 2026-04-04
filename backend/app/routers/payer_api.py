@@ -46,7 +46,7 @@ class PayerCallbackRequest(BaseModel):
     client_id: str
     client_secret: str
     environment: str = "sandbox"
-    state: str | None = None
+    state: str = Field(..., description="OAuth state parameter (CSRF protection, must match tenant)")
     code_verifier: str | None = Field(None, description="PKCE code_verifier (required for eCW)")
     practice_code: str | None = Field(None, description="Practice code (required for eCW)")
 

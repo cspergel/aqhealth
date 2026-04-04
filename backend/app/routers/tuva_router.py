@@ -34,11 +34,9 @@ router = APIRouter(prefix="/api/tuva", tags=["tuva"])
 
 
 def _is_demo_mode() -> bool:
-    """Check if demo mode is enabled. Auth-free Tuva endpoints only work in demo mode."""
+    """Check if demo mode is explicitly enabled. Auth-free Tuva endpoints only work when DEMO_MODE=true."""
     import os
-    # Demo mode is on if: DEMO_MODE=true, or ALLOW_DEFAULT_SECRET=true (dev), or demo_mso schema exists
-    return os.getenv("DEMO_MODE", "").lower() in ("true", "1", "yes") or \
-           os.getenv("ALLOW_DEFAULT_SECRET", "").lower() == "true"
+    return os.getenv("DEMO_MODE", "").lower() in ("true", "1", "yes")
 
 
 @asynccontextmanager

@@ -15,7 +15,7 @@ from app.config import settings
 from app.services.tuva_export_service import TuvaExportService, get_duckdb_path
 from app.services.tuva_runner_service import TuvaRunnerService
 from app.services.tuva_sync_service import TuvaSyncService
-from app.workers import get_tenant_session
+from app.workers import TenantSession
 
 logger = logging.getLogger(__name__)
 
@@ -37,17 +37,16 @@ async def tuva_pipeline_job(ctx: dict, tenant_schema: str) -> dict[str, Any]:
 
     # ── Phase 1: Export PG → DuckDB ──────────────────────────────────────
     export_service = TuvaExportService(duckdb_path=duckdb_path)
-    db = await get_tenant_session(tenant_schema)
     try:
-        export_counts = await export_service.export_all(db)
-        results["phases"]["export"] = {"success": True, **export_counts}
-        logger.info("Export complete: %s", export_counts)
+        async with TenantSession(tenant_schema) as db:
+            export_counts = await export_service.export_all(db)
+            results["phases"]["export"] = {"success": True, **export_counts}
+            logger.info("Export complete: %s", export_counts)
     except Exception as e:
         logger.error("Export failed: %s", e, exc_info=True)
         results["phases"]["export"] = {"success": False, "error": str(e)}
         return {"success": False, **results}
     finally:
-        await db.close()
         export_service.close()
 
     # ── Phase 2: dbt seed (terminology tables) ───────────────────────────
@@ -67,19 +66,17 @@ async def tuva_pipeline_job(ctx: dict, tenant_schema: str) -> dict[str, Any]:
         return {"success": False, **results}
 
     # ── Phase 4: Sync Tuva outputs back to PG ────────────────────────────
-    db = await get_tenant_session(tenant_schema)
     try:
-        sync_service = TuvaSyncService(duckdb_path=duckdb_path)
-        sync_result = await sync_service.sync_all(db)
-        await db.commit()
-        results["phases"]["sync"] = {"success": True, **sync_result}
-        logger.info("Sync complete: %s", sync_result)
+        async with TenantSession(tenant_schema) as db:
+            sync_service = TuvaSyncService(duckdb_path=duckdb_path)
+            sync_result = await sync_service.sync_all(db)
+            await db.commit()
+            results["phases"]["sync"] = {"success": True, **sync_result}
+            logger.info("Sync complete: %s", sync_result)
     except Exception as e:
         logger.error("Sync failed: %s", e, exc_info=True)
         results["phases"]["sync"] = {"success": False, "error": str(e)}
         return {"success": False, **results}
-    finally:
-        await db.close()
 
     results["success"] = True
     logger.info("Tuva pipeline complete for tenant %s", tenant_schema)
