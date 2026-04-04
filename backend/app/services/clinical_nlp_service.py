@@ -34,6 +34,93 @@ from app.services.hcc_engine import lookup_hcc_for_icd10, build_code_ladder
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Full ICD-10 reference data (70,000+ codes, not just HCC-mapped)
+# ---------------------------------------------------------------------------
+
+_ICD10_FULL_LOOKUP: dict[str, dict] | None = None
+_CLINICAL_RULES: dict | None = None
+
+
+def _load_full_icd10() -> dict[str, dict]:
+    """Load the complete ICD-10 reference (from SNF Admit Assist)."""
+    global _ICD10_FULL_LOOKUP
+    if _ICD10_FULL_LOOKUP is not None:
+        return _ICD10_FULL_LOOKUP
+
+    import os
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "data", "merged_all_codes_2025midyear.json"
+    )
+    if not os.path.exists(path):
+        logger.warning("Full ICD-10 reference not found at %s", path)
+        _ICD10_FULL_LOOKUP = {}
+        return _ICD10_FULL_LOOKUP
+
+    with open(path) as f:
+        data = json.load(f)
+    _ICD10_FULL_LOOKUP = {entry["icd10"]: entry for entry in data}
+    logger.info("Loaded %d full ICD-10 codes from %s", len(_ICD10_FULL_LOOKUP), path)
+    return _ICD10_FULL_LOOKUP
+
+
+def _load_clinical_rules() -> dict:
+    """Load YAML-driven clinical validation rules (119 code families)."""
+    global _CLINICAL_RULES
+    if _CLINICAL_RULES is not None:
+        return _CLINICAL_RULES
+
+    import os
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "data", "clinical_rules_index.json"
+    )
+    if not os.path.exists(path):
+        _CLINICAL_RULES = {}
+        return _CLINICAL_RULES
+
+    with open(path) as f:
+        _CLINICAL_RULES = json.load(f)
+    logger.info("Loaded clinical rules: %d code families", len(_CLINICAL_RULES.get("families", {})))
+    return _CLINICAL_RULES
+
+
+def lookup_icd10_full(code: str) -> dict | None:
+    """Look up ANY ICD-10 code (not just HCC-mapped) in the full reference.
+
+    Returns: {icd10, description, is_billable, chapter, ...} or None.
+    Also checks HCC mapping and returns combined info.
+    """
+    lookup = _load_full_icd10()
+    # Try exact match
+    entry = lookup.get(code)
+    if not entry:
+        # Try without dot
+        stripped = code.replace(".", "")
+        for k, v in lookup.items():
+            if k.replace(".", "") == stripped:
+                entry = v
+                code = k
+                break
+    if not entry:
+        return None
+
+    # Enrich with HCC data
+    hcc_entry = lookup_hcc_for_icd10(code)
+    result = {**entry}
+    if hcc_entry:
+        result["hcc"] = hcc_entry.get("hcc")
+        result["raf"] = hcc_entry.get("raf", 0)
+        result["hcc_description"] = hcc_entry.get("description", "")
+        result["maps_to_hcc"] = True
+    else:
+        result["maps_to_hcc"] = False
+        result["hcc"] = None
+        result["raf"] = 0
+
+    return result
+
+# ---------------------------------------------------------------------------
 # Document type priority (from SNF Admit Assist)
 # Higher priority = more authoritative for coding decisions
 # ---------------------------------------------------------------------------
@@ -196,8 +283,22 @@ Return JSON:
 
 CODING_TOOLS = [
     {
+        "name": "lookup_icd10",
+        "description": "Look up ANY ICD-10-CM code in the full 70,000+ code reference. Returns description, billable status, chapter, AND whether it maps to an HCC with RAF weight. Use this for any code — not just HCC codes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "icd10_code": {
+                    "type": "string",
+                    "description": "ICD-10-CM code (e.g., 'E11.65', 'I50.22', 'J06.9', 'Z87.39')"
+                }
+            },
+            "required": ["icd10_code"]
+        }
+    },
+    {
         "name": "lookup_hcc",
-        "description": "Look up if an ICD-10-CM code maps to an HCC and get its RAF weight. Use this to validate every code you assign.",
+        "description": "Quick check if an ICD-10-CM code maps to an HCC and get its RAF weight. Faster than lookup_icd10 but only returns HCC data.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -241,7 +342,23 @@ CODING_TOOLS = [
 
 def _handle_tool_call(tool_name: str, tool_input: dict) -> str:
     """Handle a tool call from Claude during coding pass."""
-    if tool_name == "lookup_hcc":
+    if tool_name == "lookup_icd10":
+        code = tool_input.get("icd10_code", "")
+        entry = lookup_icd10_full(code)
+        if entry:
+            return json.dumps({
+                "code": code,
+                "description": entry.get("description", ""),
+                "is_billable": entry.get("is_billable", True),
+                "maps_to_hcc": entry.get("maps_to_hcc", False),
+                "hcc_code": entry.get("hcc"),
+                "raf_weight": entry.get("raf", 0),
+                "chapter": entry.get("chapter", ""),
+                "valid": True,
+            })
+        return json.dumps({"code": code, "valid": False, "message": "Code not found in ICD-10 reference"})
+
+    elif tool_name == "lookup_hcc":
         code = tool_input.get("icd10_code", "")
         entry = lookup_hcc_for_icd10(code)
         if entry:
@@ -292,6 +409,126 @@ def _handle_tool_call(tool_name: str, tool_input: dict) -> str:
         return json.dumps({"lab": lab, "value": value, "message": "No staging rule for this lab/value"})
 
     return json.dumps({"error": f"Unknown tool: {tool_name}"})
+
+
+# ---------------------------------------------------------------------------
+# Pre-processing: auto-map ICD-10 codes found directly in text (no LLM needed)
+# ---------------------------------------------------------------------------
+
+import re
+
+# Regex to find ICD-10 codes in clinical text (e.g., E11.65, I50.22, N18.4)
+_ICD10_PATTERN = re.compile(
+    r'\b([A-TV-Z]\d{2}\.?\d{0,4})\b'
+)
+
+# Common false positives to exclude
+_ICD10_EXCLUDE = {
+    "T10", "T20", "S10", "V10",  # Too short / ambiguous
+}
+
+
+def auto_extract_icd10_codes(text: str) -> list[dict[str, Any]]:
+    """Extract ICD-10 codes directly mentioned in clinical text.
+
+    No LLM needed — uses regex + your HCC reference data to validate
+    and enrich each code with HCC mapping, RAF weight, description,
+    and code ladder.
+
+    Returns only validated codes (ones that exist in the reference data).
+    """
+    if not text:
+        return []
+
+    # Find all potential ICD-10 patterns
+    candidates = set(_ICD10_PATTERN.findall(text))
+
+    validated: list[dict[str, Any]] = []
+    seen_codes: set[str] = set()
+
+    for candidate in candidates:
+        # Skip too-short or excluded patterns
+        normalized = candidate.upper().strip()
+        if len(normalized) < 3 or normalized[:3] in _ICD10_EXCLUDE:
+            continue
+        if normalized in seen_codes:
+            continue
+
+        # Look up in full reference first (70K codes), then HCC subset
+        full_entry = lookup_icd10_full(candidate)
+        entry = lookup_hcc_for_icd10(candidate)
+        if not full_entry and not entry:
+            # Try with dot inserted if missing
+            if "." not in candidate and len(candidate) > 3:
+                dotted = candidate[:3] + "." + candidate[3:]
+                full_entry = lookup_icd10_full(dotted)
+                entry = lookup_hcc_for_icd10(dotted)
+                if full_entry or entry:
+                    candidate = dotted
+
+        if full_entry or entry:
+            seen_codes.add(normalized)
+
+            # Use full reference for description, HCC data for RAF
+            description = ""
+            hcc_code = None
+            raf_weight = 0.0
+            has_hcc = False
+
+            if entry and entry.get("hcc"):
+                hcc_code = int(entry["hcc"])
+                raf_weight = float(entry.get("raf", 0))
+                description = entry.get("description", "")
+                has_hcc = True
+            if full_entry:
+                description = full_entry.get("description", description)
+
+            # Find the context around this code in the text
+            evidence_quote = _find_context(text, candidate)
+
+            # Build code ladder for specificity check
+            ladder = build_code_ladder(candidate)
+            upgrades = [c for c in ladder if c["raf_weight"] > raf_weight and not c["is_current"]]
+
+            validated.append({
+                "icd10": candidate,
+                "description": description,
+                "hcc_code": hcc_code,
+                "raf_weight": raf_weight,
+                "has_hcc": has_hcc,
+                "evidence_quote": evidence_quote,
+                "confidence": 95,  # High confidence — code explicitly in text
+                "source_finding_type": "explicit_code",
+                "extraction_method": "auto_regex",  # No LLM used
+                "code_ladder": ladder[:6],
+                "has_specificity_upgrade": len(upgrades) > 0,
+                "upgrades_available": upgrades[:3],
+            })
+
+    # Sort: HCC-mapped codes first, then by RAF descending
+    validated.sort(key=lambda c: (-(1 if c["has_hcc"] else 0), -c["raf_weight"]))
+
+    logger.info("Auto-extracted %d validated ICD-10 codes from text (no LLM)", len(validated))
+    return validated
+
+
+def _find_context(text: str, code: str, window: int = 80) -> str:
+    """Find the surrounding context for an ICD-10 code in text."""
+    idx = text.find(code)
+    if idx == -1:
+        # Try without dot
+        idx = text.find(code.replace(".", ""))
+    if idx == -1:
+        return ""
+    start = max(0, idx - window)
+    end = min(len(text), idx + len(code) + window)
+    context = text[start:end].strip()
+    # Clean up to sentence boundaries if possible
+    if start > 0 and "." in context[:20]:
+        context = context[context.index(".") + 1:].strip()
+    if end < len(text) and "." in context[-20:]:
+        context = context[:context.rindex(".") + 1].strip()
+    return context
 
 
 # ---------------------------------------------------------------------------
@@ -487,13 +724,32 @@ async def process_clinical_note(
     - Confidence scores
     - Source document metadata for audit trail
     """
-    # Pass 1: Extract
+    # Pre-pass: Auto-extract any ICD-10 codes already in the text (no LLM needed)
+    auto_codes = auto_extract_icd10_codes(note_text)
+
+    # Pass 1: Extract structured facts from the note via Claude
     extraction = await extract_from_note(
         note_text, note_type, note_date, provider_name, facility_name, document_id
     )
 
-    # Pass 2: Code with tool validation
-    codes = await assign_codes_with_tools(extraction)
+    # Pass 2: Code with tool validation (Claude assigns codes for extracted diagnoses)
+    llm_codes = await assign_codes_with_tools(extraction)
+
+    # Merge: auto-extracted codes + LLM-assigned codes, deduplicated
+    seen_icd10: set[str] = set()
+    codes: list[dict] = []
+    # Auto-extracted first (higher confidence)
+    for c in auto_codes:
+        icd = c.get("icd10", "").upper().replace(".", "")
+        if icd not in seen_icd10:
+            seen_icd10.add(icd)
+            codes.append(c)
+    # Then LLM codes (only if not already found by auto-extract)
+    for c in llm_codes:
+        icd = c.get("icd10", "").upper().replace(".", "")
+        if icd not in seen_icd10:
+            seen_icd10.add(icd)
+            codes.append(c)
 
     # Build diagnosis_source_map (SNF pattern)
     diagnosis_source_map: dict[str, dict] = {}

@@ -39,3 +39,5 @@ tuva_demo_data/
 dbt_project/target/
 dbt_project/dbt_packages/
 dbt_project/logs/
+data/merged_all_codes_2025midyear.json
+data/clinical_rules_index.json
