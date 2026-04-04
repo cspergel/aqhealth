@@ -44,8 +44,7 @@ class ClaimOut(BaseModel):
     pos_code: str | None = None
     drug_name: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class ClaimListResponse(BaseModel):

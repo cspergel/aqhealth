@@ -43,8 +43,8 @@ def _is_demo_mode() -> bool:
 async def _demo_session():
     """Context manager for demo_mso session with proper cleanup.
 
-    Only works when DEMO_MODE=true or ALLOW_DEFAULT_SECRET=true.
-    Production deployments without these env vars will get 503.
+    Only works when DEMO_MODE=true environment variable is set.
+    Production deployments without this flag will get 503.
     """
     if not _is_demo_mode():
         raise HTTPException(

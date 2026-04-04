@@ -40,8 +40,7 @@ class TenantOut(BaseModel):
     status: str
     created_at: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class TenantUpdateRequest(BaseModel):
@@ -75,8 +74,7 @@ class UserOut(BaseModel):
     role: str
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # ---------------------------------------------------------------------------

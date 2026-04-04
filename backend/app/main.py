@@ -1,4 +1,6 @@
 import logging
+import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,11 +12,36 @@ logger = logging.getLogger(__name__)
 from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_protection, data_quality, discovery, education, expenditure, fhir, financial, filters, groups, hcc, ingestion, insights, interfaces, journey, learning, members, onboarding, payer_api, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, skills, stars, stoploss, tags, tcm, temporal, tenants, utilization, watchlist
 from app.routers.tuva_router import router as tuva_router
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup and shutdown lifecycle."""
+    # --- Startup ---
+    # Refuse to start with default secret key (unless explicitly allowed for dev)
+    if settings.secret_key.lower() in ("change-me-in-production", "changeme"):
+        if os.getenv("ALLOW_DEFAULT_SECRET", "").lower() != "true":
+            raise RuntimeError(
+                "SECRET_KEY must be changed from default. "
+                "Set a real secret in .env, or set ALLOW_DEFAULT_SECRET=true for development."
+            )
+
+    # Ensure platform schema and tables exist so auth works on first boot
+    from app.database import init_db
+    await init_db()
+
+    yield  # App runs here
+
+    # --- Shutdown ---
+    from app.database import engine
+    await engine.dispose()
+
+
 app = FastAPI(
     title="AQSoft Health Platform",
     version="0.1.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -90,26 +117,6 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
-
-# DEPRECATED: @app.on_event is deprecated in FastAPI >= 0.103.
-# Migrate to the lifespan context manager pattern when upgrading:
-#   @asynccontextmanager
-#   async def lifespan(app): yield
-#   app = FastAPI(lifespan=lifespan)
-@app.on_event("startup")
-async def _startup():
-    # Refuse to start with default secret key (unless explicitly allowed for dev)
-    if settings.secret_key.lower() in ("change-me-in-production", "changeme"):
-        import os
-        if os.getenv("ALLOW_DEFAULT_SECRET", "").lower() != "true":
-            raise RuntimeError(
-                "SECRET_KEY must be changed from default. "
-                "Set a real secret in .env, or set ALLOW_DEFAULT_SECRET=true for development."
-            )
-
-    # Ensure platform schema and tables exist so auth works on first boot
-    from app.database import init_db
-    await init_db()
 
 
 @app.get("/api/health")
