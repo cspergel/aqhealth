@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import api from "../lib/api";
 import { tokens, fonts } from "../lib/tokens";
 import { WizardShell, type WizardStep } from "../components/onboarding/WizardShell";
 import { WizardStep1Org } from "../components/onboarding/WizardStep1Org";
@@ -51,13 +52,34 @@ export function OnboardingPage() {
 
   const [step5Complete, setStep5Complete] = useState(false);
 
+  // On mount, check if onboarding was already completed
+  useEffect(() => {
+    if (localStorage.getItem("onboarding_complete") === "true") {
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
+
   const handleStepChange = useCallback((step: number) => {
     setCurrentStep(step);
   }, []);
 
   const handleFinish = useCallback(() => {
-    // TODO: Update tenant onboarding_status.wizard_completed = true
-    // via PUT /api/tenants/{id}
+    // Persist completion to localStorage so it survives page reloads
+    localStorage.setItem("onboarding_complete", "true");
+
+    // Best-effort API call to mark tenant as onboarded
+    const tenantId = localStorage.getItem("tenant_id");
+    if (tenantId) {
+      api
+        .patch(`/api/tenants/${tenantId}`, {
+          config: { wizard_completed: true },
+          status: "active",
+        })
+        .catch((err) => {
+          console.warn("[OnboardingPage] Failed to update tenant status:", err);
+        });
+    }
+
     navigate("/");
   }, [navigate]);
 

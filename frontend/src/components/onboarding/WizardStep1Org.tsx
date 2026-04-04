@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
 
 /* ------------------------------------------------------------------ */
@@ -123,6 +124,7 @@ export function WizardStep1Org({ onConfirm }: WizardStep1OrgProps) {
   const [bonusPct, setBonusPct] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   /* Derived */
   const stateRate = primaryState ? STATE_AVG_RATES[primaryState] ?? null : null;
@@ -154,17 +156,39 @@ export function WizardStep1Org({ onConfirm }: WizardStep1OrgProps) {
   /* Confirm & submit */
   const handleConfirm = async () => {
     setSubmitting(true);
+    setSaveError(null);
+
+    const orgConfig = {
+      org_name: orgName.trim(),
+      org_type: orgType,
+      primary_state: primaryState,
+      payer_mix: [...selectedPayers],
+      default_bonus_pct: bonusPct,
+    };
+
     try {
-      // TODO: Replace with real API call — PUT /api/tenants/{id}
-      console.log("[WizardStep1Org] Saving organization config:", {
-        org_name: orgName.trim(),
-        org_type: orgType,
-        primary_state: primaryState,
-        payer_mix: [...selectedPayers],
-        default_bonus_pct: bonusPct,
-      });
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const tenantId = localStorage.getItem("tenant_id");
+      if (tenantId) {
+        // Real API call — save org config to tenant record
+        await api.patch(`/api/tenants/${tenantId}`, {
+          name: orgName.trim(),
+          config: orgConfig,
+        });
+      } else {
+        console.warn(
+          "[WizardStep1Org] No tenant_id in localStorage — saving config locally only",
+        );
+        // Store org config in localStorage as fallback
+        localStorage.setItem("org_config", JSON.stringify(orgConfig));
+      }
       onConfirm();
+    } catch (err: any) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Failed to save organization settings";
+      console.error("[WizardStep1Org] Save failed:", detail);
+      setSaveError(String(detail));
     } finally {
       setSubmitting(false);
     }
@@ -473,6 +497,22 @@ export function WizardStep1Org({ onConfirm }: WizardStep1OrgProps) {
             <strong>{bonusPct}%</strong> quality bonus. Primary payers:{" "}
             <strong>{[...selectedPayers].join(", ")}</strong>.
           </div>
+          {saveError && (
+            <div
+              style={{
+                padding: "10px 14px",
+                marginBottom: 12,
+                borderRadius: 6,
+                background: `${tokens.red}10`,
+                border: `1px solid ${tokens.red}40`,
+                color: tokens.red,
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            >
+              {saveError}
+            </div>
+          )}
           <button
             onClick={() => {
               if (!confirmed) {
