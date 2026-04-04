@@ -116,13 +116,66 @@ async def get_staffing_analysis(db: AsyncSession) -> dict:
 
     # Ratios
     staff_to_provider = round(total_staff / provider_count, 2) if provider_count else 0
+    # Estimate member count from providers (avg panel ~500 per provider for managed care)
+    estimated_members = provider_count * 500
+    staff_to_member_ratio = round(total_staff / (estimated_members / 1000), 2) if estimated_members else 0
+
+    # Benchmarks
+    benchmarks = {
+        "staff_to_provider_ratio": {
+            "current": staff_to_provider,
+            "benchmark": 2.5,
+            "status": "below" if staff_to_provider <= 2.5 else "above",
+            "label": "Staff-to-Provider Ratio",
+        },
+        "staff_per_1k_members": {
+            "current": staff_to_member_ratio,
+            "benchmark": 3.5,
+            "status": "below" if staff_to_member_ratio <= 3.5 else "above",
+            "label": "Staff per 1K Members",
+        },
+        "staffing_cost_per_provider": {
+            "current": round(total_cost / provider_count, 0) if provider_count else 0,
+            "benchmark": 180000,
+            "status": "below" if provider_count and (total_cost / provider_count) <= 180000 else "above",
+            "label": "Staffing Cost per Provider",
+        },
+    }
+
+    # AI Recommendations based on ratios
+    ai_recommendations: list[dict[str, str]] = []
+    if staff_to_provider > 3.0:
+        ai_recommendations.append({
+            "type": "warning",
+            "message": f"Staff-to-provider ratio ({staff_to_provider}:1) is above the 2.5:1 benchmark. Consider whether all support roles are necessary or if workflow automation could reduce headcount needs.",
+        })
+    if staff_to_provider < 2.0:
+        ai_recommendations.append({
+            "type": "info",
+            "message": f"Staff-to-provider ratio ({staff_to_provider}:1) is lean. Monitor staff burnout and patient wait times closely.",
+        })
+    if total_cost > 0 and provider_count > 0:
+        cost_per_prov = total_cost / provider_count
+        if cost_per_prov < 150000:
+            ai_recommendations.append({
+                "type": "success",
+                "message": f"Staffing cost per provider (${cost_per_prov:,.0f}) is well below the $180K benchmark. Strong cost discipline.",
+            })
+    if not ai_recommendations:
+        ai_recommendations.append({
+            "type": "success",
+            "message": "Staffing levels and costs are within industry benchmarks. No immediate action needed.",
+        })
 
     return {
         "total_staff": total_staff,
         "total_cost": round(total_cost, 2),
         "provider_count": provider_count,
         "staff_to_provider_ratio": staff_to_provider,
+        "staff_to_member_ratio": staff_to_member_ratio,
         "by_role": by_role,
+        "benchmarks": benchmarks,
+        "ai_recommendations": ai_recommendations,
     }
 
 
@@ -174,10 +227,94 @@ async def get_efficiency_metrics(db: AsyncSession) -> dict:
     )
     total_expenses = _safe_float(expense_result.scalar())
 
+    # Staffing cost (salary + benefits)
+    staffing_result = await db.execute(
+        select(
+            func.sum(StaffMember.salary),
+            func.sum(StaffMember.benefits_cost),
+            func.count(StaffMember.id),
+        )
+        .where(StaffMember.is_active.is_(True))
+    )
+    staff_row = staffing_result.one_or_none()
+    total_salary = _safe_float(staff_row[0] if staff_row else 0)
+    total_benefits = _safe_float(staff_row[1] if staff_row else 0)
+    staffing_cost = total_salary + total_benefits
+
+    # Provider count for panel/revenue estimates
+    provider_result = await db.execute(
+        select(func.count(StaffMember.id))
+        .where(StaffMember.is_active.is_(True))
+        .where(StaffMember.role.in_(["physician", "np"]))
+    )
+    provider_count = provider_result.scalar() or 0
+
+    # Estimate revenue and member count from providers (managed care assumptions)
+    # ~500 members per provider, ~$1,200 PMPY revenue
+    estimated_members = provider_count * 500
+    estimated_annual_revenue = estimated_members * 1200  # $1,200 PMPY
+
+    overhead = max(total_expenses - staffing_cost, 0)
+    expense_per_staff = round(total_expenses / staff_count, 2) if staff_count > 0 else 0
+    revenue_per_staff = round(estimated_annual_revenue / staff_count, 2) if staff_count > 0 else 0
+    cost_per_member = round(total_expenses / estimated_members, 2) if estimated_members > 0 else 0
+    overhead_ratio = round(overhead / total_expenses * 100, 1) if total_expenses > 0 else 0
+    staffing_pct = round(staffing_cost / estimated_annual_revenue * 100, 1) if estimated_annual_revenue > 0 else 0
+
+    # Supply-category expenses / estimated visits (providers * 20 visits/day * 250 days)
+    estimated_visits = provider_count * 20 * 250
+    supply_result = await db.execute(
+        select(func.sum(ExpenseEntry.amount))
+        .join(ExpenseCategory, ExpenseEntry.category_id == ExpenseCategory.id)
+        .where(ExpenseCategory.name == "Supplies")
+    )
+    supply_cost = _safe_float(supply_result.scalar())
+    supply_cost_per_visit = round(supply_cost / estimated_visits, 2) if estimated_visits > 0 else 0
+
+    # Benchmarks
+    benchmarks = {
+        "revenue_per_staff": {
+            "current": revenue_per_staff,
+            "benchmark": 150000,
+            "status": "above" if revenue_per_staff >= 150000 else "below",
+            "label": "Revenue per Staff Member",
+        },
+        "cost_per_member": {
+            "current": cost_per_member,
+            "benchmark": 45.0,
+            "status": "below" if cost_per_member <= 45 else "above",
+            "label": "Cost per Member (Monthly)",
+        },
+        "overhead_ratio": {
+            "current": overhead_ratio,
+            "benchmark": 12.0,
+            "status": "below" if overhead_ratio <= 12 else "above",
+            "label": "Overhead Ratio (%)",
+        },
+        "staffing_pct_of_revenue": {
+            "current": staffing_pct,
+            "benchmark": 30.0,
+            "status": "below" if staffing_pct <= 30 else "above",
+            "label": "Staffing % of Revenue",
+        },
+        "supply_cost_per_visit": {
+            "current": supply_cost_per_visit,
+            "benchmark": 5.5,
+            "status": "below" if supply_cost_per_visit <= 5.5 else "above",
+            "label": "Supply Cost per Visit",
+        },
+    }
+
     return {
         "total_staff": staff_count,
         "total_expenses": round(total_expenses, 2),
-        "expense_per_staff": round(total_expenses / staff_count, 2) if staff_count > 0 else 0,
+        "expense_per_staff": expense_per_staff,
+        "revenue_per_staff": revenue_per_staff,
+        "cost_per_member": cost_per_member,
+        "overhead_ratio": overhead_ratio,
+        "supply_cost_per_visit": supply_cost_per_visit,
+        "staffing_pct_of_revenue": staffing_pct,
+        "benchmarks": benchmarks,
     }
 
 
@@ -189,11 +326,100 @@ async def get_hiring_analysis(db: AsyncSession) -> dict:
     """Based on panel size, revenue, and workload: can we hire?"""
 
     staff = await get_staffing_analysis(db)
+    provider_count = staff["provider_count"]
+    current_cost = staff["total_cost"]
+
+    # Estimates based on managed care panel assumptions
+    estimated_members = provider_count * 500
+    estimated_annual_revenue = estimated_members * 1200  # $1,200 PMPY
+    monthly_revenue = round(estimated_annual_revenue / 12, 2)
+
+    # Financial capacity
+    annual_surplus = round(estimated_annual_revenue - current_cost, 2)
+    # Budget ~70% of surplus for a new hire to keep buffer
+    max_new_hire_budget = round(annual_surplus * 0.7, 2) if annual_surplus > 0 else 0
+    # Estimate average new hire cost at $65K salary + $15K benefits
+    avg_hire_cost = 80000
+    surplus_after_hire = round(annual_surplus - avg_hire_cost, 2)
+    can_hire = annual_surplus > avg_hire_cost
+
+    # Recommended hires based on current staffing gaps
+    recommended_hires = []
+
+    # Check if care manager exists
+    has_care_manager = any(r["role"] == "care_manager" for r in staff["by_role"])
+    if not has_care_manager:
+        recommended_hires.append({
+            "role": "care_manager",
+            "title": "Care Manager (RN)",
+            "estimated_salary": 72000,
+            "estimated_benefits": 18000,
+            "total_cost": 90000,
+            "impact": "Coordinates care for high-risk patients, improves RAF accuracy, reduces ER utilization. Expected to close 15-25 HCC gaps per month.",
+            "revenue_impact": 120000,
+            "break_even_months": 9,
+            "priority": "high",
+        })
+
+    # Check MA ratio (should be ~1 MA per provider)
+    ma_count = sum(r["count"] for r in staff["by_role"] if r["role"] == "ma")
+    if provider_count > 0 and ma_count < provider_count:
+        recommended_hires.append({
+            "role": "ma",
+            "title": "Medical Assistant",
+            "estimated_salary": 38000,
+            "estimated_benefits": 9500,
+            "total_cost": 47500,
+            "impact": "Improves provider throughput by handling vitals, rooming, and documentation prep. Enables 2-4 additional visits per provider per day.",
+            "revenue_impact": 85000,
+            "break_even_months": 7,
+            "priority": "high" if (provider_count - ma_count) >= 2 else "medium",
+        })
+
+    # Check coder ratio
+    has_coder = any(r["role"] == "coder" for r in staff["by_role"])
+    if not has_coder and provider_count >= 2:
+        recommended_hires.append({
+            "role": "coder",
+            "title": "Certified Medical Coder",
+            "estimated_salary": 55000,
+            "estimated_benefits": 13750,
+            "total_cost": 68750,
+            "impact": "Ensures accurate HCC coding and claim submission. Reduces denials and captures missed diagnoses for RAF optimization.",
+            "revenue_impact": 95000,
+            "break_even_months": 9,
+            "priority": "medium",
+        })
+
+    # If well-staffed, suggest a biller
+    has_biller = any(r["role"] == "biller" for r in staff["by_role"])
+    if not has_biller and provider_count >= 3:
+        recommended_hires.append({
+            "role": "biller",
+            "title": "Medical Biller",
+            "estimated_salary": 42000,
+            "estimated_benefits": 10500,
+            "total_cost": 52500,
+            "impact": "Reduces claim denial rate and accelerates AR collection. Tracks payer-specific rules and appeals.",
+            "revenue_impact": 60000,
+            "break_even_months": 11,
+            "priority": "low",
+        })
+
     return {
         "current_staff": staff["total_staff"],
-        "current_cost": staff["total_cost"],
-        "provider_count": staff["provider_count"],
+        "current_cost": current_cost,
+        "monthly_revenue": monthly_revenue,
+        "provider_count": provider_count,
+        "panel_size": estimated_members,
         "staff_to_provider_ratio": staff["staff_to_provider_ratio"],
+        "financial_capacity": {
+            "annual_surplus": annual_surplus,
+            "max_new_hire_budget": max_new_hire_budget,
+            "surplus_after_hire": surplus_after_hire,
+            "can_hire": can_hire,
+        },
+        "recommended_hires": recommended_hires,
     }
 
 

@@ -33,18 +33,64 @@ class ExpenseDashboardOut(BaseModel):
     categories: list[dict[str, Any]]
 
 
+class BenchmarkItem(BaseModel):
+    current: float
+    benchmark: float
+    status: str
+    label: str | None = None
+
+
 class StaffingAnalysisOut(BaseModel):
     total_staff: int
     total_cost: float
     provider_count: int
     staff_to_provider_ratio: float
+    staff_to_member_ratio: float
     by_role: list[dict[str, Any]]
+    benchmarks: dict[str, BenchmarkItem]
+    ai_recommendations: list[dict[str, str]]
+
+
+class RecommendedHire(BaseModel):
+    role: str
+    title: str
+    estimated_salary: float
+    estimated_benefits: float
+    total_cost: float
+    impact: str
+    revenue_impact: float
+    break_even_months: int
+    priority: str
+
+
+class FinancialCapacity(BaseModel):
+    annual_surplus: float
+    max_new_hire_budget: float
+    surplus_after_hire: float
+    can_hire: bool
+
+
+class HiringAnalysisOut(BaseModel):
+    current_staff: int
+    current_cost: float
+    monthly_revenue: float
+    provider_count: int
+    panel_size: int
+    staff_to_provider_ratio: float
+    financial_capacity: FinancialCapacity
+    recommended_hires: list[RecommendedHire]
 
 
 class EfficiencyMetricsOut(BaseModel):
     total_staff: int
     total_expenses: float
     expense_per_staff: float
+    revenue_per_staff: float
+    cost_per_member: float
+    overhead_ratio: float
+    supply_cost_per_visit: float
+    staffing_pct_of_revenue: float
+    benchmarks: dict[str, BenchmarkItem]
 
 
 class StaffCreateIn(BaseModel):
@@ -111,7 +157,7 @@ async def efficiency_metrics(
     return await practice_expense_service.get_efficiency_metrics(db)
 
 
-@router.get("/hiring-analysis")
+@router.get("/hiring-analysis", response_model=HiringAnalysisOut)
 async def hiring_analysis(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
