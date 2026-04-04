@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_session, create_tenant_schema, validate_schema_name
+from app.database import get_session, create_tenant_schema_with_tables, validate_schema_name
 from app.dependencies import get_current_user, require_role
 from app.models.tenant import Tenant, TenantStatus
 from app.models.user import User, UserRole
@@ -112,9 +112,10 @@ async def create_tenant(
     session.add(tenant)
     await session.flush()
 
-    # Provision the database schema
+    # Provision the database schema AND create all tenant tables
     try:
-        await create_tenant_schema(body.schema_name)
+        table_count = await create_tenant_schema_with_tables(body.schema_name)
+        logger.info("Provisioned tenant schema %s with %d tables", body.schema_name, table_count)
     except Exception as e:
         logger.error("Failed to provision schema %s: %s", body.schema_name, e)
         raise HTTPException(status_code=500, detail="Failed to provision tenant schema")

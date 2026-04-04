@@ -36,15 +36,21 @@ async def get_session() -> AsyncSession:
 async def get_tenant_session(tenant_schema: str) -> AsyncSession:
     """Get a session scoped to a specific tenant schema.
 
-    Note: This creates a new session per request and sets search_path via SQL.
-    An alternative approach would be to use per-tenant engines or connection-level
-    events, but the current pattern is adequate for our request-scoped usage since
-    each session is used by a single request and disposed at the end.
+    Sets search_path at the start and RESETS it on cleanup to prevent
+    tenant data from bleeding across pooled connections. SET is session-scoped
+    in PostgreSQL (not transaction-scoped), so we must explicitly reset.
     """
     validate_schema_name(tenant_schema)
     async with async_session_factory() as session:
         await session.execute(text(f'SET search_path TO "{tenant_schema}", public'))
-        yield session
+        try:
+            yield session
+        finally:
+            # Reset search_path to prevent tenant bleed on connection reuse
+            try:
+                await session.execute(text('RESET search_path'))
+            except Exception:
+                pass  # Connection may already be closed
 
 
 async def create_tenant_schema(schema_name: str):
@@ -122,9 +128,11 @@ async def create_tenant_schema_with_tables(schema_name: str) -> int:
 async def init_db():
     """Create platform schema and tables on startup.
 
-    Ensures the platform.tenants and platform.users tables exist so the
-    auth system works even before running the full seed script.
+    Uses ORM metadata.create_all to ensure tables always match the
+    SQLAlchemy models (User, Tenant). This prevents schema drift between
+    the raw SQL DDL and the ORM model definitions.
     """
+    # Ensure platform schema exists
     async with engine.begin() as conn:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS platform"))
 
@@ -145,32 +153,14 @@ async def init_db():
             END $$;
         """))
 
-        # Create platform tables if they don't exist
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS platform.tenants (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(200) NOT NULL,
-                schema_name VARCHAR(63) UNIQUE NOT NULL,
-                status platform.tenantstatus DEFAULT 'onboarding',
-                config JSONB,
-                created_at TIMESTAMPTZ DEFAULT now(),
-                updated_at TIMESTAMPTZ DEFAULT now()
-            )
-        """))
-        await conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS platform.users (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                hashed_password VARCHAR(255) NOT NULL,
-                full_name VARCHAR(200) NOT NULL,
-                role platform.userrole NOT NULL,
-                tenant_id INTEGER REFERENCES platform.tenants(id),
-                is_active BOOLEAN DEFAULT true,
-                mfa_secret VARCHAR(255),
-                created_at TIMESTAMPTZ DEFAULT now(),
-                updated_at TIMESTAMPTZ DEFAULT now()
-            )
-        """))
-        await conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS ix_platform_users_email ON platform.users(email)"
-        ))
+    # Use ORM create_all to build platform tables from models
+    # This ensures the DB schema always matches the Python models
+    import app.models  # noqa: F401
+    from app.models.base import Base
+
+    sync_engine = create_engine(_get_sync_database_url(), echo=False)
+    platform_tables = [t for t in Base.metadata.sorted_tables if t.schema == "platform"]
+    try:
+        Base.metadata.create_all(sync_engine, tables=platform_tables)
+    finally:
+        sync_engine.dispose()
