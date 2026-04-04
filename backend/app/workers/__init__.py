@@ -38,9 +38,17 @@ class TenantSession:
 async def get_tenant_session(tenant_schema: str):
     """Create a tenant-scoped async DB session for background work.
 
-    The caller is responsible for closing the returned session AND
-    resetting search_path. Prefer using TenantSession context manager instead.
+    DEPRECATED: Use TenantSession context manager instead for proper cleanup.
+    This function does not reset search_path on close — the caller must do it.
+
+    TODO: Migrate all worker callers to TenantSession, then remove this function.
     """
+    import warnings
+    warnings.warn(
+        "get_tenant_session() is deprecated — use TenantSession context manager instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     validate_schema_name(tenant_schema)
     session = async_session_factory()
     try:

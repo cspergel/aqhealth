@@ -9,7 +9,7 @@ Uses demo_mso tenant schema directly.
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Body, Depends, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import select, func, text as sa_text
 from app.database import async_session_factory
 from app.models.tuva_baseline import TuvaRafBaseline, TuvaPmpmBaseline
@@ -33,15 +33,26 @@ router = APIRouter(prefix="/api/tuva", tags=["tuva"])
 # ---------------------------------------------------------------------------
 
 
+def _is_demo_mode() -> bool:
+    """Check if demo mode is enabled. Auth-free Tuva endpoints only work in demo mode."""
+    import os
+    # Demo mode is on if: DEMO_MODE=true, or ALLOW_DEFAULT_SECRET=true (dev), or demo_mso schema exists
+    return os.getenv("DEMO_MODE", "").lower() in ("true", "1", "yes") or \
+           os.getenv("ALLOW_DEFAULT_SECRET", "").lower() == "true"
+
+
 @asynccontextmanager
 async def _demo_session():
     """Context manager for demo_mso session with proper cleanup.
 
-    Usage: async with _demo_session() as session: ...
-
-    WARNING: Hardcodes demo_mso tenant access without auth.
-    Production deployments must replace with authenticated tenant resolution.
+    Only works when DEMO_MODE=true or ALLOW_DEFAULT_SECRET=true.
+    Production deployments without these env vars will get 503.
     """
+    if not _is_demo_mode():
+        raise HTTPException(
+            status_code=503,
+            detail="Demo mode is not enabled. Set DEMO_MODE=true or use authenticated endpoints.",
+        )
     async with async_session_factory() as session:
         await session.execute(sa_text('SET search_path TO demo_mso, public'))
         try:

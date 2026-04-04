@@ -5,7 +5,11 @@ and enforce auth where required. Does NOT require a database — uses the
 test client fixture from conftest.py.
 """
 
+import os
 import pytest
+
+# Enable demo mode for tests so Tuva demo endpoints work
+os.environ["DEMO_MODE"] = "true"
 
 
 # ---------------------------------------------------------------------------

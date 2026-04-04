@@ -142,7 +142,7 @@ async def payer_callback(
 
     # Validate OAuth state to prevent CSRF — state should match the tenant schema
     # that was set during connect_payer()
-    if body.state and body.state != tenant_schema:
+    if not body.state or body.state != tenant_schema:
         raise HTTPException(
             status_code=400,
             detail="OAuth state mismatch — callback tenant does not match connection tenant",

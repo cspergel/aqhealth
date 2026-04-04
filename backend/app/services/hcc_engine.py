@@ -236,9 +236,15 @@ DISEASE_INTERACTIONS: list[tuple[str, list[set[int]], Decimal]] = [
 # ---------------------------------------------------------------------------
 
 if not HCC_RAF_LOOKUP:
-    logger.error(
-        "CRITICAL: hcc_mappings.json not loaded — HCC engine will produce incorrect RAF scores. "
-        "Ensure backend/data/hcc_mappings.json exists with CMS V28 mappings."
+    import os as _os
+    _expected_path = _os.path.join(_DATA_DIR, "hcc_mappings.json")
+    if _os.path.exists(_expected_path):
+        logger.error("hcc_mappings.json exists but failed to load — check file format")
+    else:
+        logger.error("hcc_mappings.json not found at %s", _expected_path)
+    raise RuntimeError(
+        "HCC engine cannot start: hcc_mappings.json not loaded. "
+        "RAF scores would be incorrect. Ensure backend/data/hcc_mappings.json exists."
     )
 
 LOCAL_HCC_RAF: dict[int, Decimal] = HCC_RAF_LOOKUP
