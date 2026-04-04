@@ -36,7 +36,9 @@ function isDemoMode(): boolean {
   const demoAllowed = import.meta.env.VITE_DEMO_ENABLED === "true"
     || window.location.hostname === "localhost"
     || window.location.hostname === "127.0.0.1"
-    || window.location.hostname.endsWith(".github.io"); // GitHub Pages demo
+    || window.location.hostname.endsWith(".github.io")  // GitHub Pages demo
+    || window.location.hostname.endsWith("aqhealth.ai") // Production demo site
+    || window.location.hostname.endsWith(".pages.dev");  // Cloudflare Pages preview
 
   if (!demoAllowed) return false;
 
