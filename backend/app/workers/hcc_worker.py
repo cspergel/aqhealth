@@ -11,7 +11,7 @@ from typing import Any
 from app.config import settings
 from app.services.hcc_engine import analyze_population
 from app.services.provider_service import refresh_provider_scorecards
-from app.workers import get_tenant_session
+from app.workers import TenantSession
 
 logger = logging.getLogger(__name__)
 
@@ -31,42 +31,39 @@ async def run_hcc_analysis(ctx: dict, tenant_schema: str) -> dict[str, Any]:
         Dict with analysis summary (total_members, total_suspects, etc.).
     """
     logger.info("Starting HCC analysis job for tenant: %s", tenant_schema)
-    db = await get_tenant_session(tenant_schema)
 
     try:
-        result = await analyze_population(tenant_schema, db)
-        logger.info(
-            "HCC analysis job completed for %s: %d suspects found across %d members",
-            tenant_schema,
-            result.get("total_suspects", 0),
-            result.get("total_members", 0),
-        )
-
-        # Refresh provider/group scorecards now that suspects are up to date
-        try:
-            scorecard_result = await refresh_provider_scorecards(db)
+        async with TenantSession(tenant_schema) as db:
+            result = await analyze_population(tenant_schema, db)
             logger.info(
-                "Provider scorecard refresh completed for %s: %d providers, %d groups",
+                "HCC analysis job completed for %s: %d suspects found across %d members",
                 tenant_schema,
-                scorecard_result.get("providers_updated", 0),
-                scorecard_result.get("groups_updated", 0),
+                result.get("total_suspects", 0),
+                result.get("total_members", 0),
             )
-            result["scorecard_refresh"] = scorecard_result
-        except Exception as sc_err:
-            logger.error(
-                "Provider scorecard refresh failed for %s: %s",
-                tenant_schema, sc_err, exc_info=True,
-            )
-            result["scorecard_refresh_error"] = str(sc_err)
 
-        return result
+            # Refresh provider/group scorecards now that suspects are up to date
+            try:
+                scorecard_result = await refresh_provider_scorecards(db)
+                logger.info(
+                    "Provider scorecard refresh completed for %s: %d providers, %d groups",
+                    tenant_schema,
+                    scorecard_result.get("providers_updated", 0),
+                    scorecard_result.get("groups_updated", 0),
+                )
+                result["scorecard_refresh"] = scorecard_result
+            except Exception as sc_err:
+                logger.error(
+                    "Provider scorecard refresh failed for %s: %s",
+                    tenant_schema, sc_err, exc_info=True,
+                )
+                result["scorecard_refresh_error"] = str(sc_err)
+
+            return result
 
     except Exception as e:
         logger.error("HCC analysis job failed for %s: %s", tenant_schema, e, exc_info=True)
         return {"error": str(e)}
-
-    finally:
-        await db.close()
 
 
 # ---------------------------------------------------------------------------
