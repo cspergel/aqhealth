@@ -47,7 +47,11 @@ class TestTuvaEndToEnd:
         assert "core" in result.stdout.lower()
 
     def test_dbt_deps_installed(self):
-        """Verify Tuva package is installed."""
+        """Verify Tuva package is installed. Skips if dbt not available."""
+        try:
+            subprocess.run(["dbt", "--version"], capture_output=True, timeout=10)
+        except FileNotFoundError:
+            pytest.skip("dbt CLI not installed")
         project_dir = _get_dbt_project_dir()
         result = subprocess.run(
             ["dbt", "deps", "--project-dir", project_dir,
@@ -58,7 +62,11 @@ class TestTuvaEndToEnd:
         assert result.returncode == 0, f"dbt deps failed: {result.stderr}"
 
     def test_dbt_compile_input_layer(self):
-        """Verify our input layer models compile."""
+        """Verify our input layer models compile. Skips if dbt not available."""
+        try:
+            subprocess.run(["dbt", "--version"], capture_output=True, timeout=10)
+        except FileNotFoundError:
+            pytest.skip("dbt CLI not installed")
         project_dir = _get_dbt_project_dir()
         result = subprocess.run(
             ["dbt", "compile", "--select", "medical_claim eligibility pharmacy_claim",

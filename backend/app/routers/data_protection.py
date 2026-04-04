@@ -371,7 +371,7 @@ async def rollback_ingestion_batch(
 @router.post("/shadow-check")
 async def run_shadow_check(
     body: ShadowCheckRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin, UserRole.analyst)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Run shadow comparison for a new ingestion."""
@@ -385,7 +385,7 @@ async def run_shadow_check(
 @router.post("/validate-contract")
 async def validate_against_contract(
     body: ValidateContractRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin, UserRole.analyst)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Validate a file against a data contract."""
