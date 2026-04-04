@@ -156,5 +156,12 @@ async def apply_filter_preview(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
 ):
-    """Apply filter conditions and return match info."""
+    """Echo filter conditions for client-side application.
+
+    NOTE: This endpoint does NOT perform server-side filtering.
+    The frontend DataGrid handles filtering locally from the already-fetched
+    dataset. This endpoint tracks filter usage and returns conditions for
+    the client to apply. Server-side filtering will be added when datasets
+    exceed ~5K rows.
+    """
     return await apply_filter(db, body.page_context, body.conditions)

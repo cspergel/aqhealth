@@ -40,3 +40,16 @@ testpaths = ["tests"]
 markers = [
     "integration: marks tests that require infrastructure (database, services)",
 ]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/workers/*", "app/prompts/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 15
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__",
+    "pass",
+]
