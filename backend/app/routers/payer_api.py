@@ -140,6 +140,14 @@ async def payer_callback(
     """
     tenant_schema = current_user["tenant_schema"]
 
+    # Validate OAuth state to prevent CSRF — state should match the tenant schema
+    # that was set during connect_payer()
+    if body.state and body.state != tenant_schema:
+        raise HTTPException(
+            status_code=400,
+            detail="OAuth state mismatch — callback tenant does not match connection tenant",
+        )
+
     # Retrieve stored PKCE code_verifier from tenant config if not provided
     code_verifier = body.code_verifier
     practice_code = body.practice_code

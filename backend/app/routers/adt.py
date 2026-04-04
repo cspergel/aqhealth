@@ -17,7 +17,8 @@ import hmac
 
 from app.config import settings
 from app.database import get_tenant_session, validate_schema_name
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.adt_service import (
     acknowledge_alert,
     assign_alert,
@@ -114,6 +115,19 @@ async def receive_webhook(
         validate_schema_name(x_tenant_schema)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid tenant schema name")
+
+    # Verify the tenant actually exists and is active before accepting writes.
+    # Prevents cross-tenant writes from callers who know the shared secret
+    # but supply an arbitrary/inactive schema name.
+    from app.database import async_session_factory
+    from sqlalchemy import text as sa_text
+    async with async_session_factory() as platform_db:
+        tenant_check = await platform_db.execute(
+            sa_text("SELECT id FROM platform.tenants WHERE schema_name = :schema AND status = 'active'"),
+            {"schema": x_tenant_schema},
+        )
+        if not tenant_check.scalar():
+            raise HTTPException(status_code=403, detail="Tenant not found or inactive")
 
     # Open a tenant-scoped DB session (bypasses JWT-based get_tenant_db)
     async with contextlib.asynccontextmanager(get_tenant_session)(x_tenant_schema) as db:
@@ -265,7 +279,7 @@ async def list_sources(
 @router.post("/sources")
 async def create_source(
     body: SourceConfigInput,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Configure a new ADT source."""

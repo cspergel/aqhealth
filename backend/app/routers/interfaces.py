@@ -12,7 +12,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.interface_service import (
     create_interface,
     delete_interface,
@@ -90,7 +91,7 @@ async def interface_status(
 @router.post("/interfaces")
 async def create_new_interface(
     body: InterfaceCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Configure a new data interface."""
@@ -112,7 +113,7 @@ async def update_existing_interface(
 @router.delete("/interfaces/{interface_id}")
 async def remove_interface(
     interface_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Remove an interface configuration."""

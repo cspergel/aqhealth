@@ -13,7 +13,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.data_protection_service import (
     fingerprint_source,
     shadow_compare,
@@ -235,7 +236,7 @@ async def list_contracts(
 @router.post("/contracts")
 async def create_contract(
     body: CreateContractRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Create a new data contract."""
@@ -349,7 +350,7 @@ async def list_batches(
 async def rollback_ingestion_batch(
     batch_id: int,
     body: RollbackRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Rollback an entire ingestion batch."""
