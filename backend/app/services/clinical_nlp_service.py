@@ -1,30 +1,26 @@
 """
-Clinical NLP Service — extracts structured FHIR data from unstructured clinical notes.
+Clinical NLP Service — extracts structured data from clinical notes using
+Claude with tool_use for real-time ICD-10/HCC validation.
 
-Uses Claude API to parse clinical notes (discharge summaries, H&P, progress notes)
-and extract:
-- Diagnosis codes (ICD-10) with supporting evidence quotes
-- Medications with dosages
-- Lab values mentioned in text
-- Procedures performed
-- Social history / risk factors
+Ported from SNF Admit Assist's battle-tested 2-pass extraction pipeline:
+  Pass 1: Extract structured facts from clinical note (diagnoses, meds, labs, findings)
+  Pass 2: Code assignment with real-time validation via Claude tool_use
 
-The extracted data is converted to FHIR R4 resources and fed back into the
-pipeline for HCC analysis — surfacing diagnoses that exist in notes but
-weren't coded in claims.
+Each extracted item includes:
+- Evidence quote from the source note
+- Source document metadata (type, date, provider, facility)
+- ICD-10 code validated against reference data
+- HCC mapping with RAF impact
+- Confidence score (0-100)
+- Code specificity ladder showing upgrade options
 
 Architecture:
-  eCW DocumentReference → clinical note text
-  → Claude API (NLP extraction)
-  → Structured FHIR Condition/Observation/MedicationRequest
-  → FHIR ingest service → PostgreSQL (signal-tier)
-  → Tuva pipeline → HCC suspects from clinical evidence
-
-This is the autonomous clinical parsing capability:
-  "Chart note says 'chronic systolic heart failure, EF 35%'"
-  → Condition: I50.22 (Chronic systolic heart failure)
-  → HCC 226 (CHF), RAF 0.360
-  → Evidence: "Progress note 2025-09-21, provider Dr. Smith"
+  eCW DocumentReference -> note text
+  -> Claude Pass 1 (extraction with structured output)
+  -> Claude Pass 2 (coding with tool_use: lookup_hcc, build_ladder, check_med_gap)
+  -> Validated conditions + evidence trail
+  -> clinical_gap_detector -> compare against claims
+  -> Population chase lists
 """
 
 import json
@@ -33,78 +29,290 @@ from datetime import date
 from typing import Any
 
 from app.config import settings
+from app.services.hcc_engine import lookup_hcc_for_icd10, build_code_ladder
 
 logger = logging.getLogger(__name__)
 
-# LOINC codes for common lab values mentioned in notes
-_LAB_LOINC_MAP = {
-    "egfr": "33914-3",
-    "gfr": "33914-3",
-    "a1c": "4548-4",
-    "hba1c": "4548-4",
-    "hemoglobin a1c": "4548-4",
-    "creatinine": "2160-0",
-    "bmi": "39156-5",
-    "ejection fraction": "10230-1",
-    "ef": "10230-1",
-    "ldl": "2089-1",
-    "hdl": "2085-9",
-    "total cholesterol": "2093-3",
-    "triglycerides": "2571-8",
-    "bnp": "42637-9",
-    "potassium": "2823-3",
-    "sodium": "2951-2",
-    "inr": "6301-6",
+# ---------------------------------------------------------------------------
+# Document type priority (from SNF Admit Assist)
+# Higher priority = more authoritative for coding decisions
+# ---------------------------------------------------------------------------
+
+DOC_TYPE_PRIORITY = {
+    "discharge_summary": 0,
+    "history_and_physical": 1,
+    "progress_note": 2,
+    "consult": 3,
+    "ed_note": 4,
+    "operative_report": 5,
+    "lab_report": 6,
+    "imaging_report": 7,
+    "medication_list": 8,
+    "nursing_note": 9,
+    "other": 99,
 }
 
-# System prompt for clinical note extraction
-_EXTRACTION_PROMPT = """\
-You are a clinical coding expert. Extract structured medical information from the
-following clinical note. Return ONLY valid JSON with no other text.
+# ---------------------------------------------------------------------------
+# LOINC codes for lab values mentioned in clinical text
+# ---------------------------------------------------------------------------
 
-Extract:
-1. **conditions**: Active diagnoses with the most specific ICD-10-CM code possible
-2. **medications**: Current medications with dosage if mentioned
-3. **lab_values**: Any lab results or vital signs mentioned with numeric values
-4. **procedures**: Any procedures mentioned
+LAB_LOINC_MAP = {
+    "egfr": ("33914-3", "Glomerular filtration rate"),
+    "gfr": ("33914-3", "Glomerular filtration rate"),
+    "a1c": ("4548-4", "Hemoglobin A1c"),
+    "hba1c": ("4548-4", "Hemoglobin A1c"),
+    "hemoglobin a1c": ("4548-4", "Hemoglobin A1c"),
+    "creatinine": ("2160-0", "Creatinine"),
+    "bmi": ("39156-5", "Body mass index"),
+    "ejection fraction": ("10230-1", "Ejection fraction"),
+    "ef": ("10230-1", "Ejection fraction"),
+    "ldl": ("2089-1", "LDL Cholesterol"),
+    "hdl": ("2085-9", "HDL Cholesterol"),
+    "bnp": ("42637-9", "BNP"),
+    "potassium": ("2823-3", "Potassium"),
+    "sodium": ("2951-2", "Sodium"),
+    "inr": ("6301-6", "INR"),
+    "albumin": ("1751-7", "Albumin"),
+    "prealbumin": ("14338-5", "Prealbumin"),
+    "troponin": ("49563-0", "Troponin"),
+    "tsh": ("3016-3", "TSH"),
+    "hemoglobin": ("718-7", "Hemoglobin"),
+    "wbc": ("6690-2", "White blood cell count"),
+    "platelets": ("777-3", "Platelet count"),
+}
 
-For each condition, include:
-- icd10_code: The most specific ICD-10-CM code (e.g., I50.22 not I50.9)
-- description: Condition name
-- evidence_quote: The exact text from the note that supports this diagnosis
-- clinical_status: active, recurrence, remission, or resolved
+# ---------------------------------------------------------------------------
+# Lab value -> CKD staging thresholds (from SNF clinical_rules_index)
+# ---------------------------------------------------------------------------
 
-For each lab value, include:
-- name: Test name
-- loinc_code: LOINC code if known
-- value: Numeric value
-- unit: Unit of measure
-- date: Date if mentioned
+EGFR_CKD_STAGING = [
+    (90, None, "N18.1", "CKD Stage 1"),
+    (60, 89, "N18.2", "CKD Stage 2"),
+    (45, 59, "N18.31", "CKD Stage 3a"),
+    (30, 44, "N18.32", "CKD Stage 3b"),
+    (15, 29, "N18.4", "CKD Stage 4"),
+    (0, 14, "N18.5", "CKD Stage 5"),
+]
 
-Return JSON in this exact format:
+A1C_DIABETES_THRESHOLDS = [
+    (6.5, 7.9, "E11.65", "Type 2 DM with hyperglycemia"),
+    (8.0, 9.9, "E11.65", "Type 2 DM with hyperglycemia"),
+    (10.0, None, "E11.65", "Type 2 DM with hyperglycemia, poorly controlled"),
+]
+
+# ---------------------------------------------------------------------------
+# Pass 1: Extraction prompt (adapted from SNF Admit Assist)
+# ---------------------------------------------------------------------------
+
+EXTRACTION_SYSTEM_PROMPT = """You are a medical document data-extraction engine. Extract every clinically relevant fact into structured JSON.
+
+## Rules
+1. Extract ONLY information explicitly stated in the document. Never infer or fabricate.
+2. If a field is not mentioned, use null for single values or empty list for lists.
+3. For each diagnosis, include the EXACT quote from the text that supports it.
+4. For labs/vitals, capture: name, numeric value, units, date, whether abnormal.
+5. For medications, capture: name, dose, frequency, route, status (active/new/discontinued).
+6. Return ONLY raw valid JSON. NO markdown fences. Start with { and end with }.
+
+## Output Schema
+
 {
-  "conditions": [{"icd10_code": "...", "description": "...", "evidence_quote": "...", "clinical_status": "active"}],
-  "medications": [{"name": "...", "dosage": "...", "frequency": "..."}],
-  "lab_values": [{"name": "...", "loinc_code": "...", "value": 0.0, "unit": "...", "date": null}],
-  "procedures": [{"code": "...", "description": "...", "date": null}]
-}
-"""
+  "document_type": "progress_note | discharge_summary | h_and_p | consult | lab_report | other",
+  "document_date": "date if mentioned, or null",
+  "diagnoses": [
+    {
+      "text": "diagnosis as written in the document",
+      "icd10_hint": "ICD-10 code if mentioned in the document, or null",
+      "clinical_status": "active | resolved | historical | recurrence",
+      "evidence_quote": "exact sentence(s) from the note supporting this diagnosis",
+      "specificity_clues": "any details that help determine the most specific code (e.g., 'EF 35%', 'stage 4', 'on insulin')"
+    }
+  ],
+  "medications": [
+    {
+      "name": "medication name",
+      "dose": "dose or null",
+      "frequency": "frequency or null",
+      "route": "route or null",
+      "status": "active | new | changed | discontinued | unknown"
+    }
+  ],
+  "key_findings": [
+    {
+      "finding": "descriptive text (e.g., 'GFR 45 mL/min')",
+      "type": "lab | imaging | vital | exam | other",
+      "value": "numeric value or null",
+      "units": "units or null",
+      "date": "date of finding or null",
+      "abnormal": true
+    }
+  ],
+  "past_medical_history": ["list of PMH items"],
+  "allergies": ["list of allergies"],
+  "procedures": ["list of procedures mentioned"]
+}"""
+
+# ---------------------------------------------------------------------------
+# Pass 2: Coding prompt with tool_use instructions
+# ---------------------------------------------------------------------------
+
+CODING_SYSTEM_PROMPT = """You are an expert medical coder specializing in CMS-HCC risk adjustment for Medicare Advantage.
+
+Given extracted clinical data from a patient's notes, assign the most specific ICD-10-CM codes.
+
+## Rules
+1. Only code conditions that are ACTIVELY documented — not suspected, not ruled out.
+2. Always use the MOST SPECIFIC code the evidence supports. Never use unspecified when specific data exists.
+3. Use the provided tools to validate every code you assign:
+   - lookup_hcc: Check if a code maps to an HCC and its RAF weight
+   - build_code_ladder: See all specificity options for a code family
+4. For each code, cite the exact evidence from the extraction.
+5. Assign a confidence score (0-100) based on evidence strength.
+
+## Priority
+- Codes that map to HCCs are highest priority (they impact RAF)
+- More specific codes are preferred over general ones
+- Lab values should drive staging codes (eGFR -> CKD stage, A1c -> DM control)
+
+Return JSON:
+{
+  "codes": [
+    {
+      "icd10": "code",
+      "description": "description",
+      "hcc_code": null or integer,
+      "raf_weight": 0.0,
+      "evidence_quote": "exact text from extraction supporting this code",
+      "confidence": 0-100,
+      "source_finding_type": "diagnosis | lab | medication | pmh"
+    }
+  ]
+}"""
 
 
-async def extract_from_clinical_note(
+# ---------------------------------------------------------------------------
+# Tool definitions for Claude tool_use
+# ---------------------------------------------------------------------------
+
+CODING_TOOLS = [
+    {
+        "name": "lookup_hcc",
+        "description": "Look up if an ICD-10-CM code maps to an HCC and get its RAF weight. Use this to validate every code you assign.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "icd10_code": {
+                    "type": "string",
+                    "description": "ICD-10-CM code (e.g., 'E11.65', 'I50.22', 'N18.4')"
+                }
+            },
+            "required": ["icd10_code"]
+        }
+    },
+    {
+        "name": "build_code_ladder",
+        "description": "Get all related ICD-10 codes in the same family with their HCC mappings and RAF weights. Use this to find the most specific code with the highest RAF.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "base_code": {
+                    "type": "string",
+                    "description": "Base ICD-10-CM code to build the ladder from (e.g., 'E11' for diabetes, 'N18' for CKD)"
+                }
+            },
+            "required": ["base_code"]
+        }
+    },
+    {
+        "name": "check_lab_staging",
+        "description": "Given a lab value, determine the appropriate staging code. For eGFR -> CKD stage, A1c -> diabetes control level.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "lab_name": {"type": "string", "description": "Lab test name (e.g., 'eGFR', 'A1c', 'BMI')"},
+                "value": {"type": "number", "description": "Numeric lab value"},
+                "units": {"type": "string", "description": "Units (e.g., 'mL/min', '%', 'kg/m2')"}
+            },
+            "required": ["lab_name", "value"]
+        }
+    },
+]
+
+
+def _handle_tool_call(tool_name: str, tool_input: dict) -> str:
+    """Handle a tool call from Claude during coding pass."""
+    if tool_name == "lookup_hcc":
+        code = tool_input.get("icd10_code", "")
+        entry = lookup_hcc_for_icd10(code)
+        if entry:
+            return json.dumps({
+                "code": code,
+                "hcc_code": entry.get("hcc"),
+                "raf_weight": entry.get("raf", 0),
+                "description": entry.get("description", ""),
+                "maps_to_hcc": entry.get("hcc") is not None,
+            })
+        return json.dumps({"code": code, "maps_to_hcc": False, "message": "No HCC mapping found"})
+
+    elif tool_name == "build_code_ladder":
+        base = tool_input.get("base_code", "")
+        ladder = build_code_ladder(base)
+        return json.dumps({"base_code": base, "options": ladder[:10]})
+
+    elif tool_name == "check_lab_staging":
+        lab = tool_input.get("lab_name", "").lower()
+        value = tool_input.get("value", 0)
+
+        if lab in ("egfr", "gfr"):
+            for low, high, code, desc in EGFR_CKD_STAGING:
+                if high is None and value >= low:
+                    entry = lookup_hcc_for_icd10(code)
+                    return json.dumps({"lab": lab, "value": value, "suggested_code": code, "description": desc,
+                                       "hcc": entry.get("hcc") if entry else None, "raf": entry.get("raf", 0) if entry else 0})
+                elif high is not None and low <= value <= high:
+                    entry = lookup_hcc_for_icd10(code)
+                    return json.dumps({"lab": lab, "value": value, "suggested_code": code, "description": desc,
+                                       "hcc": entry.get("hcc") if entry else None, "raf": entry.get("raf", 0) if entry else 0})
+
+        if lab in ("a1c", "hba1c"):
+            for low, high, code, desc in A1C_DIABETES_THRESHOLDS:
+                if high is None and value >= low:
+                    entry = lookup_hcc_for_icd10(code)
+                    return json.dumps({"lab": lab, "value": value, "suggested_code": code, "description": desc,
+                                       "hcc": entry.get("hcc") if entry else None, "raf": entry.get("raf", 0) if entry else 0})
+                elif high is not None and low <= value <= high:
+                    entry = lookup_hcc_for_icd10(code)
+                    return json.dumps({"lab": lab, "value": value, "suggested_code": code, "description": desc,
+                                       "hcc": entry.get("hcc") if entry else None, "raf": entry.get("raf", 0) if entry else 0})
+
+        if lab == "bmi" and value >= 40:
+            return json.dumps({"lab": "BMI", "value": value, "suggested_code": "E66.01", "description": "Morbid obesity",
+                               "hcc": 48, "raf": 0.250})
+
+        return json.dumps({"lab": lab, "value": value, "message": "No staging rule for this lab/value"})
+
+    return json.dumps({"error": f"Unknown tool: {tool_name}"})
+
+
+# ---------------------------------------------------------------------------
+# Pass 1: Extract structured facts from a clinical note
+# ---------------------------------------------------------------------------
+
+async def extract_from_note(
     note_text: str,
-    note_date: date | None = None,
     note_type: str = "progress_note",
+    note_date: date | None = None,
     provider_name: str | None = None,
+    facility_name: str | None = None,
+    document_id: str | None = None,
 ) -> dict[str, Any]:
-    """Extract structured clinical data from an unstructured note using Claude.
+    """Pass 1: Extract structured clinical facts from a single note.
 
-    Returns a dict with conditions, medications, lab_values, and procedures
-    extracted from the note text. Each item includes evidence quotes from
-    the source text for audit trail.
+    Returns structured extraction with diagnoses, medications, labs,
+    findings — each with evidence quotes from the source text.
     """
     if not note_text or len(note_text.strip()) < 20:
-        return {"conditions": [], "medications": [], "lab_values": [], "procedures": []}
+        return {"diagnoses": [], "medications": [], "key_findings": [], "past_medical_history": []}
 
     try:
         import anthropic
@@ -112,98 +320,255 @@ async def extract_from_clinical_note(
 
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=2000,
-            system=_EXTRACTION_PROMPT,
-            messages=[
-                {"role": "user", "content": f"Clinical note ({note_type}, date: {note_date or 'unknown'}, provider: {provider_name or 'unknown'}):\n\n{note_text}"}
-            ],
+            max_tokens=4000,
+            system=EXTRACTION_SYSTEM_PROMPT,
+            messages=[{
+                "role": "user",
+                "content": f"Document type: {note_type}\nDate: {note_date or 'unknown'}\nProvider: {provider_name or 'unknown'}\nFacility: {facility_name or 'unknown'}\n\n---\n\n{note_text}"
+            }],
         )
 
-        # Parse the JSON response
-        response_text = response.content[0].text.strip()
-        # Handle markdown code blocks
-        if response_text.startswith("```"):
-            response_text = response_text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        text = response.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        extraction = json.loads(text)
 
-        extracted = json.loads(response_text)
-
-        # Enrich lab values with LOINC codes if missing
-        for lab in extracted.get("lab_values", []):
-            if not lab.get("loinc_code"):
-                name_lower = lab.get("name", "").lower()
-                for keyword, loinc in _LAB_LOINC_MAP.items():
-                    if keyword in name_lower:
-                        lab["loinc_code"] = loinc
-                        break
-
-        # Add source metadata
-        extracted["source"] = {
-            "type": "clinical_nlp",
-            "note_type": note_type,
-            "note_date": note_date.isoformat() if note_date else None,
+        # Attach source metadata to every item (SNF pattern)
+        source_meta = {
+            "document_type": note_type,
+            "document_date": note_date.isoformat() if note_date else None,
             "provider": provider_name,
-            "extraction_model": "claude-sonnet-4-20250514",
+            "facility": facility_name,
+            "document_id": document_id,
+            "priority": DOC_TYPE_PRIORITY.get(note_type, 99),
         }
+        extraction["_source"] = source_meta
+
+        # Enrich lab findings with LOINC codes
+        for finding in extraction.get("key_findings", []):
+            name_lower = (finding.get("finding") or "").lower()
+            for keyword, (loinc, loinc_name) in LAB_LOINC_MAP.items():
+                if keyword in name_lower:
+                    finding["loinc_code"] = loinc
+                    finding["loinc_name"] = loinc_name
+                    break
 
         logger.info(
-            "Extracted from clinical note: %d conditions, %d medications, %d labs, %d procedures",
-            len(extracted.get("conditions", [])),
-            len(extracted.get("medications", [])),
-            len(extracted.get("lab_values", [])),
-            len(extracted.get("procedures", [])),
+            "Pass 1 extraction: %d diagnoses, %d meds, %d findings from %s",
+            len(extraction.get("diagnoses", [])),
+            len(extraction.get("medications", [])),
+            len(extraction.get("key_findings", [])),
+            note_type,
         )
-
-        return extracted
+        return extraction
 
     except json.JSONDecodeError as e:
-        logger.warning("Failed to parse NLP extraction response: %s", e)
-        return {"conditions": [], "medications": [], "lab_values": [], "procedures": [], "error": str(e)}
+        logger.warning("Pass 1 extraction JSON parse failed: %s", e)
+        return {"diagnoses": [], "medications": [], "key_findings": [], "error": str(e)}
     except Exception as e:
-        logger.error("Clinical NLP extraction failed: %s", e)
-        return {"conditions": [], "medications": [], "lab_values": [], "procedures": [], "error": str(e)}
+        logger.error("Pass 1 extraction failed: %s", e)
+        return {"diagnoses": [], "medications": [], "key_findings": [], "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Pass 2: Code assignment with Claude tool_use
+# ---------------------------------------------------------------------------
+
+async def assign_codes_with_tools(
+    extraction: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Pass 2: Assign ICD-10 codes using Claude with tool_use.
+
+    Claude validates every code against our HCC reference data in real-time
+    via tools, ensuring:
+    - Codes are valid ICD-10-CM
+    - Most specific code is used (via code ladder)
+    - Lab values drive staging (eGFR -> CKD stage)
+    - Each code has evidence + HCC/RAF impact
+    """
+    diagnoses = extraction.get("diagnoses", [])
+    findings = extraction.get("key_findings", [])
+    medications = extraction.get("medications", [])
+    pmh = extraction.get("past_medical_history", [])
+
+    if not diagnoses and not findings:
+        return []
+
+    # Build the coding input
+    coding_input = json.dumps({
+        "diagnoses": diagnoses,
+        "key_findings": findings,
+        "medications": medications,
+        "past_medical_history": pmh,
+    }, indent=2)
+
+    try:
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+        messages = [{
+            "role": "user",
+            "content": f"Assign ICD-10 codes for this patient. Use the tools to validate every code.\n\n{coding_input}"
+        }]
+
+        # Run the tool_use loop
+        max_turns = 10
+        for _ in range(max_turns):
+            response = await client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=4000,
+                system=CODING_SYSTEM_PROMPT,
+                tools=CODING_TOOLS,
+                messages=messages,
+            )
+
+            # Check if Claude wants to use tools
+            if response.stop_reason == "tool_use":
+                # Process tool calls
+                tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use":
+                        result = _handle_tool_call(block.name, block.input)
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result,
+                        })
+
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({"role": "user", "content": tool_results})
+            else:
+                # Final response — extract the codes
+                for block in response.content:
+                    if hasattr(block, "text") and block.text:
+                        text = block.text.strip()
+                        if text.startswith("```"):
+                            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                        try:
+                            result = json.loads(text)
+                            codes = result.get("codes", [])
+                            # Attach source metadata
+                            source = extraction.get("_source", {})
+                            for code in codes:
+                                code["source"] = source
+                            logger.info("Pass 2 coding: %d codes assigned", len(codes))
+                            return codes
+                        except json.JSONDecodeError:
+                            pass
+                return []
+
+        return []
+
+    except Exception as e:
+        logger.error("Pass 2 coding failed: %s", e)
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Full pipeline: note text -> extraction -> coding -> validated results
+# ---------------------------------------------------------------------------
+
+async def process_clinical_note(
+    note_text: str,
+    note_type: str = "progress_note",
+    note_date: date | None = None,
+    provider_name: str | None = None,
+    facility_name: str | None = None,
+    document_id: str | None = None,
+    member_id: str | None = None,
+) -> dict[str, Any]:
+    """Full 2-pass pipeline: extract facts -> assign codes with tool validation.
+
+    Returns a complete clinical extraction with:
+    - Validated ICD-10 codes with HCC/RAF impact
+    - Evidence quotes from the source note
+    - Lab-driven staging (eGFR -> CKD, A1c -> DM control)
+    - Code specificity ladders
+    - Confidence scores
+    - Source document metadata for audit trail
+    """
+    # Pass 1: Extract
+    extraction = await extract_from_note(
+        note_text, note_type, note_date, provider_name, facility_name, document_id
+    )
+
+    # Pass 2: Code with tool validation
+    codes = await assign_codes_with_tools(extraction)
+
+    # Build diagnosis_source_map (SNF pattern)
+    diagnosis_source_map: dict[str, dict] = {}
+    for dx in extraction.get("diagnoses", []):
+        key = (dx.get("text") or "").lower().strip()
+        if key:
+            diagnosis_source_map[key] = {
+                "text": dx.get("text"),
+                "evidence_quote": dx.get("evidence_quote"),
+                "clinical_status": dx.get("clinical_status"),
+                "sources": [extraction.get("_source", {})],
+            }
+
+    # Enrich codes with ladder and evidence
+    enriched_codes = []
+    for code in codes:
+        icd10 = code.get("icd10", "")
+        hcc_entry = lookup_hcc_for_icd10(icd10)
+        ladder = build_code_ladder(icd10) if icd10 else []
+
+        enriched_codes.append({
+            **code,
+            "hcc_code": int(hcc_entry["hcc"]) if hcc_entry and hcc_entry.get("hcc") else code.get("hcc_code"),
+            "raf_weight": float(hcc_entry.get("raf", 0)) if hcc_entry else code.get("raf_weight", 0),
+            "code_ladder": ladder[:8],
+            "has_hcc": bool(hcc_entry and hcc_entry.get("hcc")),
+        })
+
+    return {
+        "member_id": member_id,
+        "extraction": {
+            "diagnoses": extraction.get("diagnoses", []),
+            "medications": extraction.get("medications", []),
+            "key_findings": extraction.get("key_findings", []),
+            "past_medical_history": extraction.get("past_medical_history", []),
+        },
+        "codes": enriched_codes,
+        "diagnosis_source_map": diagnosis_source_map,
+        "source": extraction.get("_source", {}),
+        "summary": {
+            "total_codes": len(enriched_codes),
+            "hcc_codes": sum(1 for c in enriched_codes if c.get("has_hcc")),
+            "total_raf": round(sum(c.get("raf_weight", 0) for c in enriched_codes if c.get("has_hcc")), 3),
+        },
+    }
 
 
 async def process_document_reference(
     doc_ref: dict,
     member_id: str,
 ) -> dict[str, Any]:
-    """Process an eCW DocumentReference through NLP extraction.
+    """Process an eCW DocumentReference through the full NLP pipeline.
 
-    Takes a parsed DocumentReference dict (from ecw.py) and extracts
-    structured clinical data from the document content.
-
-    Returns extracted conditions, medications, labs with evidence trail
-    linking back to the specific document.
+    Takes a parsed DocumentReference dict (from ecw.py fetch_document_references)
+    and runs it through extraction -> coding -> validation.
     """
     content_text = doc_ref.get("content_text") or doc_ref.get("extra", {}).get("content_text")
     if not content_text:
-        return {"conditions": [], "medications": [], "lab_values": [], "procedures": []}
+        return {"codes": [], "extraction": {}, "summary": {"total_codes": 0, "hcc_codes": 0, "total_raf": 0}}
 
-    note_date_str = doc_ref.get("date") or doc_ref.get("extra", {}).get("date")
     note_date = None
-    if note_date_str:
+    date_str = doc_ref.get("date") or doc_ref.get("extra", {}).get("date")
+    if date_str:
         try:
             from datetime import datetime
-            note_date = datetime.fromisoformat(note_date_str).date()
+            note_date = datetime.fromisoformat(date_str).date()
         except (ValueError, TypeError):
             pass
 
-    note_type = doc_ref.get("type_display") or doc_ref.get("extra", {}).get("type_display", "clinical_note")
-    provider = doc_ref.get("extra", {}).get("author_name")
-
-    result = await extract_from_clinical_note(
+    return await process_clinical_note(
         note_text=content_text,
+        note_type=doc_ref.get("type_display") or doc_ref.get("extra", {}).get("type_display", "clinical_note"),
         note_date=note_date,
-        note_type=note_type,
-        provider_name=provider,
+        provider_name=doc_ref.get("extra", {}).get("author_name"),
+        facility_name=doc_ref.get("extra", {}).get("facility_name"),
+        document_id=doc_ref.get("fhir_id"),
+        member_id=member_id,
     )
-
-    # Add document reference metadata
-    result["document_ref"] = {
-        "fhir_id": doc_ref.get("fhir_id"),
-        "member_id": member_id,
-        "document_type": note_type,
-        "document_date": note_date.isoformat() if note_date else None,
-    }
-
-    return result

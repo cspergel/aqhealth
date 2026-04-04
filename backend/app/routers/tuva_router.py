@@ -627,6 +627,69 @@ async def get_population_opportunities(
     }
 
 
+@router.post("/process-note")
+async def process_clinical_note_endpoint(
+    note_text: str = "",
+    note_type: str = "progress_note",
+    member_id: str | None = None,
+):
+    """Process a clinical note through the full NLP pipeline.
+
+    Pass 1: Extract structured facts (diagnoses, meds, labs, findings)
+    Pass 2: Assign ICD-10 codes with Claude tool_use validation
+    Then: Compare against claims to find gaps
+
+    Returns: validated codes with HCC/RAF impact, evidence quotes, gaps.
+    """
+    from app.services.clinical_nlp_service import process_clinical_note
+    from app.services.clinical_gap_detector import detect_clinical_gaps
+
+    if not note_text or len(note_text.strip()) < 20:
+        return {"error": "Note text is too short (minimum 20 characters)"}
+
+    # Run the 2-pass NLP pipeline
+    result = await process_clinical_note(
+        note_text=note_text,
+        note_type=note_type,
+        member_id=member_id,
+    )
+
+    # If we have a member_id, detect gaps against their claims
+    gaps = []
+    if member_id:
+        try:
+            session = await _get_demo_session()
+            from app.models.member import Member
+            member_result = await session.execute(
+                select(Member).where(Member.member_id == member_id)
+            )
+            member = member_result.scalar_one_or_none()
+            if member:
+                # Convert NLP codes to conditions format for gap detector
+                conditions = [
+                    {
+                        "icd10_code": c.get("icd10"),
+                        "description": c.get("description"),
+                        "evidence_quote": c.get("evidence_quote"),
+                        "clinical_status": "active",
+                    }
+                    for c in result.get("codes", [])
+                ]
+                gaps = await detect_clinical_gaps(member.id, conditions, session)
+        except Exception as e:
+            logger.debug("Gap detection skipped: %s", e)
+
+    result["gaps"] = gaps
+    result["gap_summary"] = {
+        "total": len(gaps),
+        "uncoded": sum(1 for g in gaps if g["gap_type"] == "uncoded"),
+        "undercoded": sum(1 for g in gaps if g["gap_type"] == "undercoded"),
+        "total_raf_opportunity": round(sum(g.get("raf_value", 0) for g in gaps), 3),
+    }
+
+    return result
+
+
 @router.get("/status")
 def get_tuva_status():
     """Check if Tuva data is available and what's loaded."""

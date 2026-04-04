@@ -1634,6 +1634,17 @@ class EcwAdapter(PayerAdapter):
                         pass
             content_entries.append(entry)
 
+        # Extract the full text content for NLP processing
+        content_text = None
+        for entry in content_entries:
+            if entry.get("text_preview"):
+                # Prefer decoded text content
+                content_text = entry["text_preview"]
+                break
+            elif entry.get("url"):
+                # URL-based content would need a separate fetch
+                pass
+
         return {
             "fhir_id": fhir_id,
             "member_id": member_id,
@@ -1642,11 +1653,16 @@ class EcwAdapter(PayerAdapter):
             "doc_category": doc_category,
             "doc_date": doc_date,
             "status": status,
+            "content_text": content_text,  # Full text for NLP processing
+            "type_display": doc_type,
             "extra": {
                 "source": "ecw",
                 "author_name": author_name,
                 "encounter_ref": encounter_ref,
                 "content": content_entries,
+                "type_display": doc_type,
+                "date": str(doc_date) if doc_date else None,
+                "facility_name": None,  # TODO: resolve from encounter
             },
         }
 
