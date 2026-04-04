@@ -498,6 +498,135 @@ def get_demo_summary():
     return summary
 
 
+@router.get("/population-opportunities")
+async def get_population_opportunities(
+    tier: str | None = None,
+    limit: int = 200,
+):
+    """Population-level capture opportunities — all members, all suspects, ranked.
+
+    Returns actionable chase lists grouped by tier and provider.
+    Filter by tier: high_value, likely, investigate, or all (default).
+    """
+    from app.models.member import Member
+    from app.models.hcc import HccSuspect
+    from app.models.provider import Provider
+
+    session = await _get_demo_session()
+
+    # Get all open suspects with member and provider info
+    result = await session.execute(
+        select(
+            HccSuspect.id,
+            HccSuspect.hcc_code,
+            HccSuspect.hcc_label,
+            HccSuspect.icd10_code,
+            HccSuspect.raf_value,
+            HccSuspect.annual_value,
+            HccSuspect.suspect_type,
+            HccSuspect.confidence,
+            HccSuspect.evidence_summary,
+            Member.member_id,
+            Member.first_name,
+            Member.last_name,
+            Member.current_raf,
+            Member.projected_raf,
+            Member.pcp_provider_id,
+        )
+        .join(Member, HccSuspect.member_id == Member.id)
+        .where(HccSuspect.status == "open")
+        .order_by(HccSuspect.raf_value.desc())
+        .limit(limit)
+    )
+    rows = result.all()
+
+    # Get provider names
+    prov_ids = {r.pcp_provider_id for r in rows if r.pcp_provider_id}
+    provider_map: dict[int, str] = {}
+    if prov_ids:
+        prov_result = await session.execute(
+            select(Provider.id, Provider.first_name, Provider.last_name)
+            .where(Provider.id.in_(prov_ids))
+        )
+        for p in prov_result.all():
+            provider_map[p.id] = f"{p.first_name} {p.last_name}"
+
+    # Classify tiers (same logic as member detail)
+    def _classify(suspect_type: str, confidence: int) -> tuple[str, str]:
+        if suspect_type in ("recapture", "historical"):
+            return "high_value", "Easy Capture"
+        if suspect_type == "med_dx_gap" and confidence >= 60:
+            return "high_value", "Easy Capture"
+        if suspect_type == "specificity" and confidence >= 70:
+            return "high_value", "Easy Capture"
+        if suspect_type == "near_miss" and confidence >= 65:
+            return "likely", "Likely Capture"
+        if confidence >= 50:
+            return "likely", "Likely Capture"
+        if suspect_type == "watch_item":
+            return "watch", "Watch Item"
+        return "investigate", "Investigate"
+
+    opportunities = []
+    for r in rows:
+        t, t_label = _classify(r.suspect_type, r.confidence or 0)
+        if tier and t != tier:
+            continue
+        opportunities.append({
+            "member_id": r.member_id,
+            "member_name": f"{r.first_name} {r.last_name}",
+            "provider": provider_map.get(r.pcp_provider_id, "Unassigned"),
+            "hcc_code": r.hcc_code,
+            "hcc_label": r.hcc_label,
+            "icd10_code": r.icd10_code,
+            "raf_value": float(r.raf_value) if r.raf_value else 0,
+            "annual_value": float(r.annual_value) if r.annual_value else 0,
+            "suspect_type": r.suspect_type,
+            "confidence": r.confidence,
+            "tier": t,
+            "tier_label": t_label,
+            "evidence": r.evidence_summary,
+            "current_raf": float(r.current_raf) if r.current_raf else 0,
+            "projected_raf": float(r.projected_raf) if r.projected_raf else 0,
+        })
+
+    # Aggregate by tier
+    tier_summary: dict[str, dict] = {}
+    for o in opportunities:
+        t = o["tier"]
+        if t not in tier_summary:
+            tier_summary[t] = {"count": 0, "total_raf": 0, "total_annual": 0}
+        tier_summary[t]["count"] += 1
+        tier_summary[t]["total_raf"] += o["raf_value"]
+        tier_summary[t]["total_annual"] += o["annual_value"]
+    for v in tier_summary.values():
+        v["total_raf"] = round(v["total_raf"], 3)
+        v["total_annual"] = round(v["total_annual"], 2)
+
+    # Aggregate by provider
+    by_provider: dict[str, dict] = {}
+    for o in opportunities:
+        prov = o["provider"]
+        if prov not in by_provider:
+            by_provider[prov] = {"count": 0, "total_raf": 0, "members": set()}
+        by_provider[prov]["count"] += 1
+        by_provider[prov]["total_raf"] += o["raf_value"]
+        by_provider[prov]["members"].add(o["member_id"])
+    provider_summary = [
+        {"provider": k, "opportunities": v["count"], "total_raf": round(v["total_raf"], 3), "members_affected": len(v["members"])}
+        for k, v in sorted(by_provider.items(), key=lambda x: -x[1]["total_raf"])
+    ]
+
+    return {
+        "total_opportunities": len(opportunities),
+        "total_raf": round(sum(o["raf_value"] for o in opportunities), 3),
+        "total_annual_value": round(sum(o["annual_value"] for o in opportunities), 2),
+        "by_tier": tier_summary,
+        "by_provider": provider_summary,
+        "items": opportunities,
+    }
+
+
 @router.get("/status")
 def get_tuva_status():
     """Check if Tuva data is available and what's loaded."""
