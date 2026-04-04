@@ -11,15 +11,19 @@ def test_raf_baseline_discrepancy_flagged():
         member_id="M001",
         payment_year=2026,
         tuva_raf_score=Decimal("1.250"),
-        aqsoft_raf_score=Decimal("1.100"),
+        aqsoft_confirmed_raf=Decimal("1.100"),
+        aqsoft_projected_raf=Decimal("1.400"),
+        capture_opportunity_raf=Decimal("0.300"),
         has_discrepancy=True,
         raf_difference=Decimal("0.150"),
-        discrepancy_detail="Tuva=1.250, AQSoft=1.100, diff=0.150",
+        discrepancy_detail="Tuva=1.250, AQSoft confirmed=1.100, diff=0.150",
     )
     assert baseline.has_discrepancy is True
     assert baseline.raf_difference == Decimal("0.150")
     assert baseline.tuva_raf_score == Decimal("1.250")
-    assert baseline.aqsoft_raf_score == Decimal("1.100")
+    assert baseline.aqsoft_confirmed_raf == Decimal("1.100")
+    assert baseline.aqsoft_projected_raf == Decimal("1.400")
+    assert baseline.capture_opportunity_raf == Decimal("0.300")
 
 
 def test_raf_baseline_no_discrepancy():
@@ -28,7 +32,8 @@ def test_raf_baseline_no_discrepancy():
         member_id="M002",
         payment_year=2026,
         tuva_raf_score=Decimal("1.250"),
-        aqsoft_raf_score=Decimal("1.230"),
+        aqsoft_confirmed_raf=Decimal("1.230"),
+        aqsoft_projected_raf=Decimal("1.500"),
         has_discrepancy=False,
         raf_difference=Decimal("0.020"),
     )

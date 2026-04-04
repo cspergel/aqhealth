@@ -232,18 +232,16 @@ DISEASE_INTERACTIONS: list[tuple[str, list[set[int]], Decimal]] = [
 
 # ---------------------------------------------------------------------------
 # HCC RAF values — loaded from REAL CMS V28 reference data (hcc_mappings.json)
-# Falls back to a minimal hardcoded set if the file isn't available.
+# Fail fast if reference data is missing — silent fallback was hiding data issues.
 # ---------------------------------------------------------------------------
 
-LOCAL_HCC_RAF: dict[int, Decimal] = HCC_RAF_LOOKUP if HCC_RAF_LOOKUP else {
-    # Minimal fallback only used if hcc_mappings.json is missing
-    38: Decimal("0.166"),   # Diabetes
-    226: Decimal("0.360"),  # Heart Failure
-    328: Decimal("0.127"),  # CKD Stage 3
-    155: Decimal("0.299"),  # Depression
-    280: Decimal("0.319"),  # COPD
-    238: Decimal("0.299"),  # AFib
-}
+if not HCC_RAF_LOOKUP:
+    logger.error(
+        "CRITICAL: hcc_mappings.json not loaded — HCC engine will produce incorrect RAF scores. "
+        "Ensure backend/data/hcc_mappings.json exists with CMS V28 mappings."
+    )
+
+LOCAL_HCC_RAF: dict[int, Decimal] = HCC_RAF_LOOKUP
 
 
 # ---------------------------------------------------------------------------

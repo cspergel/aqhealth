@@ -34,13 +34,16 @@ class TestTuvaEndToEnd:
     """Integration tests requiring dbt + DuckDB installed."""
 
     def test_dbt_is_installed(self):
-        """Verify dbt CLI is available."""
-        result = subprocess.run(
-            ["dbt", "--version"],
-            capture_output=True, text=True,
-        )
+        """Verify dbt CLI is available. Skips if not installed."""
+        try:
+            result = subprocess.run(
+                ["dbt", "--version"],
+                capture_output=True, text=True,
+                timeout=10,
+            )
+        except FileNotFoundError:
+            pytest.skip("dbt CLI not installed — skipping dbt integration tests")
         assert result.returncode == 0
-        # dbt 1.11+ prints "Core:" instead of "dbt" in version output
         assert "core" in result.stdout.lower()
 
     def test_dbt_deps_installed(self):
@@ -85,7 +88,7 @@ class TestTuvaEndToEnd:
 
         runner = TuvaRunnerService(project_dir="/test/path")
         cmd = runner._build_command("run", select="cms_hcc")
-        assert cmd == ["dbt", "run", "--project-dir", "/test/path", "--select", "cms_hcc"]
+        assert cmd == ["dbt", "run", "--project-dir", "/test/path", "--profiles-dir", "/test/path", "--select", "cms_hcc"]
 
     def test_sync_service_instantiates(self):
         """Verify sync service can be instantiated."""

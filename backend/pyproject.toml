@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.7",
     "python-jose[cryptography]>=3.3",
     "passlib[bcrypt]>=1.7",
+    "bcrypt>=4.0,<4.1",  # Pin bcrypt to avoid passlib compatibility breaks
     "python-multipart>=0.0.18",
     "redis>=5.2",
     "arq>=0.26",
