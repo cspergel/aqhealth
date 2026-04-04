@@ -25,19 +25,31 @@ async def get_current_user(
 
         user_id = int(payload["sub"])
 
-        # Re-verify user is still active (lightweight query)
+        # Re-verify user is still active AND re-derive tenant from current DB state.
+        # This ensures that if a user is moved off a tenant, their existing JWT
+        # no longer grants access to the old tenant.
         result = await session.execute(
-            text("SELECT is_active, role FROM platform.users WHERE id = :uid"),
+            text("""
+                SELECT u.is_active, u.role, u.tenant_id, t.schema_name, t.status
+                FROM platform.users u
+                LEFT JOIN platform.tenants t ON u.tenant_id = t.id
+                WHERE u.id = :uid
+            """),
             {"uid": user_id}
         )
         user_row = result.fetchone()
         if not user_row or not user_row.is_active:
             raise HTTPException(status_code=401, detail="Account disabled or not found")
 
+        # Validate tenant is still active
+        tenant_schema = user_row.schema_name
+        if tenant_schema and user_row.status != "active":
+            raise HTTPException(status_code=403, detail="Tenant is suspended or inactive")
+
         return {
             "user_id": user_id,
-            "tenant_schema": payload.get("tenant"),
-            "role": user_row.role,  # Use CURRENT role from DB, not JWT
+            "tenant_schema": tenant_schema,  # From current DB, not stale JWT
+            "role": user_row.role,  # From current DB, not stale JWT
         }
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
