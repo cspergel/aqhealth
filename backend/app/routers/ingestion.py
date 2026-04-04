@@ -330,8 +330,7 @@ async def upload_file(
             db=db,
             headers=headers,
             sample_rows=sample_rows,
-            source_name=unique_name,
-            upload_job_id=job_id,
+            filename=unique_name,
         )
         await db.commit()
     except Exception as fp_err:

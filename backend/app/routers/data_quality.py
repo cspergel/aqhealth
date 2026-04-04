@@ -40,6 +40,46 @@ class ResolveRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/data-quality/summary — lightweight summary for onboarding wizard
+# ---------------------------------------------------------------------------
+
+@router.get("/summary")
+async def get_quality_summary(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Summary of data quality — latest report score, quarantine count, resolution rate."""
+    try:
+        # Latest report
+        latest = await db.execute(text(
+            "SELECT overall_score, total_rows, valid_rows, quarantined_rows, warning_rows "
+            "FROM data_quality_reports ORDER BY created_at DESC LIMIT 1"
+        ))
+        row = latest.first()
+        if row:
+            total = row[1] or 1
+            return {
+                "overall_score": row[0] or 0,
+                "total_rows": row[1] or 0,
+                "valid_rows": row[2] or 0,
+                "quarantined_rows": row[3] or 0,
+                "warning_rows": row[4] or 0,
+                "valid_pct": round((row[2] or 0) / total * 100, 1),
+            }
+        return {
+            "overall_score": 0,
+            "total_rows": 0,
+            "valid_rows": 0,
+            "quarantined_rows": 0,
+            "warning_rows": 0,
+            "valid_pct": 0,
+            "message": "No quality reports yet",
+        }
+    except Exception:
+        return {"overall_score": 0, "total_rows": 0, "message": "Quality data unavailable"}
+
+
+# ---------------------------------------------------------------------------
 # GET /api/data-quality/reports — list quality reports
 # ---------------------------------------------------------------------------
 

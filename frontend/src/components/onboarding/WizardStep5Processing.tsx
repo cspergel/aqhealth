@@ -144,13 +144,19 @@ export function WizardStep5Processing({
       try {
         const res = await api.post("/api/skills/execute-by-name", { action: step.skillName });
         const result = res.data;
+        // Check actual status — don't trust 200 alone
+        const isStub = result.status === "stub" || result.status === "not_implemented";
+        const isFailed = result.status === "failed" || result.status === "error";
         setSteps((prev) =>
           prev.map((s) =>
             s.key === step.key
               ? {
                   ...s,
-                  status: "complete",
-                  resultText: result.summary || result.message || "Done",
+                  status: isFailed ? "error" : isStub ? "warning" : "complete",
+                  resultText: isStub
+                    ? "Not yet implemented"
+                    : result.summary || result.message || "Done",
+                  errorText: isFailed ? (result.message || "Step failed") : undefined,
                 }
               : s,
           ),
@@ -183,7 +189,18 @@ export function WizardStep5Processing({
       setMetrics({ members: 0, hccSuspects: 0, dollarOpportunity: 0, careGaps: 0 });
     }
 
-    setFindings(DEMO_FINDINGS); // Real findings would come from insights API
+    // Try to fetch real findings from insights API; fall back to demo only if unavailable
+    try {
+      const insightsRes = await api.get("/api/insights", { params: { limit: 5 } });
+      const realFindings = (insightsRes.data.items || []).map((i: any) => ({
+        title: i.title || i.text?.substring(0, 60) || "Insight",
+        description: i.text || i.detail || "",
+        priority: i.priority || "normal",
+      }));
+      setFindings(realFindings.length > 0 ? realFindings : DEMO_FINDINGS);
+    } catch {
+      setFindings(DEMO_FINDINGS);
+    }
     setAllDone(true);
   }, []);
 

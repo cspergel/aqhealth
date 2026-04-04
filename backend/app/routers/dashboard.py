@@ -140,9 +140,20 @@ async def get_dashboard(
     )
 
 
-# ---------------------------------------------------------------------------
-# GET /api/dashboard/insights — top 5 active insights
-# ---------------------------------------------------------------------------
+@router.get("/summary")
+async def get_dashboard_summary(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Lightweight summary for onboarding wizard and quick status checks."""
+    metrics = await get_dashboard_metrics(db)
+    return {
+        "total_members": metrics.get("total_members", 0),
+        "hcc_suspects": metrics.get("open_suspects", 0),
+        "dollar_opportunity": metrics.get("suspect_value", 0),
+        "care_gaps": metrics.get("open_care_gaps", 0),
+    }
+
 
 # ---------------------------------------------------------------------------
 # GET /api/dashboard/actions — pending action items across modules
