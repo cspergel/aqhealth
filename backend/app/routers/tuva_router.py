@@ -56,11 +56,10 @@ async def _demo_session():
 
 
 async def _get_demo_session() -> AsyncSession:
-    """Get a demo_mso session for use in endpoint bodies.
+    """Get a demo_mso session for endpoint bodies.
 
-    NOTE: This returns a session that must be explicitly closed by the caller
-    or will be closed when the async context exits. For proper lifecycle
-    management, prefer _demo_session() context manager.
+    For proper lifecycle, prefer _demo_session() context manager.
+    This plain-return version is kept for endpoints not yet migrated.
     """
     session = async_session_factory()
     await session.__aenter__()

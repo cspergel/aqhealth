@@ -75,7 +75,11 @@ async def db_session(test_engine, _create_tables):
 
 @pytest.fixture
 async def client():
-    """Async test client for API endpoint tests. Does NOT require a database."""
+    """Async test client for API endpoint tests. Does NOT require a database.
+
+    Disposes the SQLAlchemy engine after the test to prevent connection
+    leaks from demo session endpoints that don't use context managers.
+    """
     try:
         from httpx import AsyncClient, ASGITransport
         from app.main import app
@@ -83,5 +87,12 @@ async def client():
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
+
+        # Clean up any leaked database connections from demo endpoints
+        try:
+            from app.database import engine
+            await engine.dispose()
+        except Exception:
+            pass
     except Exception as exc:
         pytest.skip(f"Could not create test client: {exc}")
