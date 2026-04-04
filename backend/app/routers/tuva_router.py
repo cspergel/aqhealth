@@ -6,7 +6,7 @@ All endpoints are accessible without auth for demo purposes.
 Uses demo_mso tenant schema directly.
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Query
 from sqlalchemy import select, func, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -688,6 +688,85 @@ async def process_clinical_note_endpoint(
     }
 
     return result
+
+
+@router.post("/export-fhir")
+async def export_fhir_bundle(
+    nlp_result: dict = Body(...),
+    member_fhir_id: str = Query(default="unknown"),
+):
+    """Convert NLP extraction results into a FHIR R4 transaction Bundle.
+
+    Accepts the output from /api/tuva/process-note (or clinical_nlp_service)
+    and returns a FHIR Bundle containing Condition, Observation, and
+    MedicationRequest resources ready to POST to an EMR's FHIR endpoint.
+    """
+    from app.services.fhir_export_service import export_nlp_results_as_fhir
+
+    bundle = export_nlp_results_as_fhir(nlp_result, member_fhir_id)
+    return bundle
+
+
+@router.get("/convergence")
+async def get_convergence():
+    """Population-level RAF convergence summary.
+
+    Shows how well projected RAF scores are being realized as confirmed captures,
+    suspect aging buckets, stale RAF at risk, and capture performance.
+    """
+    from app.services.raf_convergence_service import (
+        get_convergence_summary,
+        check_raf_convergence,
+    )
+
+    session = await _get_demo_session()
+    summary = await get_convergence_summary(session)
+    alerts = await check_raf_convergence(session)
+
+    return {
+        **summary,
+        "stale_member_alerts": len(alerts),
+        "top_alerts": alerts[:20],  # Top 20 by gap size
+    }
+
+
+@router.get("/stale-suspects")
+async def list_stale_suspects(
+    days: int = Query(default=90, ge=1, le=365),
+    limit: int = Query(default=50, le=200),
+):
+    """List suspects that have been open too long without capture or dismissal.
+
+    These represent projected RAF that isn't converting to confirmed revenue.
+    Each suspect includes a recommended action based on type and age.
+    """
+    from app.services.raf_convergence_service import get_stale_suspects
+
+    session = await _get_demo_session()
+    suspects = await get_stale_suspects(session, days_threshold=days)
+
+    total_raf_at_risk = sum(s["raf_value"] for s in suspects)
+    total_annual_at_risk = sum(s["annual_value"] for s in suspects)
+
+    # Group by suspect type
+    by_type: dict[str, dict] = {}
+    for s in suspects:
+        t = s["suspect_type"]
+        if t not in by_type:
+            by_type[t] = {"count": 0, "total_raf": 0.0}
+        by_type[t]["count"] += 1
+        by_type[t]["total_raf"] += s["raf_value"]
+    for v in by_type.values():
+        v["total_raf"] = round(v["total_raf"], 3)
+
+    return {
+        "total_stale": len(suspects),
+        "days_threshold": days,
+        "total_raf_at_risk": round(total_raf_at_risk, 3),
+        "total_annual_at_risk": round(total_annual_at_risk, 2),
+        "by_type": by_type,
+        "items": suspects[:limit],
+    }
 
 
 @router.get("/status")
