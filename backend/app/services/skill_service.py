@@ -376,28 +376,28 @@ async def _execute_step(
             return {"status": "failed", "error": str(e)}
 
     elif action == "generate_chase_list":
-        logger.info("STUB: %s — not yet wired", action)
-        return {"status": "stub", "message": "Not yet wired — generate_chase_list"}
+        logger.info("STUB: %s — not yet implemented", action)
+        return {"status": "not_implemented", "message": "This action is not yet implemented"}
 
     elif action == "create_action_items":
-        logger.info("STUB: %s — not yet wired", action)
-        return {"status": "stub", "message": "Not yet wired — create_action_items"}
+        logger.info("STUB: %s — not yet implemented", action)
+        return {"status": "not_implemented", "message": "This action is not yet implemented"}
 
     elif action == "send_notification":
-        logger.info("STUB: %s — not yet wired", action)
-        return {"status": "stub", "message": "Not yet wired — send_notification"}
+        logger.info("STUB: %s — not yet implemented", action)
+        return {"status": "not_implemented", "message": "This action is not yet implemented"}
 
     elif action == "generate_report":
-        logger.info("STUB: %s — not yet wired", action)
-        return {"status": "stub", "message": "Not yet wired — generate_report"}
+        logger.info("STUB: %s — not yet implemented", action)
+        return {"status": "not_implemented", "message": "This action is not yet implemented"}
 
     elif action == "refresh_dashboard":
-        logger.info("STUB: %s — not yet wired", action)
-        return {"status": "stub", "message": "Not yet wired — refresh_dashboard"}
+        logger.info("STUB: %s — not yet implemented", action)
+        return {"status": "not_implemented", "message": "This action is not yet implemented"}
 
     elif action == "calculate_stars":
-        logger.info("STUB: %s — not yet wired", action)
-        return {"status": "stub", "message": "Not yet wired — calculate_stars"}
+        logger.info("STUB: %s — not yet implemented", action)
+        return {"status": "not_implemented", "message": "This action is not yet implemented"}
 
     elif action == "refresh_provider_scorecards":
         try:

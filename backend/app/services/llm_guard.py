@@ -6,6 +6,12 @@ Every LLM interaction goes through this guard to:
 2. Add safety instructions to the prompt
 3. Validate output doesn't reference other tenants
 4. Log the interaction for audit
+
+NOTE: clinical_nlp_service.py calls the Anthropic API directly instead of using
+guarded_llm_call(). This is intentional -- clinical NLP requires the tool_use
+protocol (structured tool definitions and tool_result message blocks), which
+guarded_llm_call does not support. The clinical service applies its own tenant
+isolation and output validation.
 """
 
 import json
