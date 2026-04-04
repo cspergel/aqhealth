@@ -172,11 +172,18 @@ export function ExpenditurePage() {
           </p>
         </div>
         <button
-          onClick={() => {
-            window.open(
-              `${api.defaults.baseURL}/api/expenditure/export`,
-              "_blank"
-            );
+          onClick={async () => {
+            try {
+              const response = await api.get("/api/expenditure/export", { responseType: "blob" });
+              const blob = new Blob([response.data]);
+              const link = document.createElement("a");
+              link.href = URL.createObjectURL(blob);
+              link.download = "expenditure.csv";
+              link.click();
+              URL.revokeObjectURL(link.href);
+            } catch (err) {
+              console.error("Failed to export expenditure data", err);
+            }
           }}
           className="text-[13px] px-4 py-2 rounded-md border transition-colors hover:bg-stone-50"
           style={{ borderColor: tokens.border, color: tokens.textSecondary }}

@@ -233,8 +233,18 @@ export function CareGapsPage() {
           </p>
         </div>
         <button
-          onClick={() => {
-            window.open(`${api.defaults.baseURL}/api/care-gaps/export`, "_blank");
+          onClick={async () => {
+            try {
+              const response = await api.get("/api/care-gaps/export", { responseType: "blob" });
+              const blob = new Blob([response.data]);
+              const link = document.createElement("a");
+              link.href = URL.createObjectURL(blob);
+              link.download = "care-gaps.csv";
+              link.click();
+              URL.revokeObjectURL(link.href);
+            } catch (err) {
+              console.error("Failed to export care gaps", err);
+            }
           }}
           className="text-[13px] px-4 py-2 rounded-md border transition-colors hover:bg-stone-50"
           style={{ borderColor: tokens.border, color: tokens.textSecondary }}

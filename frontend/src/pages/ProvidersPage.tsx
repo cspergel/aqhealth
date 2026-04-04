@@ -46,9 +46,21 @@ function ProviderListView() {
     }
   };
 
-  const handleExport = () => {
-    const baseUrl = api.defaults.baseURL || "";
-    window.open(`${baseUrl}/api/providers/export?sort_by=${sortBy}&order=${order}`, "_blank");
+  const handleExport = async () => {
+    try {
+      const response = await api.get("/api/providers/export", {
+        params: { sort_by: sortBy, order },
+        responseType: "blob",
+      });
+      const blob = new Blob([response.data]);
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "providers.csv";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error("Failed to export providers", err);
+    }
   };
 
   // Extract unique specialties for filter
