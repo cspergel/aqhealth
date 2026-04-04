@@ -763,6 +763,12 @@ async def process_clinical_note(
                 "sources": [extraction.get("_source", {})],
             }
 
+    # Validate codes against clinical rules (119 code families)
+    from app.services.clinical_rules_validator import validate_all_codes
+    medications_list = [m.get("name", "") for m in extraction.get("medications", []) if m.get("name")]
+    lab_findings = extraction.get("key_findings", [])
+    codes = validate_all_codes(codes, note_text, medications_list, lab_findings)
+
     # Enrich codes with ladder and evidence
     enriched_codes = []
     for code in codes:

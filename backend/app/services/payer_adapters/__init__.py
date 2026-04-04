@@ -8,12 +8,14 @@ implement a PayerAdapter subclass and register it here.
 from app.services.payer_api_service import PayerAdapter
 from app.services.payer_adapters.humana import HumanaAdapter
 from app.services.payer_adapters.ecw import EcwAdapter
+from app.services.payer_adapters.metriport import MetriportAdapter
 
 # Registry of available payer adapters.
 # Keys are lowercase payer names used in API calls and tenant config.
 ADAPTERS: dict[str, type[PayerAdapter]] = {
     "humana": HumanaAdapter,
     "ecw": EcwAdapter,
+    "metriport": MetriportAdapter,
 }
 
 
