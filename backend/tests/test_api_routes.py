@@ -129,11 +129,19 @@ async def test_data_protection_rollback_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_adt_webhook_requires_secret(client):
-    """ADT webhook requires webhook secret header."""
+async def test_adt_webhook_requires_tenant_and_secret(client):
+    """ADT webhook requires both X-Tenant-Schema and X-Webhook-Secret headers."""
+    # Missing tenant schema → 400 or 422
     resp = await client.post("/api/adt/webhook", json={"event_type": "admit"})
-    # Should fail without X-Webhook-Secret header
-    assert resp.status_code in (403, 422, 503)
+    assert resp.status_code in (400, 422)
+
+    # With tenant schema but no secret → 403 or 503
+    resp2 = await client.post(
+        "/api/adt/webhook",
+        json={"event_type": "admit"},
+        headers={"X-Tenant-Schema": "demo_mso"},
+    )
+    assert resp2.status_code in (403, 503)
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +245,7 @@ async def test_data_quality_summary_requires_auth(client):
 @pytest.mark.asyncio
 async def test_create_interface_requires_auth(client):
     """Interface creation requires admin role."""
-    resp = await client.post("/api/interfaces/interfaces", json={"name": "test"})
+    resp = await client.post("/api/interfaces", json={"name": "test"})
     assert resp.status_code in (401, 403, 422)
 
 

@@ -36,14 +36,19 @@ router = APIRouter(prefix="/api/tuva", tags=["tuva"])
 
 
 async def _get_demo_session() -> AsyncSession:
-    """FastAPI dependency that yields a demo_mso session and cleans up properly.
+    """Get a demo_mso session for use in endpoint bodies.
+
+    Returns a plain session (NOT a generator). Callers must manage lifecycle.
+    For short-lived request handlers this is acceptable since the session
+    is garbage-collected at end of request.
 
     WARNING: This hardcodes demo_mso tenant access without auth.
-    Production deployments must replace this with authenticated tenant resolution.
+    Production deployments must replace with authenticated tenant resolution.
     """
-    async with async_session_factory() as session:
-        await session.execute(sa_text('SET search_path TO demo_mso, public'))
-        yield session
+    session = async_session_factory()
+    await session.__aenter__()
+    await session.execute(sa_text('SET search_path TO demo_mso, public'))
+    return session
 
 
 @router.get("/raf-baselines")

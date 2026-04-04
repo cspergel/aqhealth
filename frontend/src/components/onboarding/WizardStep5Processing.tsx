@@ -6,7 +6,7 @@ import api from "../../lib/api";
 /* WizardStep5Processing — pipeline runner with live progress          */
 /* ------------------------------------------------------------------ */
 
-type StepStatus = "waiting" | "running" | "complete" | "error";
+type StepStatus = "waiting" | "running" | "complete" | "error" | "warning";
 
 interface PipelineStep {
   key: string;

@@ -102,7 +102,7 @@ async def create_new_interface(
 async def update_existing_interface(
     interface_id: int,
     body: InterfaceUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update an existing interface configuration."""
@@ -123,7 +123,7 @@ async def remove_interface(
 @router.post("/interfaces/{interface_id}/test")
 async def test_connection(
     interface_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Test connectivity of a configured interface."""

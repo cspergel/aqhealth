@@ -297,7 +297,7 @@ async def create_source(
 async def update_source(
     source_id: int,
     body: SourceConfigInput,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(UserRole.mso_admin)),
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Update an existing ADT source configuration."""

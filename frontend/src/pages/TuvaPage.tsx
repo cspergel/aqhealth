@@ -599,7 +599,7 @@ function RafTab({
                   {b.tuva_raf?.toFixed(3) ?? "—"}
                 </Td>
                 <Td align="right" style={{ fontFamily: fonts.code }}>
-                  {b.aqsoft_raf?.toFixed(3) ?? "—"}
+                  {b.aqsoft_confirmed_raf?.toFixed(3) ?? "—"}
                 </Td>
                 <Td
                   align="right"
