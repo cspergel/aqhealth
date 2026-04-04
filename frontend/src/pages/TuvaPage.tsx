@@ -97,6 +97,64 @@ const DEMO_COMPARISON_SUMMARY: ComparisonSummary = {
   engine_discrepancies: 2, avg_tuva_raf: 1.326, avg_aqsoft_confirmed_raf: 1.300, avg_aqsoft_projected_raf: 1.680,
 };
 
+function _buildDemoMemberDetail(memberId: string, comp: Comparison | null): any {
+  const name = comp?.name || "Demo Patient";
+  const tuvaRaf = comp?.tuva_confirmed_raf || 1.250;
+  const aqConfirmed = comp?.aqsoft_confirmed_raf || 1.100;
+  const aqProjected = comp?.aqsoft_projected_raf || 1.600;
+  return {
+    member_id: memberId,
+    name,
+    date_of_birth: "1955-03-15",
+    gender: "M",
+    scores: { tuva_v28: tuvaRaf, aqsoft_confirmed: aqConfirmed, aqsoft_projected: aqProjected },
+    tuva_hccs: [
+      { description: "Diabetes with Chronic Complications", coefficient: 0.166, model: "CMS-HCC-V28" },
+      { description: "Congestive Heart Failure", coefficient: 0.360, model: "CMS-HCC-V28" },
+    ],
+    tuva_demographics: [
+      { description: "Male, Age 70-74, Non-Medicaid", coefficient: 0.330 },
+    ],
+    aqsoft_confirmed_hccs: [
+      { icd10_code: "E11.65", hcc_code: 38, description: "Type 2 diabetes with hyperglycemia", raf_weight: 0.166, found_in_claims: 3, latest_claim: { claim_type: "professional", claim_id: "CLM-2025-4821", service_date: "2025-09-15", facility: null, category: "professional" }, has_specificity_upgrade: false, code_ladder: [] },
+      { icd10_code: "I50.22", hcc_code: 226, description: "Chronic systolic heart failure", raf_weight: 0.360, found_in_claims: 2, latest_claim: { claim_type: "institutional", claim_id: "CLM-2025-7293", service_date: "2025-08-20", facility: "Baycare St. Joseph's", category: "inpatient" }, has_specificity_upgrade: false, code_ladder: [] },
+      { icd10_code: "J44.1", hcc_code: 280, description: "COPD with acute exacerbation", raf_weight: 0.319, found_in_claims: 1, latest_claim: { claim_type: "professional", claim_id: "CLM-2025-5102", service_date: "2025-07-10", facility: null, category: "professional" }, has_specificity_upgrade: false, code_ladder: [] },
+    ],
+    aqsoft_suspects: [],
+    diagnosis_codes: ["E11.65", "I10", "I50.22", "J44.1", "N18.30", "E78.5"],
+    opportunities: [
+      {
+        hcc_code: 329, hcc_label: "CKD Stage 3 (HCC 329)", suspect_type: "near_miss", raf_value: 0.205,
+        confidence: 75, status: "open", icd10_code: "N18.30",
+        evidence: "Staging opportunity: COPD + CKD. Patient has N18.3 (truncated) -> should be N18.30 (CKD Stage 3, HCC 329). Related Dx: N18.3. If confirmed: base RAF 0.127 + interaction bonus 0.078 = +0.205.",
+        tier: "likely", tier_label: "Likely Capture",
+        tier_reason: "Supporting evidence found in claims — review clinical data to confirm",
+        sources: [{ type: "claims", detail: "Claims diagnosis codes" }],
+        code_ladder: [
+          { icd10_code: "N18.30", hcc_code: 329, description: "CKD stage 3 unspecified", raf_weight: 0.127, is_current: true },
+          { icd10_code: "N18.31", hcc_code: 329, description: "CKD stage 3a", raf_weight: 0.127, is_current: false },
+          { icd10_code: "N18.32", hcc_code: 328, description: "CKD stage 3b", raf_weight: 0.127, is_current: false },
+          { icd10_code: "N18.4", hcc_code: 327, description: "CKD stage 4 (severe)", raf_weight: 0.514, is_current: false },
+          { icd10_code: "N18.5", hcc_code: 326, description: "CKD stage 5", raf_weight: 0.815, is_current: false },
+        ],
+      },
+    ],
+    opportunity_count: 1,
+    opportunity_raf: 0.205,
+    opportunity_tiers: {
+      high_value: { count: 0, raf: 0 },
+      likely: { count: 1, raf: 0.205 },
+      investigate: { count: 0, raf: 0 },
+    },
+    watch_items: [
+      { hcc_code: 155, hcc_label: "Major Depression", suspect_type: "watch_item", raf_value: 0.072, confidence: 20, status: "open", evidence: "Watch item: Depression + Diabetes interaction bonus available if Major Depression is diagnosed. No supporting evidence in current claims or medications.", icd10_code: null },
+      { hcc_code: 100, hcc_label: "Ischemic Stroke", suspect_type: "watch_item", raf_value: 0.094, confidence: 20, status: "open", evidence: "Watch item: Stroke + Diabetes interaction bonus available if Ischemic Stroke is diagnosed. No supporting evidence in current claims or medications.", icd10_code: null },
+    ],
+    watch_item_count: 2,
+    watch_item_potential_raf: 0.166,
+  };
+}
+
 const DEMO_PMPM_BASELINES: PmpmBaseline[] = [
   { period: "2026-01", service_category: "inpatient", tuva_pmpm: 482.30, aqsoft_pmpm: 478.15, has_discrepancy: false, member_months: 1247, computed_at: "2026-04-02T10:30:00" },
   { period: "2026-01", service_category: "professional", tuva_pmpm: 215.60, aqsoft_pmpm: 218.40, has_discrepancy: false, member_months: 1247, computed_at: "2026-04-02T10:30:00" },
@@ -166,16 +224,17 @@ export function TuvaPage() {
     setSelectedMember(memberId);
     setDetailLoading(true);
     try {
-      // Use raw fetch to bypass auth interceptor — Tuva endpoints don't require auth
       const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8090";
       const res = await fetch(`${baseUrl}/api/tuva/member/${memberId}`);
       if (res.ok) {
         setMemberDetail(await res.json());
       } else {
-        setMemberDetail(null);
+        throw new Error("API unavailable");
       }
     } catch {
-      setMemberDetail(null);
+      // Fallback to demo member detail when backend is unavailable
+      const comp = comparisons.find(c => c.member_id === memberId) || DEMO_COMPARISONS[0];
+      setMemberDetail(_buildDemoMemberDetail(memberId, comp));
     }
     setDetailLoading(false);
   }
