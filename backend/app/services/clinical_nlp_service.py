@@ -763,9 +763,15 @@ async def process_clinical_note(
                 "sources": [extraction.get("_source", {})],
             }
 
+    # Run code optimizer (fix truncated, suggest specificity upgrades, med-dx gaps)
+    from app.services.code_optimizer import optimize_codes as run_optimizer
+    medications_list = [m.get("name", "") for m in extraction.get("medications", []) if m.get("name")]
+    optimizer_result = run_optimizer(codes, note_text, medications_list)
+    codes = optimizer_result["codes"]
+    med_dx_suggestions = optimizer_result.get("med_dx_suggestions", [])
+
     # Validate codes against clinical rules (119 code families)
     from app.services.clinical_rules_validator import validate_all_codes
-    medications_list = [m.get("name", "") for m in extraction.get("medications", []) if m.get("name")]
     lab_findings = extraction.get("key_findings", [])
     codes = validate_all_codes(codes, note_text, medications_list, lab_findings)
 
@@ -795,10 +801,14 @@ async def process_clinical_note(
         "codes": enriched_codes,
         "diagnosis_source_map": diagnosis_source_map,
         "source": extraction.get("_source", {}),
+        "med_dx_suggestions": med_dx_suggestions,
+        "optimizer_summary": optimizer_result.get("summary", {}),
         "summary": {
             "total_codes": len(enriched_codes),
             "hcc_codes": sum(1 for c in enriched_codes if c.get("has_hcc")),
             "total_raf": round(sum(c.get("raf_weight", 0) for c in enriched_codes if c.get("has_hcc")), 3),
+            "auto_extracted": sum(1 for c in enriched_codes if c.get("extraction_method") == "auto_regex"),
+            "llm_extracted": sum(1 for c in enriched_codes if c.get("extraction_method") != "auto_regex"),
         },
     }
 
