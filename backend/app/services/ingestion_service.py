@@ -528,6 +528,7 @@ async def _upsert_members(
 
     inserted = 0
     updated = 0
+    affected_ids: list[int] = []
 
     for batch in _chunks(valid_rows, 500):
         for row_data in batch:
@@ -550,32 +551,39 @@ async def _upsert_members(
             update_cols = [c for c in cols if c != "member_id"]
             update_list = ", ".join(f"{c} = :v_{c}" for c in update_cols)
 
+            # Use RETURNING id, (xmax = 0) AS was_inserted so we can
+            # (a) thread the member PK into data_lineage and (b) report
+            # accurate insert/update counts instead of guessing.
             if update_list:
                 sql = (
                     f"INSERT INTO members ({col_list}) VALUES ({val_list}) "
-                    f"ON CONFLICT (member_id) DO UPDATE SET {update_list}, updated_at = NOW()"
+                    f"ON CONFLICT (member_id) DO UPDATE SET {update_list}, updated_at = NOW() "
+                    f"RETURNING id, (xmax = 0) AS was_inserted"
                 )
             else:
                 sql = (
                     f"INSERT INTO members ({col_list}) VALUES ({val_list}) "
-                    f"ON CONFLICT (member_id) DO NOTHING"
+                    f"ON CONFLICT (member_id) DO NOTHING "
+                    f"RETURNING id, (xmax = 0) AS was_inserted"
                 )
 
             result = await db.execute(text(sql), vals)
-            # xmax = 0 means a fresh insert in PostgreSQL; otherwise it's an update.
-            # With ON CONFLICT we can't easily tell, so we approximate:
-            # rowcount > 0 means either insert or update happened.
-            if result.rowcount > 0:
-                # Heuristic: we check if the row existed before this batch.
-                # Since we can't easily distinguish, count all as "processed"
-                # and use a follow-up query approach below.
-                inserted += 1
+            row = result.mappings().first()
+            if row:
+                affected_ids.append(row["id"])
+                if row.get("was_inserted"):
+                    inserted += 1
+                else:
+                    updated += 1
 
         await db.commit()
 
-    # Re-count: query how many members were actually freshly created vs updated.
-    # For simplicity in the ON CONFLICT model, report total affected.
-    return {"inserted": inserted, "updated": 0}
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "inserted_ids": affected_ids,
+        "updated_ids": [],
+    }
 
 
 async def _resolve_provider_npis_batch(
@@ -688,6 +696,8 @@ async def _upsert_claims(
     routed_by_tin = 0
     routed_by_npi = 0
     unrouted = 0
+    inserted_ids: list[int] = []
+    updated_ids: list[int] = []
 
     for batch in _chunks(valid_rows, 500):
         for row_data in batch:
@@ -829,12 +839,14 @@ async def _upsert_claims(
                 except Exception:
                     pass  # non-blocking audit
                 updated += 1
+                updated_ids.append(existing_claim_pk)
             else:
-                await db.execute(
-                    text(f"INSERT INTO claims ({cols_str}) VALUES ({vals_str})"),
-                    safe_data,
-                )
+                insert_sql = f"INSERT INTO claims ({cols_str}) VALUES ({vals_str}) RETURNING id"
+                insert_result = await db.execute(text(insert_sql), safe_data)
+                new_id = insert_result.scalar()
                 inserted += 1
+                if new_id is not None:
+                    inserted_ids.append(new_id)
 
         await db.commit()
 
@@ -844,6 +856,8 @@ async def _upsert_claims(
         "routed_by_tin": routed_by_tin,
         "routed_by_npi": routed_by_npi,
         "unrouted": unrouted,
+        "inserted_ids": inserted_ids,
+        "updated_ids": updated_ids,
     }
 
 
@@ -859,6 +873,7 @@ async def _upsert_providers(
 
     inserted = 0
     updated = 0
+    affected_ids: list[int] = []
 
     for batch in _chunks(valid_rows, 500):
         for row_data in batch:
@@ -877,26 +892,90 @@ async def _upsert_providers(
             if update_list:
                 sql = (
                     f"INSERT INTO providers ({col_list}) VALUES ({val_list}) "
-                    f"ON CONFLICT (npi) DO UPDATE SET {update_list}, updated_at = NOW()"
+                    f"ON CONFLICT (npi) DO UPDATE SET {update_list}, updated_at = NOW() "
+                    f"RETURNING id, (xmax = 0) AS was_inserted"
                 )
             else:
                 sql = (
                     f"INSERT INTO providers ({col_list}) VALUES ({val_list}) "
-                    f"ON CONFLICT (npi) DO NOTHING"
+                    f"ON CONFLICT (npi) DO NOTHING "
+                    f"RETURNING id, (xmax = 0) AS was_inserted"
                 )
 
             result = await db.execute(text(sql), vals)
-            if result.rowcount > 0:
-                inserted += 1
+            row = result.mappings().first()
+            if row:
+                affected_ids.append(row["id"])
+                if row.get("was_inserted"):
+                    inserted += 1
+                else:
+                    updated += 1
 
         await db.commit()
 
-    return {"inserted": inserted, "updated": 0}
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "inserted_ids": affected_ids,
+        "updated_ids": [],
+    }
 
 
 # ---------------------------------------------------------------------------
 # Main processing entry point
 # ---------------------------------------------------------------------------
+
+async def _quarantine_row(
+    db: AsyncSession,
+    *,
+    source_type: str,
+    row_number: int,
+    raw_row: dict[str, Any],
+    errors: list[dict] | list[str],
+    ingestion_job_id: int | None,
+) -> None:
+    """Persist a rejected row into `quarantined_records` so it can be
+    reviewed, corrected, and re-ingested. Until this was wired, invalid
+    rows were silently dropped with only the first 100 errors captured on
+    the upload_jobs row.
+
+    Best-effort: we log and swallow on failure to avoid killing the whole
+    chunk for a tangential write.
+    """
+    try:
+        # JSONB-serialise raw row (pandas values may be non-JSON like
+        # numpy.float64 or pandas.Timestamp — coerce defensively).
+        safe_raw: dict[str, Any] = {}
+        for k, v in raw_row.items():
+            if v is None:
+                safe_raw[k] = None
+            elif isinstance(v, (str, int, float, bool)):
+                safe_raw[k] = v
+            else:
+                safe_raw[k] = str(v)
+
+        await db.execute(
+            text(
+                """
+                INSERT INTO quarantined_records
+                    (upload_job_id, source_type, row_number, raw_data,
+                     errors, status, created_at, updated_at)
+                VALUES
+                    (:job_id, :source_type, :row_number, :raw::jsonb,
+                     :errors::jsonb, 'pending', NOW(), NOW())
+                """
+            ),
+            {
+                "job_id": ingestion_job_id,
+                "source_type": source_type,
+                "row_number": row_number,
+                "raw": json.dumps(safe_raw),
+                "errors": json.dumps(errors if isinstance(errors, list) else [errors]),
+            },
+        )
+    except Exception as qe:
+        logger.debug("Quarantine write failed (non-blocking): %s", qe)
+
 
 async def process_upload(
     file_path: str,
@@ -904,6 +983,7 @@ async def process_upload(
     data_type: str,
     db: AsyncSession,
     tenant_schema: str = "default",
+    ingestion_job_id: int | None = None,
 ) -> dict[str, Any]:
     """
     Main ingestion entry point.
@@ -916,17 +996,21 @@ async def process_upload(
         column_mapping: {source_column: {"platform_field": "x", "confidence": 0.9}}
         data_type: One of roster, claims, eligibility, pharmacy, providers.
         db: Tenant-scoped async database session.
+        tenant_schema: Tenant schema (used for entity resolution fallback).
+        ingestion_job_id: ID of the orchestrating UploadJob so quarantined
+            records and data_lineage rows can be correlated to this load.
 
     Returns:
         {
             "total_rows": int,
             "processed_rows": int,
             "error_rows": int,
+            "quarantined_rows": int,
             "errors": [{"row": int, "field": str, "error": str}],
             "data_type": str,
         }
     """
-    logger.info(f"Processing upload: {file_path} as {data_type}")
+    logger.info(f"Processing upload: {file_path} as {data_type} (job_id={ingestion_job_id})")
 
     # Step 0: Pre-process the raw file to fix common data messiness
     # Skip if file was already preprocessed (cleaned_file_path from upload step)
@@ -963,6 +1047,8 @@ async def process_upload(
     except Exception as import_err:
         logger.debug("Data learning service unavailable: %s", import_err)
         _apply_learned_rules = None
+
+    total_quarantined = 0
 
     # Use chunked reading for CSV to avoid loading entire file into memory
     file_type = detect_file_type(file_path)
@@ -1064,19 +1150,45 @@ async def process_upload(
             else:
                 record, errors = _process_member_row(row_dict, reverse_map, row_num)
 
+            # Rows that failed upstream row-shape validation
+            # (missing mandatory fields etc.) — quarantine them so an
+            # operator can fix and re-ingest instead of silently dropping.
+            if record is None and errors:
+                await _quarantine_row(
+                    db,
+                    source_type=data_type,
+                    row_number=row_num,
+                    raw_row=row_dict,
+                    errors=errors,
+                    ingestion_job_id=ingestion_job_id,
+                )
+                total_quarantined += 1
+
             all_errors.extend(errors)
             if record is not None:
-                # Best-effort row-level validation from data_quality_service
-                try:
-                    if data_type in ("claims", "pharmacy"):
+                # Row-level validation from data_quality_service. Failed
+                # rows are both logged into upload_jobs.errors AND written
+                # to quarantined_records so they can be reviewed later.
+                if data_type in ("claims", "pharmacy"):
+                    try:
                         from app.services.data_quality_service import validate_claim_row
                         dq_result = validate_claim_row(record)
                         if not dq_result.get("valid"):
-                            for dq_err in dq_result.get("errors", []):
+                            dq_errors = dq_result.get("errors", [])
+                            for dq_err in dq_errors:
                                 all_errors.append({"row": row_num, "field": "data_quality", "error": dq_err})
-                            record = None  # skip invalid row
-                except Exception:
-                    pass  # best-effort — don't block ingestion
+                            await _quarantine_row(
+                                db,
+                                source_type=data_type,
+                                row_number=row_num,
+                                raw_row=row_dict,
+                                errors=[{"field": "data_quality", "error": e} for e in dq_errors],
+                                ingestion_job_id=ingestion_job_id,
+                            )
+                            total_quarantined += 1
+                            record = None  # skip quarantined row from insert
+                    except Exception as dq_err:
+                        logger.debug("DQ validation failed (non-blocking): %s", dq_err)
             if record is not None:
                 chunk_valid_rows.append(record)
 
@@ -1107,26 +1219,47 @@ async def process_upload(
 
                 await db.commit()
 
-                # Best-effort: write data_lineage records for audit trail
+                # Write data_lineage rows carrying REAL entity IDs + the
+                # real ingestion_job_id so `rollback_batch` can undo this
+                # chunk and operators can answer "which file produced
+                # this row?". Batch-insert for throughput.
                 try:
                     entity_type = "member" if data_type in ("roster", "eligibility") else (
                         "claim" if data_type in ("claims", "pharmacy") else "provider"
                     )
-                    await db.execute(
-                        text("""
-                            INSERT INTO data_lineage
-                                (entity_type, entity_id, source_system, source_file,
-                                 ingestion_job_id, created_at, updated_at)
-                            VALUES (:etype, 0, 'file_upload', :src,
-                                    :job_id, NOW(), NOW())
-                        """),
-                        {
-                            "etype": entity_type,
-                            "src": file_path,
-                            "job_id": None,
-                        },
-                    )
-                    await db.commit()
+                    lineage_ids = result_counts.get("inserted_ids") or []
+                    lineage_ids_updated = result_counts.get("updated_ids") or []
+                    rows_for_lineage = [
+                        (eid, "insert") for eid in lineage_ids
+                    ] + [
+                        (eid, "update") for eid in lineage_ids_updated
+                    ]
+                    if rows_for_lineage:
+                        # Bulk insert via executemany-style binding
+                        params_list = [
+                            {
+                                "etype": entity_type,
+                                "eid": eid,
+                                "src": file_path,
+                                "job_id": ingestion_job_id,
+                                "changes": json.dumps({"action": action}),
+                            }
+                            for eid, action in rows_for_lineage
+                        ]
+                        # SQLAlchemy supports executemany by passing a list
+                        await db.execute(
+                            text(
+                                """
+                                INSERT INTO data_lineage
+                                    (entity_type, entity_id, source_system, source_file,
+                                     ingestion_job_id, field_changes, created_at, updated_at)
+                                VALUES (:etype, :eid, 'file_upload', :src,
+                                        :job_id, :changes::jsonb, NOW(), NOW())
+                                """
+                            ),
+                            params_list,
+                        )
+                        await db.commit()
                 except Exception as lineage_err:
                     logger.debug("Data lineage write failed (non-blocking): %s", lineage_err)
                     try:
@@ -1150,6 +1283,7 @@ async def process_upload(
         "inserted_rows": total_inserted,
         "updated_rows": total_updated,
         "error_rows": len(all_errors),
+        "quarantined_rows": total_quarantined,
         "errors": stored_errors,
         "data_type": data_type,
         "routed_by_tin": total_routed_by_tin,

@@ -93,6 +93,9 @@ class SourceConfigInput(BaseModel):
 # Webhook endpoint (no auth — uses webhook secret)
 # ---------------------------------------------------------------------------
 
+# RBAC: intentionally PUBLIC (no JWT, no role guard). External ADT vendors
+# (Bamboo Health, Collective Medical, Availity) POST events here. Auth is via
+# HMAC-style X-Webhook-Secret header + X-Tenant-Schema, validated below.
 @router.post("/webhook")
 async def receive_webhook(
     payload: WebhookPayload,
@@ -163,7 +166,13 @@ async def receive_webhook(
 # Manual event submission
 # ---------------------------------------------------------------------------
 
-@router.post("/events")
+@router.post(
+    "/events",
+    dependencies=[Depends(require_role(
+        UserRole.superadmin, UserRole.mso_admin, UserRole.analyst,
+        UserRole.care_manager,
+    ))],
+)
 async def submit_event(
     body: ADTEventInput,
     current_user: dict = Depends(get_current_user),
@@ -184,7 +193,12 @@ async def submit_event(
 # CSV batch upload
 # ---------------------------------------------------------------------------
 
-@router.post("/batch")
+@router.post(
+    "/batch",
+    dependencies=[Depends(require_role(
+        UserRole.superadmin, UserRole.mso_admin, UserRole.analyst,
+    ))],
+)
 async def upload_batch(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
@@ -209,7 +223,13 @@ async def upload_batch(
 # Census endpoints
 # ---------------------------------------------------------------------------
 
-@router.get("/census")
+@router.get(
+    "/census",
+    dependencies=[Depends(require_role(
+        UserRole.superadmin, UserRole.mso_admin, UserRole.analyst,
+        UserRole.care_manager, UserRole.auditor,
+    ))],
+)
 async def census(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
@@ -218,7 +238,13 @@ async def census(
     return await get_live_census(db)
 
 
-@router.get("/census/summary")
+@router.get(
+    "/census/summary",
+    dependencies=[Depends(require_role(
+        UserRole.superadmin, UserRole.mso_admin, UserRole.analyst,
+        UserRole.care_manager, UserRole.auditor,
+    ))],
+)
 async def census_summary(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
@@ -231,7 +257,13 @@ async def census_summary(
 # Care alerts endpoints
 # ---------------------------------------------------------------------------
 
-@router.get("/alerts")
+@router.get(
+    "/alerts",
+    dependencies=[Depends(require_role(
+        UserRole.superadmin, UserRole.mso_admin, UserRole.analyst,
+        UserRole.care_manager, UserRole.provider,
+    ))],
+)
 async def list_alerts(
     status: str | None = Query("open"),
     assigned_to: int | None = Query(None),
@@ -244,7 +276,13 @@ async def list_alerts(
     return await get_alerts(db, status=status, assigned_to=assigned_to, priority=priority, alert_type=alert_type)
 
 
-@router.patch("/alerts/{alert_id}")
+@router.patch(
+    "/alerts/{alert_id}",
+    dependencies=[Depends(require_role(
+        UserRole.superadmin, UserRole.mso_admin, UserRole.care_manager,
+        UserRole.provider,
+    ))],
+)
 async def update_alert(
     alert_id: int,
     body: AlertUpdateInput,
@@ -274,7 +312,13 @@ async def update_alert(
 # ADT source configuration
 # ---------------------------------------------------------------------------
 
-@router.get("/sources")
+@router.get(
+    "/sources",
+    dependencies=[Depends(require_role(
+        UserRole.superadmin, UserRole.mso_admin, UserRole.analyst,
+        UserRole.auditor,
+    ))],
+)
 async def list_sources(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_tenant_db),
@@ -310,7 +354,13 @@ async def update_source(
 # Event history
 # ---------------------------------------------------------------------------
 
-@router.get("/events")
+@router.get(
+    "/events",
+    dependencies=[Depends(require_role(
+        UserRole.superadmin, UserRole.mso_admin, UserRole.analyst,
+        UserRole.care_manager, UserRole.auditor,
+    ))],
+)
 async def list_events(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),

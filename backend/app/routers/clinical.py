@@ -16,15 +16,27 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
 from app.models.care_gap import GapStatus, MemberGap
 from app.models.hcc import HccSuspect, SuspectStatus
+from app.models.user import UserRole
 from app.services.boi_service import feed_capture_to_boi
 from app.services.patient_context_service import get_patient_context, get_provider_worklist
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/clinical", tags=["clinical"])
+# Clinical / Mode-2 POC overlay — excluded for analyst, auditor, outreach,
+# financial per frontend roleAccess hidePages ("/clinical").
+router = APIRouter(
+    prefix="/api/clinical",
+    tags=["clinical"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.provider,
+        UserRole.care_manager,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

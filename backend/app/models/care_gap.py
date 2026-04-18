@@ -1,5 +1,5 @@
-from datetime import date
-from sqlalchemy import String, Date, Integer, ForeignKey, Numeric, Boolean, Text
+from datetime import date, datetime
+from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, Boolean, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -44,3 +44,11 @@ class MemberGap(Base, TimestampMixin):
     closed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     measurement_year: Mapped[int] = mapped_column(Integer, index=True)
     responsible_provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
+
+    # --- Soft-delete / HIPAA §164.528 disclosure accounting ---
+    # TODO: reads that should skip deleted rows must add
+    # `.where(MemberGap.deleted_at.is_(None))`. See member.py for rationale.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    deleted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -11,10 +11,8 @@ injected into future prompts so the AI improves over time.
 import json
 import logging
 import re
-from collections import Counter
-from typing import Any, Optional
+from typing import Optional
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -162,112 +160,32 @@ async def _get_relevant_learnings(
     tenant_schema: str = "default",
     min_keyword_overlap: int = 2,
 ) -> str:
-    """Search past *negative* feedback for questions similar to *question*.
+    """DISABLED — used to promote user `corrected_answer` text into the
+    Claude system prompt as RULES / STRONG SUGGESTIONS / SUGGESTIONS.
 
-    Similarity is determined by keyword overlap — if the incoming question
-    shares ``min_keyword_overlap`` or more keywords with a stored correction,
-    it is considered relevant.
+    That design is a stored prompt-injection vulnerability: any user who
+    could submit feedback (and every authenticated user can) could, after
+    5 submissions of the same keyword signature, plant a RULE in the
+    system prompt that Claude then had to follow on every future query
+    for that tenant. An attacker could use this to coerce the model to
+    ignore tenant isolation, return fabricated totals, or exfiltrate
+    other tenants' data — all under the banner "you MUST follow these".
 
-    Returns a prompt fragment ready for injection, or an empty string if
-    there are no relevant learnings.
+    Fix: this function now always returns "" and is retained only as a
+    named stub so callers don't break. Corrections are still persisted by
+    `log_query_feedback` for offline analytics (product telemetry, model
+    fine-tuning, prompt-design review), but they are NEVER fed back into
+    the live model's system prompt.
 
-    Three-tier autonomy:
-      - Corrections seen 1-2 times → labelled **suggestions**
-      - Corrections seen 3-4 times → labelled **strong_suggestions**
-      - Corrections seen 5+  times → labelled **rules** the AI must obey
+    If a future design wants to close the loop on feedback, it must do so
+    through mechanisms that are not attacker-controlled text in a system
+    prompt — e.g. curated prompt updates reviewed by a human, tool
+    definitions scoped to the tenant, or retrieval-augmented answers with
+    verifiable citations.
     """
-    incoming_kws = _extract_keywords(question)
-    if not incoming_kws:
-        return ""
-
-    # Fetch all negative-feedback rows for this tenant
-    stmt = (
-        select(QueryFeedback)
-        .where(
-            QueryFeedback.feedback == "negative",
-            QueryFeedback.tenant_schema == tenant_schema,
-            QueryFeedback.corrected_answer.is_not(None),
-        )
-        .order_by(QueryFeedback.created_at.desc())
-        .limit(200)  # cap to avoid loading unbounded data
-    )
-    result = await db.execute(stmt)
-    rows = result.scalars().all()
-
-    if not rows:
-        return ""
-
-    # Group corrections by their keyword signature and count occurrences
-    # so we can apply the three-tier autonomy logic.
-    matched: list[dict[str, Any]] = []
-    signature_counts: Counter[str, int] = Counter()
-
-    # First pass: count how many times each correction signature appears
-    for row in rows:
-        row_kws = set(row.keywords.split()) if row.keywords else set()
-        sig = row.keywords or ""
-        signature_counts[sig] += 1
-
-    # Second pass: collect matches
-    seen_sigs: set[str] = set()
-    for row in rows:
-        row_kws = set(row.keywords.split()) if row.keywords else set()
-        overlap = incoming_kws & row_kws
-        if len(overlap) >= min_keyword_overlap:
-            sig = row.keywords or ""
-            if sig in seen_sigs:
-                continue  # one entry per unique signature
-            seen_sigs.add(sig)
-            matched.append({
-                "question": row.question,
-                "corrected_answer": row.corrected_answer,
-                "count": signature_counts[sig],
-            })
-
-    if not matched:
-        return ""
-
-    # Build prompt sections — three-tier: suggestion / strong_suggestion / rule
-    suggestions: list[str] = []
-    strong_suggestions: list[str] = []
-    rules: list[str] = []
-    for m in matched:
-        entry = f'- When asked "{m["question"]}", the correct answer was: {m["corrected_answer"]}'
-        if m["count"] >= 5:
-            rules.append(entry)
-        elif m["count"] >= 3:
-            strong_suggestions.append(entry)
-        else:
-            suggestions.append(entry)
-
-    parts: list[str] = []
-    if rules:
-        parts.append(
-            "RULES (you MUST follow these — users have corrected this many times):\n"
-            + "\n".join(rules)
-        )
-    if strong_suggestions:
-        parts.append(
-            "STRONG SUGGESTIONS (users have corrected this multiple times — follow unless you have strong reason not to):\n"
-            + "\n".join(strong_suggestions)
-        )
-    if suggestions:
-        parts.append(
-            "SUGGESTIONS (consider these past corrections when answering):\n"
-            + "\n".join(suggestions)
-        )
-
-    learning_block = "\n\n".join(parts)
-    logger.info(
-        "Injecting %d learnings (%d rules, %d strong, %d suggestions) for query: %s",
-        len(matched), len(rules), len(strong_suggestions), len(suggestions), question[:80],
-    )
-    return (
-        "\n\n--- Past Learnings ---\n"
-        "Previously, when asked similar questions, these corrections were made:\n\n"
-        + learning_block
-        + "\n--- End Past Learnings ---\n"
-    )
+    # Intentional no-op. See docstring.
+    _ = (db, question, tenant_schema, min_keyword_overlap)
+    return ""
 
 
 def _resolve_context(page_context: Optional[str]) -> str:

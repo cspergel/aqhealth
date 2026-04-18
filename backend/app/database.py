@@ -126,38 +126,84 @@ async def create_tenant_schema_with_tables(schema_name: str) -> int:
 
 
 async def init_db():
-    """Create platform schema and tables on startup.
+    """Bring the database to the current Alembic head on startup.
 
-    Uses ORM metadata.create_all to ensure tables always match the
-    SQLAlchemy models (User, Tenant). This prevents schema drift between
-    the raw SQL DDL and the ORM model definitions.
+    Replaces the historical ``Base.metadata.create_all`` approach. Running
+    migrations on boot keeps deploy scripts simple: ``git pull && restart``
+    is enough to pick up any new revision.
+
+    The baseline migration (``0001_baseline``) is itself a ``create_all``
+    wrapper, so fresh databases still get their schema in one shot. Existing
+    databases should run ``alembic stamp 0001_baseline`` once to mark the DB
+    as already at baseline before first upgrade.
+
+    Set ``AQSOFT_SKIP_AUTO_MIGRATE=1`` to skip auto-migration (useful when
+    running migrations out-of-band from deploy tooling).
     """
-    # Ensure platform schema exists
+    import logging
+    import os
+
+    logger = logging.getLogger(__name__)
+
+    if os.getenv("AQSOFT_SKIP_AUTO_MIGRATE", "").lower() in ("1", "true", "yes"):
+        logger.info("init_db: AQSOFT_SKIP_AUTO_MIGRATE set, skipping migrations")
+        return
+
+    # Alembic needs the sync URL. Load config relative to the repo so this
+    # works regardless of which directory the process was launched from.
+    from pathlib import Path
+    from alembic import command
+    from alembic.config import Config
+
+    backend_dir = Path(__file__).resolve().parent.parent  # backend/
+    alembic_ini = backend_dir / "alembic.ini"
+    if not alembic_ini.exists():
+        logger.warning(
+            "init_db: alembic.ini not found at %s; falling back to create_all. "
+            "Schema changes will not be tracked.", alembic_ini,
+        )
+        await _legacy_create_all()
+        return
+
+    cfg = Config(str(alembic_ini))
+    cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", _get_sync_database_url())
+
+    # Running alembic.command.upgrade is blocking; offload off the event loop
+    # so startup doesn't block asyncio.
+    import asyncio
+    loop = asyncio.get_event_loop()
+
+    def _run_upgrade() -> None:
+        command.upgrade(cfg, "head")
+
+    try:
+        await loop.run_in_executor(None, _run_upgrade)
+        logger.info("init_db: Alembic upgrade head completed")
+    except Exception:
+        logger.exception("init_db: Alembic upgrade failed")
+        raise
+
+
+async def _legacy_create_all() -> None:
+    """Fallback path — only used if alembic.ini is missing. Keeps dev
+    quickstarts working but warns loudly."""
     async with engine.begin() as conn:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS platform"))
+        await conn.execute(text(
+            "DO $$ BEGIN CREATE TYPE platform.tenantstatus AS ENUM "
+            "('active','onboarding','suspended'); "
+            "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+        ))
+        await conn.execute(text(
+            "DO $$ BEGIN CREATE TYPE platform.userrole AS ENUM ("
+            "'superadmin','mso_admin','analyst','provider',"
+            "'auditor','care_manager','outreach','financial'); "
+            "EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+        ))
 
-        # Create enum types if they don't exist yet
-        await conn.execute(text("""
-            DO $$ BEGIN
-                CREATE TYPE platform.tenantstatus AS ENUM ('active','onboarding','suspended');
-            EXCEPTION WHEN duplicate_object THEN NULL;
-            END $$;
-        """))
-        await conn.execute(text("""
-            DO $$ BEGIN
-                CREATE TYPE platform.userrole AS ENUM (
-                    'superadmin','mso_admin','analyst','provider',
-                    'auditor','care_manager','outreach','financial'
-                );
-            EXCEPTION WHEN duplicate_object THEN NULL;
-            END $$;
-        """))
-
-    # Use ORM create_all to build platform tables from models
-    # This ensures the DB schema always matches the Python models
     import app.models  # noqa: F401
     from app.models.base import Base
-
     sync_engine = create_engine(_get_sync_database_url(), echo=False)
     platform_tables = [t for t in Base.metadata.sorted_tables if t.schema == "platform"]
     try:

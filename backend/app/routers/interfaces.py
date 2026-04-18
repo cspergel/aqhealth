@@ -33,7 +33,19 @@ from app.services.interface_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api", tags=["interfaces"])
+# Universal interfaces — data section. Reads broadly, writes admin-only
+# (per-route require_role already applied below for POST/PATCH/DELETE and
+# for all /ingest/* ingestion endpoints).
+router = APIRouter(
+    prefix="/api",
+    tags=["interfaces"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +157,11 @@ async def get_logs(
 # Format-specific ingest endpoints
 # ---------------------------------------------------------------------------
 
-@router.post("/ingest/hl7v2", response_model=IngestResult)
+@router.post(
+    "/ingest/hl7v2",
+    response_model=IngestResult,
+    dependencies=[Depends(require_role(UserRole.superadmin, UserRole.mso_admin, UserRole.analyst))],
+)
 async def ingest_hl7v2(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -179,7 +195,11 @@ async def ingest_hl7v2(
     )
 
 
-@router.post("/ingest/x12", response_model=IngestResult)
+@router.post(
+    "/ingest/x12",
+    response_model=IngestResult,
+    dependencies=[Depends(require_role(UserRole.superadmin, UserRole.mso_admin, UserRole.analyst))],
+)
 async def ingest_x12(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -226,7 +246,11 @@ async def ingest_x12(
         )
 
 
-@router.post("/ingest/cda", response_model=IngestResult)
+@router.post(
+    "/ingest/cda",
+    response_model=IngestResult,
+    dependencies=[Depends(require_role(UserRole.superadmin, UserRole.mso_admin, UserRole.analyst))],
+)
 async def ingest_cda(
     request: Request,
     current_user: dict = Depends(get_current_user),
@@ -254,7 +278,11 @@ async def ingest_cda(
     )
 
 
-@router.post("/ingest/json", response_model=IngestResult)
+@router.post(
+    "/ingest/json",
+    response_model=IngestResult,
+    dependencies=[Depends(require_role(UserRole.superadmin, UserRole.mso_admin, UserRole.analyst))],
+)
 async def ingest_json(
     body: dict,
     format_hint: str = Query(default="auto", description="Format hint: 'fhir', 'custom', 'auto'"),

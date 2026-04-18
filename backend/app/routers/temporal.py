@@ -12,12 +12,24 @@ from datetime import date as date_type
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services import temporal_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/temporal", tags=["temporal"])
+# Temporal playback / time machine — data / intelligence.
+router = APIRouter(
+    prefix="/api/temporal",
+    tags=["temporal"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.care_manager,
+        UserRole.auditor,
+    ))],
+)
 
 
 def _validate_iso_date(value: str, param_name: str) -> str:

@@ -7,12 +7,27 @@ from pydantic import BaseModel
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
 from app.models.tag import Tag, EntityTag
+from app.models.user import UserRole
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/tags", tags=["tags"])
+# Tagging is cross-module — broadly available to authenticated business roles.
+router = APIRouter(
+    prefix="/api/tags",
+    tags=["tags"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.outreach,
+        UserRole.auditor,
+        UserRole.financial,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,4 @@
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -7,25 +6,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.core.logging import configure_logging, RequestIdMiddleware
+from app.core.audit import AuditMiddleware
 
+# Logging must be configured before any other module emits a log line, so
+# that the first line is already JSON-formatted with the correct level.
+configure_logging()
 logger = logging.getLogger(__name__)
-from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_protection, data_quality, discovery, education, expenditure, fhir, financial, filters, groups, hcc, ingestion, insights, interfaces, journey, learning, members, onboarding, payer_api, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, skills, stars, stoploss, tags, tcm, temporal, tenants, utilization, watchlist
+
+from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_protection, data_quality, discovery, education, expenditure, fhir, financial, filters, groups, hcc, health, ingestion, insights, interfaces, journey, learning, members, onboarding, payer_api, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, skills, stars, stoploss, tags, tcm, temporal, tenants, utilization, watchlist
 from app.routers.tuva_router import router as tuva_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application startup and shutdown lifecycle."""
-    # --- Startup ---
-    # Refuse to start with default secret key (unless explicitly allowed for dev)
-    if settings.secret_key.lower() in ("change-me-in-production", "changeme"):
-        if os.getenv("ALLOW_DEFAULT_SECRET", "").lower() != "true":
-            raise RuntimeError(
-                "SECRET_KEY must be changed from default. "
-                "Set a real secret in .env, or set ALLOW_DEFAULT_SECRET=true for development."
-            )
+    """Application startup and shutdown lifecycle.
 
-    # Ensure platform schema and tables exist so auth works on first boot
+    SECRET_KEY / ENCRYPTION_KEY validation runs at config-load time via
+    Pydantic field_validators (app.config). The service refuses to import
+    if either is missing or set to a placeholder.
+    """
+    # --- Startup ---
+    # Ensure platform schema + baseline tables exist so auth works on first boot.
+    # Schema evolution beyond baseline goes through Alembic migrations.
     from app.database import init_db
     await init_db()
 
@@ -51,8 +54,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Middleware execution order matters: Starlette applies middleware in
+# reverse registration order, so the LAST-added middleware runs FIRST
+# (outermost). AuditMiddleware reads the request_id contextvar populated by
+# RequestIdMiddleware, so RequestIdMiddleware must be outermost. Register
+# AuditMiddleware FIRST and RequestIdMiddleware SECOND so the wire order
+# becomes: client -> RequestIdMiddleware -> AuditMiddleware -> router.
+app.add_middleware(AuditMiddleware)
+app.add_middleware(RequestIdMiddleware)
 
 
+app.include_router(health.router)
 app.include_router(adt.router)
 app.include_router(alert_rules.router)
 app.include_router(auth.router)
@@ -117,8 +129,5 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
-
-
-@app.get("/api/health")
-async def health_check():
-    return {"status": "ok", "version": "0.1.0"}
+# Health endpoints (live/ready) live in app.routers.health and are included
+# with the rest of the routers. Keeping this file free of inline routes.

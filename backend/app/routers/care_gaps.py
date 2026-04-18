@@ -16,16 +16,31 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
 from app.models.care_gap import GapMeasure, MemberGap, GapStatus
 from app.models.member import Member
 from app.models.provider import Provider
+from app.models.user import UserRole
 from app.services import care_gap_service
 from app.services.export_service import export_to_csv
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/care-gaps", tags=["care-gaps"])
+# Care gaps — clinical + population + quality. Excluded for financial
+# (frontend hides /care-gaps for financial).
+router = APIRouter(
+    prefix="/api/care-gaps",
+    tags=["care-gaps"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.outreach,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

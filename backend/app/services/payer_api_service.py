@@ -155,21 +155,19 @@ class PayerAdapter(ABC):
 # ---------------------------------------------------------------------------
 
 def _encrypt_value(value: str) -> str:
-    """Encode a credential value for storage.
+    """Encrypt a credential value for at-rest storage (Fernet).
 
-    Production should use Fernet or AWS KMS. For now we use base64
-    as a placeholder that keeps plain text out of DB dumps.
+    Backed by `app.services.encryption`. Legacy base64-encoded rows still
+    read correctly via the centralised `decrypt` fallback.
     """
-    return base64.b64encode(value.encode()).decode()
+    from app.services.encryption import encrypt
+    return encrypt(value)
 
 
 def _decrypt_value(value: str) -> str:
-    """Decode a stored credential value."""
-    try:
-        return base64.b64decode(value.encode()).decode()
-    except Exception:
-        # Fallback: value may not be encoded (e.g., during tests)
-        return value
+    """Decrypt a stored credential value (Fernet with legacy base64 fallback)."""
+    from app.services.encryption import decrypt
+    return decrypt(value)
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +339,17 @@ async def sync_payer_data(
         if connection.get(key):
             params[key] = _decrypt_value(connection[key]) if key in ("client_id", "client_secret") else connection[key]
 
+    # ---- Incremental-sync high-water-mark ----
+    # Pass the previous successful sync timestamp to adapters so they can
+    # add a FHIR `_lastUpdated=gt<ISO>` filter and avoid refetching data we
+    # already have. First sync for a tenant runs full; subsequent runs are
+    # deltas. We only update the watermark on a successful commit at the
+    # end of this function so an aborted sync re-pulls the missed window.
+    since = connection.get("last_sync_at") or connection.get("last_sync")
+    if since:
+        params["since"] = since
+    sync_window_start = datetime.now(timezone.utc)
+
     # Sync each data type
     for data_type in sync_types:
         try:
@@ -418,8 +427,18 @@ async def sync_payer_data(
             logger.error("Error syncing %s from %s: %s", data_type, payer_name, e, exc_info=True)
             results["errors"].append({"type": data_type, "error": str(e)})
 
-    # Update last sync timestamp
-    connection["last_sync"] = datetime.now(timezone.utc).isoformat()
+    # Update last sync timestamp. Two keys:
+    # - `last_sync` (ISO string) — legacy, kept for UI back-compat.
+    # - `last_sync_at` (ISO string) — the new high-water-mark that adapters
+    #   use as the `_lastUpdated=gt...` FHIR search filter.
+    # We advance the watermark to the START of this sync window, not NOW,
+    # so resources modified during the sync aren't skipped next time.
+    now_iso = datetime.now(timezone.utc).isoformat()
+    connection["last_sync"] = now_iso
+    # Only bump the watermark when no resource type errored. A partial
+    # failure should re-pull from the previous watermark next time.
+    if not results["errors"]:
+        connection["last_sync_at"] = sync_window_start.isoformat()
     connection["sync_status"] = "active" if not results["errors"] else "partial"
     await _upsert_payer_connection(db, tenant_schema, payer_name, connection)
 

@@ -4,6 +4,11 @@ Tuva Data Service — read-only access to Tuva's DuckDB analytics for any module
 Provides a clean interface for the AI layer (discovery, insights, any service)
 to query Tuva's output marts without knowing DuckDB details. Any service can
 import and use these functions to get Tuva's community-validated numbers.
+
+Contract: After copying `generate_schema_name.sql` into `dbt_project/macros/`,
+both demo and warehouse DuckDBs emit marts with bare schema names (e.g.
+`cms_hcc`, `financial_pmpm`) rather than the default `main_<name>` form. All
+queries here use the bare form.
 """
 
 import logging
@@ -21,6 +26,10 @@ _DEMO_DB_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
     "data", "tuva_demo.duckdb"
 )
+
+
+class TuvaSchemaMismatch(Exception):
+    """Raised when a consumer query references a schema/column Tuva didn't emit."""
 
 
 def _connect(tenant_schema: str | None = None, read_only: bool = True, use_demo: bool = False) -> duckdb.DuckDBPyConnection | None:
@@ -45,39 +54,48 @@ def _connect(tenant_schema: str | None = None, read_only: bool = True, use_demo:
         return None
 
 
-def _query_with_schema_fallback(con: duckdb.DuckDBPyConnection, query: str) -> list:
-    """Execute a query, trying alternative schema prefixes if the first fails.
+def _fetch_with_schema_fallback(
+    con: duckdb.DuckDBPyConnection, query: str, bare_schemas: tuple[str, ...]
+) -> tuple[list, list[str]]:
+    """Execute `query` (written with bare Tuva schemas). If the table/schema
+    doesn't resolve, retry once with the legacy `main_<schema>` prefix so
+    older warehouse DBs still work until they're rebuilt with the new macro.
 
-    Tuva uses different schema prefixes depending on how dbt was configured:
-    - Our project: main_cms_hcc, main_financial_pmpm, etc.
-    - Demo project: cms_hcc, financial_pmpm, etc.
+    Returns (rows, column_names).
     """
     try:
-        return con.execute(query).fetchall()
-    except Exception:
-        # Try without 'main_' prefix
-        alt_query = query.replace("main_cms_hcc.", "cms_hcc.").replace(
-            "main_financial_pmpm.", "financial_pmpm."
-        ).replace("main_chronic_conditions.", "chronic_conditions.").replace(
-            "main_quality_measures.", "quality_measures."
-        ).replace("main_hcc_suspecting.", "hcc_suspecting.")
-        try:
-            return con.execute(alt_query).fetchall()
-        except Exception as e:
-            logger.debug("Query failed with both schema prefixes: %s", e)
-            return []
+        cur = con.execute(query)
+        cols = [d[0] for d in cur.description] if cur.description else []
+        return cur.fetchall(), cols
+    except Exception as exc_primary:
+        legacy_query = query
+        for sch in bare_schemas:
+            legacy_query = legacy_query.replace(f" {sch}.", f" main_{sch}.")
+            legacy_query = legacy_query.replace(f"FROM {sch}.", f"FROM main_{sch}.")
+            legacy_query = legacy_query.replace(f"JOIN {sch}.", f"JOIN main_{sch}.")
+        if legacy_query != query:
+            try:
+                cur = con.execute(legacy_query)
+                cols = [d[0] for d in cur.description] if cur.description else []
+                return cur.fetchall(), cols
+            except Exception:
+                pass
+        raise exc_primary
 
 
 def get_risk_scores(tenant_schema: str | None = None, use_demo: bool = False) -> list[dict[str, Any]]:
     """Get Tuva's CMS-HCC risk scores for all members.
 
     Set use_demo=True to read from the 1,000-patient Tuva demo database.
+    Raises on schema/column mismatch; callers decide how to surface.
     """
     con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return []
     try:
-        result = _query_with_schema_fallback(con, """
+        rows, _cols = _fetch_with_schema_fallback(
+            con,
+            """
             SELECT
                 person_id,
                 v24_risk_score,
@@ -86,32 +104,33 @@ def get_risk_scores(tenant_schema: str | None = None, use_demo: bool = False) ->
                 payment_risk_score,
                 member_months,
                 payment_year
-            FROM main_cms_hcc.patient_risk_scores
-        """)
+            FROM cms_hcc.patient_risk_scores
+            """,
+            ("cms_hcc",),
+        )
         columns = [
             "person_id", "v24_risk_score", "v28_risk_score",
             "blended_risk_score", "payment_risk_score",
             "member_months", "payment_year",
         ]
-        return [dict(zip(columns, row)) for row in result]
-    except Exception as e:
-        logger.debug("Could not read Tuva risk scores: %s", e)
-        return []
+        return [dict(zip(columns, row)) for row in rows]
     finally:
         con.close()
 
 
-def get_risk_factors(tenant_schema: str | None = None) -> list[dict[str, Any]]:
+def get_risk_factors(tenant_schema: str | None = None, use_demo: bool = False) -> list[dict[str, Any]]:
     """Get Tuva's per-member HCC risk factors (demographic + disease + interaction).
 
     Returns list of dicts with: person_id, factor_type, risk_factor_description,
     coefficient, model_version, payment_year.
     """
-    con = _connect(tenant_schema)
+    con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return []
     try:
-        result = con.execute("""
+        rows, _cols = _fetch_with_schema_fallback(
+            con,
+            """
             SELECT
                 person_id,
                 factor_type,
@@ -119,84 +138,102 @@ def get_risk_factors(tenant_schema: str | None = None) -> list[dict[str, Any]]:
                 coefficient,
                 model_version,
                 payment_year
-            FROM main_cms_hcc.patient_risk_factors
-        """).fetchall()
+            FROM cms_hcc.patient_risk_factors
+            """,
+            ("cms_hcc",),
+        )
         columns = [
             "person_id", "factor_type", "risk_factor_description",
             "coefficient", "model_version", "payment_year",
         ]
-        return [dict(zip(columns, row)) for row in result]
-    except Exception as e:
-        logger.debug("Could not read Tuva risk factors: %s", e)
-        return []
+        return [dict(zip(columns, row)) for row in rows]
     finally:
         con.close()
 
 
-def get_pmpm_summary(tenant_schema: str | None = None) -> list[dict[str, Any]]:
-    """Get Tuva's financial PMPM by service category.
+def get_pmpm_summary(tenant_schema: str | None = None, use_demo: bool = False) -> list[dict[str, Any]]:
+    """Get Tuva's financial PMPM snapshot from `pmpm_prep`.
 
-    Returns list of dicts with: year_month, service_category, pmpm, member_months.
+    Tuva's `pmpm_prep` is a wide-format table with per-service-category
+    paid/allowed columns. Rather than invent a `pmpm` scalar that doesn't
+    exist, we project the full row and let the caller choose which category
+    to display. The schema here matches Tuva's public docs for the claims
+    mart — if a Tuva release renames those columns, the fallback raises
+    and the router returns a 502 instead of silently returning [].
     """
-    con = _connect(tenant_schema)
+    con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return []
     try:
-        result = con.execute("""
-            SELECT
-                year_month,
-                service_category_1 as service_category,
-                pmpm,
-                member_months
-            FROM main_financial_pmpm.pmpm_prep
-        """).fetchall()
-        columns = ["year_month", "service_category", "pmpm", "member_months"]
-        return [dict(zip(columns, row)) for row in result]
-    except Exception as e:
-        logger.debug("Could not read Tuva PMPM: %s", e)
-        return []
-    finally:
-        con.close()
-
-
-def get_quality_measures(tenant_schema: str | None = None) -> list[dict[str, Any]]:
-    """Get Tuva's quality measure results if available."""
-    con = _connect(tenant_schema)
-    if not con:
-        return []
-    try:
-        result = con.execute("""
+        # `pmpm_prep` is intermediate. Use `SELECT *` but dynamically map
+        # the resulting columns so we tolerate Tuva's per-release column
+        # additions without breaking the backend. The column names are
+        # surfaced in the dict so the frontend can discover service
+        # categories at render time.
+        rows, cols = _fetch_with_schema_fallback(
+            con,
+            """
             SELECT *
-            FROM main_quality_measures.summary
-            LIMIT 100
-        """).fetchall()
-        if not result:
-            return []
-        columns = [desc[0] for desc in con.description]
-        return [dict(zip(columns, row)) for row in result]
-    except Exception as e:
-        logger.debug("Could not read Tuva quality measures: %s", e)
-        return []
+            FROM financial_pmpm.pmpm_prep
+            ORDER BY year_month
+            LIMIT 1000
+            """,
+            ("financial_pmpm",),
+        )
+        return [dict(zip(cols, row)) for row in rows]
     finally:
         con.close()
 
 
-def get_chronic_conditions(tenant_schema: str | None = None) -> list[dict[str, Any]]:
-    """Get Tuva's chronic condition prevalence data if available."""
-    con = _connect(tenant_schema)
+def get_quality_measures(tenant_schema: str | None = None, use_demo: bool = False) -> list[dict[str, Any]]:
+    """Get Tuva's quality measure summary.
+
+    Real Tuva tables: `summary_counts`, `summary_long`, `summary_wide`.
+    The `long` form is the most queryable (one row per measure/status).
+    """
+    con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return []
     try:
-        result = con.execute("""
-            SELECT person_id, condition, condition_date
-            FROM main_chronic_conditions.tuva_chronic_conditions_long
+        rows, cols = _fetch_with_schema_fallback(
+            con,
+            """
+            SELECT *
+            FROM quality_measures.summary_long
             LIMIT 500
-        """).fetchall()
-        columns = ["person_id", "condition", "condition_date"]
-        return [dict(zip(columns, row)) for row in result]
-    except Exception as e:
-        logger.debug("Could not read Tuva chronic conditions: %s", e)
+            """,
+            ("quality_measures",),
+        )
+        return [dict(zip(cols, row)) for row in rows]
+    finally:
+        con.close()
+
+
+def get_chronic_conditions(tenant_schema: str | None = None, use_demo: bool = False) -> list[dict[str, Any]]:
+    """Get Tuva's chronic condition prevalence data.
+
+    Real columns on `chronic_conditions__tuva_chronic_conditions_long`:
+    person_id, condition, first_diagnosis_date, last_diagnosis_date, tuva_last_run.
+    """
+    con = _connect(tenant_schema, use_demo=use_demo)
+    if not con:
         return []
+    try:
+        rows, _cols = _fetch_with_schema_fallback(
+            con,
+            """
+            SELECT
+                person_id,
+                condition,
+                first_diagnosis_date,
+                last_diagnosis_date
+            FROM chronic_conditions.tuva_chronic_conditions_long
+            LIMIT 500
+            """,
+            ("chronic_conditions",),
+        )
+        columns = ["person_id", "condition", "first_diagnosis_date", "last_diagnosis_date"]
+        return [dict(zip(columns, row)) for row in rows]
     finally:
         con.close()
 
@@ -212,21 +249,25 @@ def get_tuva_summary(tenant_schema: str | None = None, use_demo: bool = False) -
         return {}
 
     try:
-        # Fetch scores and factors in one connection
-        scores_raw = _query_with_schema_fallback(con, """
+        scores_raw, _ = _fetch_with_schema_fallback(
+            con,
+            """
             SELECT person_id, v28_risk_score, payment_year
-            FROM main_cms_hcc.patient_risk_scores
-        """)
+            FROM cms_hcc.patient_risk_scores
+            """,
+            ("cms_hcc",),
+        )
         if not scores_raw:
             return {}
 
-        factors_raw = _query_with_schema_fallback(con, """
+        factors_raw, _ = _fetch_with_schema_fallback(
+            con,
+            """
             SELECT person_id, factor_type, risk_factor_description, coefficient, model_version
-            FROM main_cms_hcc.patient_risk_factors
-        """)
-    except Exception as e:
-        logger.debug("Could not read Tuva summary data: %s", e)
-        return {}
+            FROM cms_hcc.patient_risk_factors
+            """,
+            ("cms_hcc",),
+        )
     finally:
         con.close()
 
@@ -294,7 +335,9 @@ def get_tuva_suspects(tenant_schema: str | None = None, use_demo: bool = False) 
     if not con:
         return []
     try:
-        result = _query_with_schema_fallback(con, """
+        rows, _cols = _fetch_with_schema_fallback(
+            con,
+            """
             SELECT
                 person_id,
                 hcc_code,
@@ -302,53 +345,59 @@ def get_tuva_suspects(tenant_schema: str | None = None, use_demo: bool = False) 
                 reason,
                 contributing_factor,
                 suspect_date
-            FROM main_hcc_suspecting.list
-        """)
+            FROM hcc_suspecting.list
+            """,
+            ("hcc_suspecting",),
+        )
         columns = [
             "person_id", "hcc_code", "hcc_description",
             "reason", "contributing_factor", "suspect_date",
         ]
-        return [dict(zip(columns, row)) for row in result]
-    except Exception as e:
-        logger.debug("Could not read Tuva suspects: %s", e)
-        return []
+        return [dict(zip(columns, row)) for row in rows]
     finally:
         con.close()
 
 
-def get_tuva_recapture_opportunities(tenant_schema: str | None = None) -> list[dict[str, Any]]:
-    """Get Tuva's HCC recapture opportunities.
+def get_tuva_recapture_opportunities(tenant_schema: str | None = None, use_demo: bool = False) -> list[dict[str, Any]]:
+    """Get Tuva's HCC recapture opportunities from the `hcc_recapture` mart.
 
-    These are HCCs that were coded in a prior period but not the current year.
-    Cross-reference with AQSoft's recapture suspects.
+    Real Tuva finals (no `summary` table — that was never a Tuva output):
+      - gap_status: per-member per-HCC gap (captured vs. not)
+      - hcc_status: historical confirmation status
+      - recapture_rates, recapture_rates_monthly, recapture_rates_monthly_ytd
+
+    `hcc_status` gives the most useful per-member opportunity view.
     """
-    con = _connect(tenant_schema)
+    con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return []
     try:
-        # Try the recapture mart
-        result = con.execute("""
-            SELECT * FROM hcc_recapture.summary LIMIT 100
-        """).fetchall()
-        if result:
-            columns = [desc[0] for desc in con.description]
-            return [dict(zip(columns, row)) for row in result]
-        return []
-    except Exception as e:
-        logger.debug("Could not read Tuva recapture: %s", e)
-        return []
+        rows, cols = _fetch_with_schema_fallback(
+            con,
+            """
+            SELECT *
+            FROM hcc_recapture.hcc_status
+            LIMIT 500
+            """,
+            ("hcc_recapture",),
+        )
+        return [dict(zip(cols, row)) for row in rows]
     finally:
         con.close()
 
 
-def is_tuva_available(tenant_schema: str | None = None) -> bool:
+def is_tuva_available(tenant_schema: str | None = None, use_demo: bool = False) -> bool:
     """Check if Tuva DuckDB has data (risk scores exist)."""
-    con = _connect(tenant_schema)
+    con = _connect(tenant_schema, use_demo=use_demo)
     if not con:
         return False
     try:
-        r = con.execute("SELECT count(*) FROM main_cms_hcc.patient_risk_scores").fetchone()
-        return r[0] > 0 if r else False
+        rows, _cols = _fetch_with_schema_fallback(
+            con,
+            "SELECT count(*) FROM cms_hcc.patient_risk_scores",
+            ("cms_hcc",),
+        )
+        return bool(rows and rows[0][0] and rows[0][0] > 0)
     except Exception:
         return False
     finally:

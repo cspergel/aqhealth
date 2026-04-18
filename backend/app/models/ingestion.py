@@ -41,6 +41,12 @@ class UploadJob(Base, TimestampMixin):
     # Path to pre-processed (cleaned) version of uploaded file
     cleaned_file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # SHA-256 of the original upload body. Used for tenant-scoped
+    # idempotency: re-uploading the same file short-circuits to the
+    # previous completed job instead of double-inserting. Indexed so the
+    # dedup lookup in routers/ingestion.py:upload stays O(log n).
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+
 
 class MappingTemplate(Base, TimestampMixin):
     """Saved column mapping template for repeated uploads from same source."""

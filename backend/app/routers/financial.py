@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.financial_service import (
     get_pnl,
     get_pnl_by_plan,
@@ -21,7 +22,19 @@ from app.services.financial_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/financial", tags=["financial"])
+# Financial P&L — finance section. Provider/care_manager/outreach excluded
+# (frontend hidePages "/financial").
+router = APIRouter(
+    prefix="/api/financial",
+    tags=["financial"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.financial,
+        UserRole.auditor,
+    ))],
+)
 
 VALID_PERIODS = {"ytd", "q1", "q2", "q3", "q4", "prior_year"}
 

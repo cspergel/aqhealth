@@ -12,13 +12,26 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
 from app.models.risk_accounting import CapitationPayment, SubcapPayment
+from app.models.user import UserRole
 from app.services import risk_accounting_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/risk", tags=["risk-accounting"])
+# Risk accounting — finance section. Provider/care_manager/outreach excluded
+# per frontend hidePages "/risk-accounting".
+router = APIRouter(
+    prefix="/api/risk",
+    tags=["risk-accounting"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.financial,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

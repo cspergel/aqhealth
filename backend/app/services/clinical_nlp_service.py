@@ -30,6 +30,8 @@ from typing import Any
 
 from app.config import settings
 from app.services.hcc_engine import lookup_hcc_for_icd10, build_code_ladder
+from app.services.llm_guard import guarded_llm_call
+from app.services.phi_scrubber import scrub as phi_scrub
 
 logger = logging.getLogger(__name__)
 
@@ -546,30 +548,54 @@ async def extract_from_note(
     provider_name: str | None = None,
     facility_name: str | None = None,
     document_id: str | None = None,
+    tenant_schema: str = "unknown",
 ) -> dict[str, Any]:
     """Pass 1: Extract structured clinical facts from a single note.
 
     Returns structured extraction with diagnoses, medications, labs,
     findings — each with evidence quotes from the source text.
+
+    PHI handling: note text is run through `phi_scrubber.scrub()` before it
+    leaves the process, and the actual Claude call goes through
+    `llm_guard.guarded_llm_call` for tenant-isolated output validation.
     """
     if not note_text or len(note_text.strip()) < 20:
         return {"diagnoses": [], "medications": [], "key_findings": [], "past_medical_history": []}
 
-    try:
-        import anthropic
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    # Scrub direct identifiers (SSN, phone, email, MRN, dates) from the note
+    # text AND from free-text metadata fields before they leave the process.
+    # Evidence quotes returned by Claude may still contain non-regex-catchable
+    # PHI (names, addresses), so downstream storage of quotes must respect
+    # tenant isolation. This is a first-line scrub, not a full de-identifier.
+    scrubbed_note = phi_scrub(note_text)
+    scrubbed_provider = phi_scrub(provider_name or "unknown")
+    scrubbed_facility = phi_scrub(facility_name or "unknown")
 
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4000,
-            system=EXTRACTION_SYSTEM_PROMPT,
-            messages=[{
-                "role": "user",
-                "content": f"Document type: {note_type}\nDate: {note_date or 'unknown'}\nProvider: {provider_name or 'unknown'}\nFacility: {facility_name or 'unknown'}\n\n---\n\n{note_text}"
-            }],
+    try:
+        user_prompt = (
+            f"Document type: {note_type}\n"
+            f"Date: {note_date or 'unknown'}\n"
+            f"Provider: {scrubbed_provider}\n"
+            f"Facility: {scrubbed_facility}\n\n"
+            f"---\n\n{scrubbed_note}"
         )
 
-        text = response.content[0].text.strip()
+        guard_result = await guarded_llm_call(
+            tenant_schema=tenant_schema,
+            system_prompt=EXTRACTION_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            context_data={
+                "note_type": note_type,
+                "document_id": document_id,
+                # Do not put note text in context_data — it goes into the
+                # _metadata block that Claude sees; we already include it
+                # in user_prompt above.
+            },
+            max_tokens=4000,
+        )
+
+        text = guard_result.get("response", "") or ""
+        text = text.strip()
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
         extraction = json.loads(text)
@@ -615,6 +641,20 @@ async def extract_from_note(
 # Pass 2: Code assignment with Claude tool_use
 # ---------------------------------------------------------------------------
 
+def _scrub_extraction_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Recursively scrub PHI from the dict/list/str tree before it goes to
+    the LLM. Used by Pass 2 (tool_use loop) where guarded_llm_call is not
+    a drop-in because it does not support the tool_use protocol.
+    """
+    if isinstance(payload, dict):
+        return {k: _scrub_extraction_payload(v) for k, v in payload.items()}
+    if isinstance(payload, list):
+        return [_scrub_extraction_payload(v) for v in payload]
+    if isinstance(payload, str):
+        return phi_scrub(payload)
+    return payload
+
+
 async def assign_codes_with_tools(
     extraction: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -626,6 +666,17 @@ async def assign_codes_with_tools(
     - Most specific code is used (via code ladder)
     - Lab values drive staging (eGFR -> CKD stage)
     - Each code has evidence + HCC/RAF impact
+
+    PHI handling:
+    - Extraction payload is recursively scrubbed (`phi_scrub`) before being
+      serialised into the Claude prompt. Evidence quotes returned by Pass 1
+      may carry residual PHI (names, free-text addresses); the scrub catches
+      SSN/phone/email/MRN/DOB patterns.
+    - This path cannot use `guarded_llm_call` because that helper does not
+      support Anthropic's tool_use protocol (tool definitions + tool_result
+      blocks). This is the single documented bypass and it is scoped: we
+      only process one member's data at a time, and all tool outputs are
+      validated against the local ICD-10 reference.
     """
     diagnoses = extraction.get("diagnoses", [])
     findings = extraction.get("key_findings", [])
@@ -635,13 +686,18 @@ async def assign_codes_with_tools(
     if not diagnoses and not findings:
         return []
 
-    # Build the coding input
-    coding_input = json.dumps({
+    # Scrub PHI from every free-text field in the extraction before it goes
+    # to the LLM. Keeps structural keys intact so Pass 2's coder still sees
+    # the same JSON shape.
+    scrubbed = _scrub_extraction_payload({
         "diagnoses": diagnoses,
         "key_findings": findings,
         "medications": medications,
         "past_medical_history": pmh,
-    }, indent=2)
+    })
+
+    # Build the coding input
+    coding_input = json.dumps(scrubbed, indent=2)
 
     try:
         import anthropic
@@ -717,6 +773,7 @@ async def process_clinical_note(
     facility_name: str | None = None,
     document_id: str | None = None,
     member_id: str | None = None,
+    tenant_schema: str = "unknown",
 ) -> dict[str, Any]:
     """Full 2-pass pipeline: extract facts -> assign codes with tool validation.
 
@@ -733,7 +790,8 @@ async def process_clinical_note(
 
     # Pass 1: Extract structured facts from the note via Claude
     extraction = await extract_from_note(
-        note_text, note_type, note_date, provider_name, facility_name, document_id
+        note_text, note_type, note_date, provider_name, facility_name,
+        document_id, tenant_schema=tenant_schema,
     )
 
     # Pass 2: Code with tool validation (Claude assigns codes for extracted diagnoses)
@@ -820,6 +878,7 @@ async def process_clinical_note(
 async def process_document_reference(
     doc_ref: dict,
     member_id: str,
+    tenant_schema: str = "unknown",
 ) -> dict[str, Any]:
     """Process an eCW DocumentReference through the full NLP pipeline.
 
@@ -847,4 +906,5 @@ async def process_document_reference(
         facility_name=doc_ref.get("extra", {}).get("facility_name"),
         document_id=doc_ref.get("fhir_id"),
         member_id=member_id,
+        tenant_schema=tenant_schema,
     )

@@ -12,12 +12,23 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services import clinical_exchange_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/exchange", tags=["clinical-exchange"])
+# Clinical exchange — packages evidence to payers. Highly sensitive.
+router = APIRouter(
+    prefix="/api/exchange",
+    tags=["clinical-exchange"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

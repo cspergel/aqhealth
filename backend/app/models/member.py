@@ -1,5 +1,5 @@
-from datetime import date
-from sqlalchemy import String, Date, Integer, ForeignKey, Numeric
+from datetime import date, datetime
+from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -47,3 +47,15 @@ class Member(Base, TimestampMixin):
 
     # Flexible extra data
     extra: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    # --- Soft-delete / HIPAA §164.528 disclosure accounting ---
+    # TODO: every read-path query that should exclude deleted rows must add
+    # `.where(Member.deleted_at.is_(None))`. We do NOT install a global
+    # SQLAlchemy `with_loader_criteria` default-filter because it silently
+    # hides data from audits, RADV chases, and downstream analytics — the
+    # explicit opt-in at query sites is preferred so the behaviour is
+    # visible in code review.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    deleted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)

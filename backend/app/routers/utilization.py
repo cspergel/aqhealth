@@ -10,7 +10,8 @@ import logging
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.utilization_service import (
     get_utilization_dashboard,
     get_facility_intelligence,
@@ -21,7 +22,19 @@ from app.services.utilization_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/utilization", tags=["utilization"])
+# Utilization command center — operations section.
+router = APIRouter(
+    prefix="/api/utilization",
+    tags=["utilization"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.care_manager,
+        UserRole.financial,
+        UserRole.auditor,
+    ))],
+)
 
 
 @router.get("/dashboard")

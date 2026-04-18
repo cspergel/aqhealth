@@ -12,7 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.skill_service import (
     create_skill,
     delete_skill,
@@ -29,7 +30,18 @@ from app.services.skill_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/skills", tags=["skills"])
+# Skills / automation — intelligence / operations. Workflows can touch
+# tenant data so limit to admin/analyst/care manager.
+router = APIRouter(
+    prefix="/api/skills",
+    tags=["skills"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.care_manager,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

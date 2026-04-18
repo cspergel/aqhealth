@@ -11,7 +11,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.discovery_service import (
     run_full_discovery,
     anomaly_scan,
@@ -25,7 +26,18 @@ from app.services.insight_service import generate_insights
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/discovery", tags=["discovery"])
+# Discovery engine — intelligence section.
+router = APIRouter(
+    prefix="/api/discovery",
+    tags=["discovery"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.care_manager,
+        UserRole.auditor,
+    ))],
+)
 
 
 @router.post("/run")

@@ -13,12 +13,24 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services import education_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/education", tags=["education"])
+# Provider education — clinical / quality. Clinicians and admins.
+router = APIRouter(
+    prefix="/api/education",
+    tags=["education"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.analyst,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

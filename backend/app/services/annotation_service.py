@@ -3,7 +3,7 @@ Annotation / Notes service — CRUD for care coordination notes.
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,14 +95,24 @@ async def delete_annotation(
     annotation_id: int,
     user_id: int,
 ) -> bool:
-    """Delete an annotation — only the author can delete."""
+    """Soft-delete an annotation — only the author can delete.
+
+    We mark `deleted_at` / `deleted_by` instead of removing the row so that
+    HIPAA §164.528 disclosure accounting and internal audit queries can
+    still reconstruct who saw what and when. Read-paths must filter on
+    `deleted_at IS NULL` to hide the row from the user.
+    """
     annotation = await db.get(Annotation, annotation_id)
     if not annotation:
         return False
     if annotation.author_id != user_id:
         return False
+    if annotation.deleted_at is not None:
+        # Already soft-deleted; treat as idempotent success.
+        return True
 
-    await db.delete(annotation)
+    annotation.deleted_at = datetime.now(timezone.utc)
+    annotation.deleted_by = user_id
     await db.commit()
     return True
 

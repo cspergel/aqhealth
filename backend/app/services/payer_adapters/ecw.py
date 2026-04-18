@@ -351,9 +351,23 @@ class EcwAdapter(PayerAdapter):
     # FHIR resource fetchers
     # -------------------------------------------------------------------
 
+    @staticmethod
+    def _merge_since(params: dict, extra: dict[str, str] | None = None) -> dict[str, str]:
+        """Merge the caller-supplied ``since`` high-water-mark into a
+        FHIR ``_lastUpdated=gt<ISO>`` search filter, combined with any
+        resource-specific extra_params (e.g. Condition ``category``).
+        """
+        merged: dict[str, str] = dict(extra) if extra else {}
+        since = params.get("since")
+        if since and "_lastUpdated" not in merged:
+            merged["_lastUpdated"] = f"gt{since}"
+        return merged
+
     async def fetch_patients(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Patient resources into platform-normalized dicts."""
-        raw_resources = await self._fetch_all_pages(token, params, "/Patient")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/Patient", extra_params=self._merge_since(params),
+        )
         return [self._parse_patient(r) for r in raw_resources]
 
     async def fetch_claims(self, token: str, params: dict) -> list[dict]:
@@ -373,14 +387,14 @@ class EcwAdapter(PayerAdapter):
 
         Deduplicates by FHIR resource ID.
         """
-        # Fetch both categories in parallel
+        # Fetch both categories in parallel; honour incremental-sync watermark
         problem_list_task = self._fetch_all_pages(
             token, params, "/Condition",
-            extra_params={"category": "problem-list-item"},
+            extra_params=self._merge_since(params, {"category": "problem-list-item"}),
         )
         encounter_dx_task = self._fetch_all_pages(
             token, params, "/Condition",
-            extra_params={"category": "encounter-diagnosis"},
+            extra_params=self._merge_since(params, {"category": "encounter-diagnosis"}),
         )
         problem_list, encounter_dx = await asyncio.gather(
             problem_list_task, encounter_dx_task
@@ -418,7 +432,9 @@ class EcwAdapter(PayerAdapter):
         eCW-specific: provides visit history that payer adapters lack.
         Encounters are stored as signal-tier claims (visit occurred, not yet billed).
         """
-        raw_resources = await self._fetch_all_pages(token, params, "/Encounter")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/Encounter", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             enc = self._parse_encounter(r)
@@ -434,18 +450,18 @@ class EcwAdapter(PayerAdapter):
         - vital-signs: BP, BMI, weight
         - social-history: smoking status, SDOH
         """
-        # Fetch all categories in parallel
+        # Fetch all categories in parallel; honour incremental-sync watermark
         lab_task = self._fetch_all_pages(
             token, params, "/Observation",
-            extra_params={"category": "laboratory"},
+            extra_params=self._merge_since(params, {"category": "laboratory"}),
         )
         vitals_task = self._fetch_all_pages(
             token, params, "/Observation",
-            extra_params={"category": "vital-signs"},
+            extra_params=self._merge_since(params, {"category": "vital-signs"}),
         )
         social_task = self._fetch_all_pages(
             token, params, "/Observation",
-            extra_params={"category": "social-history"},
+            extra_params=self._merge_since(params, {"category": "social-history"}),
         )
         labs, vitals, social = await asyncio.gather(lab_task, vitals_task, social_task)
 
@@ -469,7 +485,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_medications(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse MedicationRequest resources (active prescriptions)."""
-        raw_resources = await self._fetch_all_pages(token, params, "/MedicationRequest")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/MedicationRequest", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             med = self._parse_medication_request(r)
@@ -479,7 +497,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_providers(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Practitioner resources."""
-        raw_resources = await self._fetch_all_pages(token, params, "/Practitioner")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/Practitioner", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             prov = self._parse_practitioner(r)
@@ -489,7 +509,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_coverage(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Coverage resources (insurance info from the EHR)."""
-        raw_resources = await self._fetch_all_pages(token, params, "/Coverage")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/Coverage", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             cov = self._parse_coverage(r)
@@ -499,7 +521,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_document_references(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse DocumentReference resources (clinical notes, lab reports)."""
-        raw_resources = await self._fetch_all_pages(token, params, "/DocumentReference")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/DocumentReference", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             doc = self._parse_document_reference(r)
@@ -509,7 +533,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_care_plans(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse CarePlan resources."""
-        raw_resources = await self._fetch_all_pages(token, params, "/CarePlan")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/CarePlan", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             plan = self._parse_care_plan(r)
@@ -519,7 +545,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_care_teams(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse CareTeam resources."""
-        raw_resources = await self._fetch_all_pages(token, params, "/CareTeam")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/CareTeam", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             team = self._parse_care_team(r)
@@ -529,7 +557,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_allergy_intolerances(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse AllergyIntolerance resources."""
-        raw_resources = await self._fetch_all_pages(token, params, "/AllergyIntolerance")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/AllergyIntolerance", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             allergy = self._parse_allergy_intolerance(r)
@@ -539,7 +569,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_immunizations(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Immunization resources."""
-        raw_resources = await self._fetch_all_pages(token, params, "/Immunization")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/Immunization", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             imm = self._parse_immunization(r)
@@ -549,7 +581,9 @@ class EcwAdapter(PayerAdapter):
 
     async def fetch_procedures(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Procedure resources."""
-        raw_resources = await self._fetch_all_pages(token, params, "/Procedure")
+        raw_resources = await self._fetch_all_pages(
+            token, params, "/Procedure", extra_params=self._merge_since(params),
+        )
         parsed = []
         for r in raw_resources:
             proc = self._parse_procedure(r)

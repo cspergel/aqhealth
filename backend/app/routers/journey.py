@@ -14,8 +14,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
 from app.models.member import Member
+from app.models.user import UserRole
 from app.services.journey_service import (
     get_member_journey,
     get_member_risk_trajectory,
@@ -23,7 +24,21 @@ from app.services.journey_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/journey", tags=["journey"])
+# Member journey — clinical/operations. Financial excluded (frontend
+# hidePages "/journey").
+router = APIRouter(
+    prefix="/api/journey",
+    tags=["journey"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.outreach,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

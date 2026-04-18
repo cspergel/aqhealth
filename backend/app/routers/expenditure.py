@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.expenditure_service import (
     get_expenditure_overview,
     get_category_drilldown,
@@ -24,7 +25,19 @@ from app.services.export_service import export_to_csv
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/expenditure", tags=["expenditure"])
+# Expenditure — cost section. Excluded for care_manager/outreach (frontend
+# hidePages '/expenditure').
+router = APIRouter(
+    prefix="/api/expenditure",
+    tags=["expenditure"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.financial,
+        UserRole.auditor,
+    ))],
+)
 
 VALID_CATEGORIES = set(SERVICE_CATEGORIES)
 

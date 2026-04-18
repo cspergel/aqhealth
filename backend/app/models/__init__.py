@@ -31,3 +31,4 @@ from app.models.skill import Skill, SkillExecution
 from app.models.data_protection import SourceFingerprint, GoldenRecord, DataContract, IngestionBatch
 from app.models.tag import Tag, EntityTag
 from app.models.tuva_baseline import TuvaRafBaseline, TuvaPmpmBaseline
+from app.models.audit_log import AuditLog

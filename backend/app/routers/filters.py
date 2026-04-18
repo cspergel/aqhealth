@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.filter_service import (
     get_available_fields,
     save_filter,
@@ -21,7 +22,21 @@ from app.services.filter_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/filters", tags=["filters"])
+# Filters apply across many tenant pages — broadly available to business roles.
+router = APIRouter(
+    prefix="/api/filters",
+    tags=["filters"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.outreach,
+        UserRole.auditor,
+        UserRole.financial,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

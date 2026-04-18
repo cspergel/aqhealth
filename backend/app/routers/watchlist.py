@@ -10,12 +10,27 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services import watchlist_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
+# Watchlists — personal monitoring. Auditor excluded per frontend
+# hidePages "/watchlist".
+router = APIRouter(
+    prefix="/api/watchlist",
+    tags=["watchlist"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.outreach,
+        UserRole.financial,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

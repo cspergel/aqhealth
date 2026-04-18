@@ -6,10 +6,25 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.query_service import answer_question, log_query_feedback, suggest_questions
 
-router = APIRouter(prefix="/api/query", tags=["query"])
+# Conversational AI query — intelligence section. Open to all business roles.
+router = APIRouter(
+    prefix="/api/query",
+    tags=["query"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.outreach,
+        UserRole.auditor,
+        UserRole.financial,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

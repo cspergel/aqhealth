@@ -158,16 +158,28 @@ class HumanaAdapter(PayerAdapter):
     # FHIR resource fetchers
     # -------------------------------------------------------------------
 
+    @staticmethod
+    def _since_param(params: dict) -> dict[str, str]:
+        """Return `{_lastUpdated: gt<ISO>}` if the caller provided a
+        high-water-mark in params['since']; empty dict otherwise. Pass-
+        through for FHIR R4 search endpoints that support `_lastUpdated`.
+        """
+        since = params.get("since")
+        if not since:
+            return {}
+        # FHIR R4 prefix form: gt<iso>
+        return {"_lastUpdated": f"gt{since}"}
+
     async def fetch_patients(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Patient resources into platform-normalized dicts."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/Patient")
+        raw_resources = await self._fetch_all_pages(token, env, "/Patient", extra_params=self._since_param(params))
         return [self._parse_patient(r) for r in raw_resources]
 
     async def fetch_claims(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse ExplanationOfBenefit (CARIN Blue Button) resources."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/ExplanationOfBenefit")
+        raw_resources = await self._fetch_all_pages(token, env, "/ExplanationOfBenefit", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             claim = self._parse_eob(r)
@@ -178,7 +190,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_conditions(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Condition resources (ICD-10 only)."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/Condition")
+        raw_resources = await self._fetch_all_pages(token, env, "/Condition", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             cond = self._parse_condition(r)
@@ -189,7 +201,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_coverage(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Coverage resources (MA plans only)."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/Coverage")
+        raw_resources = await self._fetch_all_pages(token, env, "/Coverage", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             cov = self._parse_coverage(r)
@@ -200,7 +212,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_providers(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Practitioner resources."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/Practitioner")
+        raw_resources = await self._fetch_all_pages(token, env, "/Practitioner", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             prov = self._parse_practitioner(r)
@@ -211,7 +223,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_medications(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse MedicationRequest resources."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/MedicationRequest")
+        raw_resources = await self._fetch_all_pages(token, env, "/MedicationRequest", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             med = self._parse_medication_request(r)
@@ -222,7 +234,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_observations(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Observation resources (lab results, vitals)."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/Observation")
+        raw_resources = await self._fetch_all_pages(token, env, "/Observation", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             obs = self._parse_observation(r)
@@ -233,7 +245,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_practitioner_roles(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse PractitionerRole resources (network, specialty, acceptance)."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/PractitionerRole")
+        raw_resources = await self._fetch_all_pages(token, env, "/PractitionerRole", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             role = self._parse_practitioner_role(r)
@@ -244,7 +256,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_care_plans(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse CarePlan resources."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/CarePlan")
+        raw_resources = await self._fetch_all_pages(token, env, "/CarePlan", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             plan = self._parse_care_plan(r)
@@ -255,7 +267,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_care_teams(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse CareTeam resources (PCP attribution)."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/CareTeam")
+        raw_resources = await self._fetch_all_pages(token, env, "/CareTeam", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             team = self._parse_care_team(r)
@@ -266,7 +278,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_allergy_intolerances(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse AllergyIntolerance resources."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/AllergyIntolerance")
+        raw_resources = await self._fetch_all_pages(token, env, "/AllergyIntolerance", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             allergy = self._parse_allergy_intolerance(r)
@@ -277,7 +289,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_document_references(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse DocumentReference resources (clinical notes)."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/DocumentReference")
+        raw_resources = await self._fetch_all_pages(token, env, "/DocumentReference", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             doc = self._parse_document_reference(r)
@@ -288,7 +300,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_immunizations(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Immunization resources (vaccine records)."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/Immunization")
+        raw_resources = await self._fetch_all_pages(token, env, "/Immunization", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             imm = self._parse_immunization(r)
@@ -299,7 +311,7 @@ class HumanaAdapter(PayerAdapter):
     async def fetch_procedures(self, token: str, params: dict) -> list[dict]:
         """Fetch and parse Procedure resources (supplements EOB data)."""
         env = params.get("environment", "sandbox")
-        raw_resources = await self._fetch_all_pages(token, env, "/Procedure")
+        raw_resources = await self._fetch_all_pages(token, env, "/Procedure", extra_params=self._since_param(params))
         parsed = []
         for r in raw_resources:
             proc = self._parse_procedure(r)
@@ -316,6 +328,7 @@ class HumanaAdapter(PayerAdapter):
         token: str,
         environment: str,
         resource_path: str,
+        extra_params: dict[str, str] | None = None,
     ) -> list[dict]:
         """Fetch all pages of a FHIR Bundle, following 'next' links.
 
@@ -323,6 +336,10 @@ class HumanaAdapter(PayerAdapter):
         - _count/_skip pagination
         - Retry with exponential backoff on 429 / 5xx
         - Adaptive rate limiting (starts at 10 req/s, slows on 429)
+        - Optional extra_params (e.g. ``_lastUpdated=gt<ISO>`` for
+          incremental syncs) appended only to the first-page URL; Humana's
+          Bundle.link "next" URLs preserve the query filter, so we don't
+          re-append on subsequent pages.
         """
         urls = _ENVIRONMENTS[environment]
         base_url = urls["fhir_base"]
@@ -332,8 +349,12 @@ class HumanaAdapter(PayerAdapter):
         }
 
         all_resources: list[dict] = []
-        # First page URL includes _count
-        next_url: str | None = f"{base_url}{resource_path}?_count={_PAGE_SIZE}"
+        # First page URL includes _count and optional filters
+        query_params: dict[str, str] = {"_count": str(_PAGE_SIZE)}
+        if extra_params:
+            query_params.update(extra_params)
+        qs = "&".join(f"{k}={v}" for k, v in query_params.items())
+        next_url: str | None = f"{base_url}{resource_path}?{qs}"
         delay = 1.0 / _DEFAULT_RATE_LIMIT  # seconds between requests
 
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:

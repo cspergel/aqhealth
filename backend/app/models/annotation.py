@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Index, Text, Integer, String, Boolean, Date
+from sqlalchemy import Index, Text, Integer, String, Boolean, Date, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -34,6 +34,14 @@ class Annotation(Base, TimestampMixin):
 
     # Pinned notes stay at top
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # --- Soft-delete / HIPAA §164.528 disclosure accounting ---
+    # TODO: reads that should skip deleted rows must add
+    # `.where(Annotation.deleted_at.is_(None))`. See member.py for rationale.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    deleted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         Index("ix_annotations_entity", "entity_type", "entity_id"),

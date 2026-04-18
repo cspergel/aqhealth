@@ -25,7 +25,21 @@ from app.services.export_service import export_to_csv
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/providers", tags=["providers"])
+# Providers / scorecards — network section. Writes to targets are admin-only
+# (per-route override preserved below on PATCH /{provider_id}/targets).
+router = APIRouter(
+    prefix="/api/providers",
+    tags=["providers"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.financial,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

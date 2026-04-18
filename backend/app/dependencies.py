@@ -1,11 +1,12 @@
 import contextlib
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import set_request_context
 from app.database import get_session, get_tenant_session
 from app.services.auth_service import decode_token
 from app.models.user import User, UserRole
@@ -14,10 +15,16 @@ security = HTTPBearer()
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Extract and validate the current user from JWT token."""
+    """Extract and validate the current user from JWT token.
+
+    On success, populates the per-request audit context (contextvars +
+    request.state) so log lines and audit_log rows carry user_id / tenant /
+    role without each caller having to thread them manually.
+    """
     try:
         payload = decode_token(credentials.credentials)
         if payload.get("type") != "access":
@@ -45,6 +52,15 @@ async def get_current_user(
         tenant_schema = user_row.schema_name
         if tenant_schema and user_row.status != "active":
             raise HTTPException(status_code=403, detail="Tenant is suspended or inactive")
+
+        # Populate audit + log context. `set_request_context` writes to
+        # the contextvar so all log lines in this request carry the fields;
+        # request.state duplicates for middlewares that can't read
+        # contextvars across await boundaries.
+        set_request_context(user_id=user_id, tenant=tenant_schema)
+        request.state.audit_user_id = user_id
+        request.state.audit_tenant = tenant_schema
+        request.state.audit_role = user_row.role
 
         return {
             "user_id": user_id,

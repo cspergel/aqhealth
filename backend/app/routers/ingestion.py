@@ -6,29 +6,41 @@ mapping templates, and mapping rules.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.data_preprocessor import preprocess_file
 from app.services.ingestion_service import read_file_headers_and_sample
 from app.services.mapping_service import detect_type_with_metadata, log_mapping_corrections, propose_mapping
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/ingestion", tags=["ingestion"])
+# Data ingestion — admin/analyst only. File uploads touch raw tenant PHI.
+router = APIRouter(
+    prefix="/api/ingestion",
+    tags=["ingestion"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+    ))],
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -181,8 +193,72 @@ class RuleResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+def _safe_filename(raw: str) -> str:
+    """Reject path-traversal attempts and return a sanitised basename.
+
+    `Path(raw).suffix` alone happily accepts `../../etc/hosts.csv` because
+    it only looks at the extension. Defence in depth:
+    1. Reject any name containing a POSIX or Windows path separator.
+    2. Reject `..` components.
+    3. Verify that `Path(raw).name` equals the original (catches
+       `../foo.csv` where the suffix is legit but the dirname isn't).
+    4. Strip to a limited character set so operating-system quirks with
+       control characters / NUL bytes can't hide.
+    """
+    if "\x00" in raw:
+        raise HTTPException(status_code=400, detail="Filename contains NUL byte")
+    if any(sep in raw for sep in ("/", "\\")):
+        raise HTTPException(status_code=400, detail="Filename must not contain path separators")
+    if ".." in raw.split("/"):
+        raise HTTPException(status_code=400, detail="Filename must not contain '..'")
+    basename = Path(raw).name
+    if basename != raw or basename in ("", ".", ".."):
+        raise HTTPException(status_code=400, detail="Filename is invalid or contains path components")
+    # Allow letters/digits/space/dot/underscore/hyphen; reject other control chars
+    if not re.match(r"^[A-Za-z0-9 ._\-()&+]+$", basename):
+        raise HTTPException(status_code=400, detail="Filename contains disallowed characters")
+    return basename
+
+
+async def _stream_to_disk(
+    upload: UploadFile, dest_path: Path, max_bytes: int, chunk_size: int = 1024 * 1024,
+) -> tuple[int, str]:
+    """Stream the uploaded body to disk in chunks, enforcing a hard cap
+    and computing a SHA-256 as we go. Aborts and removes the partial file
+    if the cap is exceeded so a 2 GB upload can't blow out web-worker RAM.
+
+    Returns ``(total_bytes, sha256_hex)``.
+    """
+    hasher = hashlib.sha256()
+    total = 0
+    try:
+        with open(dest_path, "wb") as out:
+            while True:
+                chunk = await upload.read(chunk_size)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    # Abort: close and delete the partial file before raising
+                    out.close()
+                    dest_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size is {max_bytes // (1024*1024)} MB",
+                    )
+                hasher.update(chunk)
+                out.write(chunk)
+    except HTTPException:
+        raise
+    except Exception:
+        dest_path.unlink(missing_ok=True)
+        raise
+    return total, hasher.hexdigest()
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     template_id: int | None = Query(None, description="Apply existing mapping template"),
     current_user: dict = Depends(get_current_user),
@@ -193,33 +269,78 @@ async def upload_file(
 
     Creates an UploadJob record, stores the file to disk, triggers AI column
     mapping analysis, and returns the proposed mapping for user review.
+
+    Hardening (Phase 2.6 + 3.2):
+    - Filename is rejected if it contains path separators, `..`, NUL, or
+      otherwise non-basename components (defence against `../../etc/foo.csv`
+      style path traversal).
+    - ``Content-Length`` header is checked up front; oversized bodies get
+      413 before we allocate any RAM.
+    - Body is streamed to disk in 1 MiB chunks with a hard byte cap so we
+      never load a 2 GB upload into memory.
+    - SHA-256 is computed while streaming. If a terminal-state upload_job
+      with the same hash already exists for this tenant, we short-circuit
+      and return that job's ID — idempotent re-uploads.
     """
-    # Validate file extension
+    # Validate file extension + filename
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
+    safe_name = _safe_filename(file.filename)
 
-    ext = Path(file.filename).suffix.lower()
+    ext = Path(safe_name).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
-    # Read file content and check size
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)} MB",
-        )
+    # Cheap pre-check: reject oversize uploads BEFORE allocating any RAM
+    declared_size = request.headers.get("content-length")
+    if declared_size:
+        try:
+            if int(declared_size) > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)} MB",
+                )
+        except ValueError:
+            pass  # malformed header — fall through to streaming cap
 
-    # Generate unique filename and save to disk
+    # Generate unique filename and stream to disk under the cap
     uploads_dir = _ensure_uploads_dir()
-    unique_name = f"{uuid.uuid4().hex}_{file.filename}"
+    unique_name = f"{uuid.uuid4().hex}_{safe_name}"
     file_path = uploads_dir / unique_name
 
-    with open(file_path, "wb") as f:
-        f.write(content)
+    total_bytes, content_hash = await _stream_to_disk(file, file_path, MAX_FILE_SIZE)
+
+    # Idempotency check: if this same content has already been processed
+    # for this tenant (and landed in a terminal status), short-circuit and
+    # return the prior job instead of re-ingesting the same rows.
+    existing = await db.execute(
+        text("""
+            SELECT id, status, detected_type
+            FROM upload_jobs
+            WHERE content_hash = :h
+              AND status IN ('completed', 'failed')
+              AND created_at > NOW() - INTERVAL '30 days'
+            ORDER BY created_at DESC
+            LIMIT 1
+        """),
+        {"h": content_hash},
+    )
+    prior = existing.mappings().first()
+    if prior:
+        # Delete the duplicate upload we just wrote; we don't need it.
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Duplicate upload detected — this file was already processed",
+                "prior_job_id": prior["id"],
+                "prior_status": prior["status"],
+                "content_hash": content_hash,
+            },
+        )
 
     # Step 0: Pre-process the raw file to fix encoding, headers, empty rows, etc.
     preprocessing_info = None
@@ -296,28 +417,31 @@ async def upload_file(
         proposed = result["mapping"]
         file_identification = result.get("file_identification")
 
-    # Create UploadJob record and retrieve its ID via RETURNING
-    # Store the effective (cleaned) file path so the background worker
-    # doesn't need to re-preprocess.
+    # Create UploadJob record and retrieve its ID via RETURNING.
+    # Store the effective (cleaned) file path + content_hash so the worker
+    # doesn't need to re-preprocess and so re-uploads can be deduped.
     mapping_json = json.dumps(proposed)
     id_result = await db.execute(
         text("""
             INSERT INTO upload_jobs
                 (filename, file_size, detected_type, status, column_mapping,
-                 mapping_template_id, uploaded_by, cleaned_file_path)
+                 mapping_template_id, uploaded_by, cleaned_file_path,
+                 content_hash)
             VALUES
                 (:filename, :file_size, :detected_type, 'mapping',
-                 :mapping::jsonb, :template_id, :user_id, :cleaned_path)
+                 :mapping::jsonb, :template_id, :user_id, :cleaned_path,
+                 :content_hash)
             RETURNING id
         """),
         {
             "filename": unique_name,
-            "file_size": len(content),
+            "file_size": total_bytes,
             "detected_type": data_type,
             "mapping": mapping_json,
             "template_id": template_id,
             "user_id": current_user["user_id"],
             "cleaned_path": effective_path,
+            "content_hash": content_hash,
         },
     )
     job_id = id_result.scalar_one()
@@ -346,7 +470,7 @@ async def upload_file(
 
     return UploadResponse(
         job_id=job_id,
-        filename=file.filename,
+        filename=safe_name,
         detected_type=data_type,
         proposed_mapping=mapping_response,
         sample_rows=sample_rows,
@@ -443,7 +567,11 @@ async def confirm_mapping(
 
     await db.commit()
 
-    # Enqueue background processing job via arq
+    # Enqueue background processing job via arq. If Redis is unreachable
+    # we now fail LOUD instead of quietly pretending the job was queued.
+    # The job is marked `queue_unavailable` in the DB so it doesn't linger
+    # in `validating` forever, and the caller gets a 503 so the UI shows
+    # an honest error.
     tenant_schema = current_user["tenant_schema"]
     try:
         from arq.connections import ArqRedis, create_pool, RedisSettings
@@ -463,19 +591,28 @@ async def confirm_mapping(
             _queue_name="ingestion",
         )
         await redis.close()
-        message = "Mapping confirmed. Processing started in background."
     except Exception as e:
-        logger.warning(f"Could not enqueue background job (Redis may be unavailable): {e}")
-        # Fallback: process inline (not ideal for production but works for dev)
-        message = (
-            "Mapping confirmed. Background queue unavailable — "
-            "job will be processed when the worker starts."
+        logger.exception("Could not enqueue ingestion job (Redis unavailable)")
+        try:
+            await db.execute(
+                text(
+                    "UPDATE upload_jobs SET status = 'queue_unavailable', updated_at = NOW() "
+                    "WHERE id = :jid"
+                ),
+                {"jid": job_id},
+            )
+            await db.commit()
+        except Exception:
+            pass  # status bookkeeping is best-effort here
+        raise HTTPException(
+            status_code=503,
+            detail=f"Processing queue unavailable — retry in a few minutes ({type(e).__name__})",
         )
 
     return ConfirmMappingResponse(
         job_id=job_id,
         status="validating",
-        message=message,
+        message="Mapping confirmed. Processing started in background.",
     )
 
 

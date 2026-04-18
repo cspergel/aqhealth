@@ -11,12 +11,24 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services import learning_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/learning", tags=["learning"])
+# Learning system — intelligence section.
+router = APIRouter(
+    prefix="/api/learning",
+    tags=["learning"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.care_manager,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

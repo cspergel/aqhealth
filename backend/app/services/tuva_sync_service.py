@@ -29,42 +29,130 @@ class TuvaSyncService:
     def __init__(self, duckdb_path: str):
         self.duckdb_path = duckdb_path
 
+    def _try_query(self, con: duckdb.DuckDBPyConnection, *queries: str) -> tuple[list[tuple], list[str]] | None:
+        """Try each query form in order; return (rows, columns) from the first
+        that resolves, or None if every form fails. This accommodates both the
+        new schema convention (bare `cms_hcc.*`) emitted by our copied macro
+        and the legacy `main_<name>.*` convention that older warehouse DBs
+        still expose until they're rebuilt.
+        """
+        last_exc: Exception | None = None
+        for q in queries:
+            try:
+                cur = con.execute(q)
+                rows = cur.fetchall()
+                cols = [d[0] for d in cur.description] if cur.description else []
+                return rows, cols
+            except Exception as e:
+                last_exc = e
+                continue
+        if last_exc:
+            logger.warning("Tuva query failed on all schema variants: %s", last_exc)
+        return None
+
     def _read_tuva_hcc(self) -> list[dict[str, Any]]:
-        """Read CMS-HCC output from Tuva's data mart."""
+        """Read CMS-HCC output from Tuva's data mart.
+
+        Real final columns on `cms_hcc.patient_risk_scores` (verified against
+        Tuva's `dbt_packages/the_tuva_project/models/data_marts/cms_hcc/final/
+        cms_hcc__patient_risk_scores.sql`): person_id, payment_year,
+        v24_risk_score, v28_risk_score, blended_risk_score,
+        normalized_risk_score, payment_risk_score, member_months, etc.
+
+        We use `blended_risk_score` as the primary RAF (v24+v28 blend per
+        CMS's 2026 transition rule). Falls back to v28, then v24.
+        """
         con = duckdb.connect(self.duckdb_path, read_only=True)
         try:
-            result = con.execute("""
+            result = self._try_query(
+                con,
+                """
                 SELECT
                     person_id,
                     payment_year,
-                    raw_risk_score as raf_score
-                FROM main.cms_hcc__patient_risk_scores
-            """).fetchall()
-            columns = ["person_id", "payment_year", "raf_score"]
-            return [dict(zip(columns, row)) for row in result]
-        except Exception as e:
-            logger.warning("Could not read Tuva HCC output: %s", e)
-            return []
+                    blended_risk_score,
+                    v28_risk_score,
+                    v24_risk_score
+                FROM cms_hcc.patient_risk_scores
+                """,
+                """
+                SELECT
+                    person_id,
+                    payment_year,
+                    blended_risk_score,
+                    v28_risk_score,
+                    v24_risk_score
+                FROM main_cms_hcc.patient_risk_scores
+                """,
+            )
+            if result is None:
+                return []
+            rows, _ = result
+            out: list[dict[str, Any]] = []
+            for row in rows:
+                person_id, payment_year, blended, v28, v24 = row
+                raf = blended if blended is not None else (v28 if v28 is not None else v24)
+                out.append({
+                    "person_id": person_id,
+                    "payment_year": payment_year,
+                    "raf_score": raf,
+                    "v28_risk_score": v28,
+                    "v24_risk_score": v24,
+                    "blended_risk_score": blended,
+                })
+            return out
         finally:
             con.close()
 
     def _read_tuva_pmpm(self) -> list[dict[str, Any]]:
-        """Read Financial PMPM output from Tuva's data mart."""
+        """Read Financial PMPM output from Tuva's data mart.
+
+        `pmpm_prep` is wide-format — paid/allowed columns per service category.
+        Returning a scalar `pmpm` from this table never worked; instead we
+        emit one baseline row per (year_month) with total_paid/allowed/mm
+        when available, and let the consumer compute per-category PMPM from
+        the raw columns. Sync writes one row per year_month (not per
+        category) so TuvaPmpmBaseline stores a total rather than a silent
+        zero.
+        """
         con = duckdb.connect(self.duckdb_path, read_only=True)
         try:
-            result = con.execute("""
-                SELECT
-                    year_month,
-                    service_category_1 as service_category,
-                    pmpm,
-                    member_months
-                FROM main.financial_pmpm__pmpm_prep
-            """).fetchall()
-            columns = ["year_month", "service_category", "pmpm", "member_months"]
-            return [dict(zip(columns, row)) for row in result]
-        except Exception as e:
-            logger.warning("Could not read Tuva PMPM output: %s", e)
-            return []
+            # First try new schema convention, then legacy.
+            result = self._try_query(
+                con,
+                "SELECT * FROM financial_pmpm.pmpm_prep ORDER BY year_month",
+                "SELECT * FROM main_financial_pmpm.pmpm_prep ORDER BY year_month",
+            )
+            if result is None:
+                return []
+            rows, cols = result
+            out: list[dict[str, Any]] = []
+            for row in rows:
+                row_map = dict(zip(cols, row))
+                # Tuva's wide format — total all "*_paid_amount" columns for
+                # an aggregate PMPM view. Columns we know about include
+                # total_paid_amount / total_allowed_amount; fall back to
+                # sum-of-service-categories if they're not present.
+                total_paid = row_map.get("total_paid_amount")
+                if total_paid is None:
+                    total_paid = sum(
+                        (v or 0) for k, v in row_map.items() if k.endswith("_paid_amount") and isinstance(v, (int, float))
+                    ) or None
+                member_months = row_map.get("member_months") or row_map.get("total_member_months")
+                pmpm = None
+                if total_paid is not None and member_months:
+                    try:
+                        pmpm = float(total_paid) / float(member_months)
+                    except (ZeroDivisionError, TypeError):
+                        pmpm = None
+                out.append({
+                    "year_month": row_map.get("year_month"),
+                    "service_category": "total",
+                    "pmpm": pmpm,
+                    "member_months": member_months,
+                    "raw": row_map,  # preserve for future drill-down
+                })
+            return out
         finally:
             con.close()
 

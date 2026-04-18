@@ -10,7 +10,8 @@ import logging
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.fhir_service import (
     ingest_fhir_bundle,
     ingest_single_patient,
@@ -20,7 +21,16 @@ from app.services.fhir_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/fhir", tags=["fhir"])
+# FHIR ingest — data section, admin/analyst only (no clinician write access).
+router = APIRouter(
+    prefix="/api/fhir",
+    tags=["fhir"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+    ))],
+)
 
 
 @router.post("/ingest")

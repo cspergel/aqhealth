@@ -24,7 +24,19 @@ from app.services.data_protection_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/data-protection", tags=["data-protection"])
+# Data protection — data section. Read access for admin/analyst/auditor.
+# Individual write endpoints (POST /contracts, /rollback, etc.) already
+# require mso_admin via per-route dependencies below.
+router = APIRouter(
+    prefix="/api/data-protection",
+    tags=["data-protection"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

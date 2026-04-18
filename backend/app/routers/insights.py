@@ -14,13 +14,28 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
 from app.models.insight import Insight, InsightCategory, InsightStatus
+from app.models.user import UserRole
 from app.services import insight_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/insights", tags=["insights"])
+# Insights — intelligence / overview; broad business role access.
+router = APIRouter(
+    prefix="/api/insights",
+    tags=["insights"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.outreach,
+        UserRole.auditor,
+        UserRole.financial,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

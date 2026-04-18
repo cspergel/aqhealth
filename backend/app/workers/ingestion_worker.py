@@ -88,11 +88,15 @@ async def process_ingestion_job(ctx: dict, job_id: int, tenant_schema: str) -> d
             except Exception as anomaly_err:
                 logger.warning("Data protection anomaly detection failed (non-blocking): %s", anomaly_err)
 
-            # 3b. Run the main file processing
+            # 3b. Run the main file processing. Thread the UploadJob ID
+            # through so quarantined_records + data_lineage rows can be
+            # correlated back to this load (and `rollback_batch` can target
+            # it).
             async with TenantSession(tenant_schema) as processing_db:
                 results = await process_upload(
                     file_path=file_path, column_mapping=column_mapping,
                     data_type=data_type, db=processing_db, tenant_schema=tenant_schema,
+                    ingestion_job_id=job_id,
                 )
 
             # 3c. Create an IngestionBatch record for rollback tracking

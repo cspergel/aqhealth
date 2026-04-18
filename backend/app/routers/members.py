@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.member_service import (
     get_member_list,
     get_member_detail,
@@ -22,7 +23,21 @@ from app.services.member_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/members", tags=["members"])
+# Members roster — clinical / operations. Financial excluded per frontend
+# hidePages "/members".
+router = APIRouter(
+    prefix="/api/members",
+    tags=["members"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.outreach,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

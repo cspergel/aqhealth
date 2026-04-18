@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import String, Date, Integer, ForeignKey, Numeric
+from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -17,6 +17,14 @@ class ClaimType(str, enum.Enum):
 class Claim(Base, TimestampMixin):
     """Individual claim line from ingested claims data."""
     __tablename__ = "claims"
+    __table_args__ = (
+        # Prevents SELECT-then-INSERT races in `_upsert_claims` — a parallel
+        # worker can't now double-insert the same (claim_id, member_id) pair.
+        # Migration 0003 adds the corresponding partial unique index in the
+        # DB (WHERE claim_id IS NOT NULL) since many signal-tier claim rows
+        # don't carry a payer claim_id.
+        UniqueConstraint("claim_id", "member_id", name="uq_claim_identity"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)
@@ -81,3 +89,11 @@ class Claim(Base, TimestampMixin):
     signal_event_id: Mapped[int | None] = mapped_column(ForeignKey("adt_events.id"), nullable=True, index=True)  # FK to ADT event
     reconciled: Mapped[bool] = mapped_column(default=False)  # has this signal been matched to a record?
     reconciled_claim_id: Mapped[int | None] = mapped_column(ForeignKey("claims.id"), nullable=True, index=True)  # record-tier claim that replaced this signal
+
+    # --- Soft-delete / HIPAA §164.528 disclosure accounting ---
+    # TODO: reads that should skip deleted rows must add
+    # `.where(Claim.deleted_at.is_(None))`. See member.py for rationale.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    deleted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)

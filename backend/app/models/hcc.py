@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import String, Date, Integer, ForeignKey, Numeric, Text
+from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
@@ -57,10 +57,27 @@ class HccSuspect(Base, TimestampMixin):
     dismissed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     dismissed_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
+    # --- Soft-delete / HIPAA §164.528 disclosure accounting ---
+    # TODO: reads that should skip deleted rows must add
+    # `.where(HccSuspect.deleted_at.is_(None))`. See member.py for rationale.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    deleted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
 
 class RafHistory(Base, TimestampMixin):
     """Point-in-time RAF snapshot for a member."""
     __tablename__ = "raf_history"
+    __table_args__ = (
+        # One RAF snapshot per member per (payment_year, calculation_date).
+        # Prevents the same end-of-day sync appending duplicate history rows
+        # when a worker crashes mid-commit and is re-run.
+        UniqueConstraint(
+            "member_id", "payment_year", "calculation_date",
+            name="uq_raf_history_snapshot",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)
@@ -75,3 +92,11 @@ class RafHistory(Base, TimestampMixin):
 
     hcc_count: Mapped[int] = mapped_column(Integer, default=0)
     suspect_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    # --- Soft-delete / HIPAA §164.528 disclosure accounting ---
+    # TODO: reads that should skip deleted rows must add
+    # `.where(RafHistory.deleted_at.is_(None))`. See member.py for rationale.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    deleted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)

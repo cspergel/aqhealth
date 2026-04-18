@@ -18,16 +18,29 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, func, case, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
 from app.models.hcc import HccSuspect, RafHistory, SuspectStatus, SuspectType
 from app.models.member import Member, RiskTier
 from app.models.provider import Provider
+from app.models.user import UserRole
 from app.services.boi_service import feed_capture_to_boi
 from app.services.export_service import export_to_csv, export_to_excel
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/hcc", tags=["hcc"])
+# HCC suspects / chase list — revenue section. Heavy PHI.
+router = APIRouter(
+    prefix="/api/hcc",
+    tags=["hcc"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.provider,
+        UserRole.care_manager,
+        UserRole.auditor,
+    ))],
+)
 
 
 # ---------------------------------------------------------------------------

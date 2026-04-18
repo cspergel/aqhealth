@@ -12,7 +12,8 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_tenant_db
+from app.dependencies import get_current_user, get_tenant_db, require_role
+from app.models.user import UserRole
 from app.services.pattern_service import (
     analyze_code_utilization,
     extract_success_patterns,
@@ -24,7 +25,18 @@ from app.services.pattern_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/patterns", tags=["patterns"])
+# Patterns / playbooks — quality section.
+router = APIRouter(
+    prefix="/api/patterns",
+    tags=["patterns"],
+    dependencies=[Depends(require_role(
+        UserRole.superadmin,
+        UserRole.mso_admin,
+        UserRole.analyst,
+        UserRole.care_manager,
+        UserRole.auditor,
+    ))],
+)
 
 
 @router.get("/code-utilization")

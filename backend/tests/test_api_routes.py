@@ -3,13 +3,13 @@
 Tests that the mounted routes respond correctly, return expected shapes,
 and enforce auth where required. Does NOT require a database — uses the
 test client fixture from conftest.py.
+
+Note: the Tuva router used to serve anonymous traffic under DEMO_MODE=true.
+That bypass was removed (see `reviews/readiness-security.md`). Tests that
+used to assert anonymous 200s now assert that the router requires auth.
 """
 
-import os
 import pytest
-
-# Enable demo mode for tests so Tuva demo endpoints work
-os.environ["DEMO_MODE"] = "true"
 
 
 # ---------------------------------------------------------------------------
@@ -27,45 +27,32 @@ async def test_openapi_schema(client):
 
 
 # ---------------------------------------------------------------------------
-# Tuva endpoints (no auth required for demo)
+# Tuva endpoints — now require auth (DEMO_MODE anon bypass removed)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_tuva_status(client):
-    """Tuva status endpoint responds without auth."""
+async def test_tuva_status_requires_auth(client):
+    """Tuva status must reject anonymous callers."""
     resp = await client.get("/api/tuva/status")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "available" in data
-    assert "members_scored" in data
-    assert "pipeline_ready" in data
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
-async def test_tuva_risk_scores(client):
-    """Tuva risk scores endpoint returns expected shape."""
+async def test_tuva_risk_scores_requires_auth(client):
     resp = await client.get("/api/tuva/risk-scores")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "items" in data
-    assert "count" in data
-    assert isinstance(data["items"], list)
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
-async def test_tuva_summary(client):
-    """Tuva summary endpoint responds."""
+async def test_tuva_summary_requires_auth(client):
     resp = await client.get("/api/tuva/summary")
-    assert resp.status_code == 200
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
-async def test_tuva_demo_suspects(client):
-    """Tuva demo suspects endpoint responds."""
+async def test_tuva_demo_suspects_requires_auth(client):
     resp = await client.get("/api/tuva/demo/suspects")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "total_suspects" in data or "status" in data
+    assert resp.status_code in (401, 403)
 
 
 # ---------------------------------------------------------------------------
@@ -133,72 +120,49 @@ async def test_data_protection_rollback_requires_auth(client):
 
 
 @pytest.mark.asyncio
-async def test_adt_webhook_requires_tenant_and_secret(client):
-    """ADT webhook requires both X-Tenant-Schema and X-Webhook-Secret headers."""
-    # Missing tenant schema → 400 or 422
+async def test_adt_webhook_rejects_missing_signature(client):
+    """ADT webhook requires an HMAC signature. Missing = 401/403.
+
+    The webhook endpoint is one of a handful of anonymous (non-JWT) routes;
+    it authenticates via HMAC signature instead.
+    """
     resp = await client.post("/api/adt/webhook", json={"event_type": "admit"})
-    assert resp.status_code in (400, 422)
-
-    # With tenant schema but no secret → 403 or 503
-    resp2 = await client.post(
-        "/api/adt/webhook",
-        json={"event_type": "admit"},
-        headers={"X-Tenant-Schema": "demo_mso"},
-    )
-    assert resp2.status_code in (403, 503)
+    assert resp.status_code in (400, 401, 403, 422)
 
 
 # ---------------------------------------------------------------------------
-# Process note endpoint (no auth for demo)
+# Post-RBAC-sweep: every Tuva route requires auth
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_process_note_rejects_short_text(client):
-    """Process note should reject text shorter than 20 chars."""
+async def test_process_note_requires_auth(client):
+    """Clinical note processing moved behind auth + PHI scrubber."""
     resp = await client.post("/api/tuva/process-note", params={"note_text": "short"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "error" in data
+    assert resp.status_code in (401, 403)
 
-
-# ---------------------------------------------------------------------------
-# Tuva comparison + population endpoints (no auth, demo data)
-# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_tuva_comparison(client):
-    """Tuva comparison endpoint returns expected shape."""
+async def test_tuva_comparison_requires_auth(client):
     resp = await client.get("/api/tuva/comparison")
-    # May fail with 500 if DB not available, but should not 404 or crash the app
-    assert resp.status_code in (200, 500)
-    if resp.status_code == 200:
-        data = resp.json()
-        assert "items" in data
-        assert "summary" in data
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
-async def test_tuva_population_opportunities(client):
-    """Population opportunities endpoint responds."""
+async def test_tuva_population_opportunities_requires_auth(client):
     resp = await client.get("/api/tuva/population-opportunities")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert "total_opportunities" in data
-    assert "items" in data
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
-async def test_tuva_convergence(client):
-    """Convergence endpoint responds."""
+async def test_tuva_convergence_requires_auth(client):
     resp = await client.get("/api/tuva/convergence")
-    assert resp.status_code == 200
+    assert resp.status_code in (401, 403)
 
 
 @pytest.mark.asyncio
-async def test_tuva_stale_suspects(client):
-    """Stale suspects endpoint responds."""
+async def test_tuva_stale_suspects_requires_auth(client):
     resp = await client.get("/api/tuva/stale-suspects")
-    assert resp.status_code == 200
+    assert resp.status_code in (401, 403)
 
 
 # ---------------------------------------------------------------------------

@@ -79,6 +79,14 @@ class ADTEvent(Base, TimestampMixin):
     actual_claim_id: Mapped[int | None] = mapped_column(ForeignKey("claims.id"), nullable=True)  # linked when actual claim arrives
     estimation_accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)  # calculated after reconciliation
 
+    # --- Soft-delete / HIPAA §164.528 disclosure accounting ---
+    # TODO: reads that should skip deleted rows must add
+    # `.where(ADTEvent.deleted_at.is_(None))`. See member.py for rationale.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    deleted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
 
 class CareAlert(Base, TimestampMixin):
     """Alert generated from an ADT event for care management."""
@@ -98,3 +106,11 @@ class CareAlert(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(30), default="open", index=True)  # "open", "acknowledged", "in_progress", "resolved"
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     resolution_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- Soft-delete / HIPAA §164.528 disclosure accounting ---
+    # TODO: reads that should skip deleted rows must add
+    # `.where(CareAlert.deleted_at.is_(None))`. See member.py for rationale.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    deleted_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
