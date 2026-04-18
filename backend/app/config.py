@@ -71,8 +71,17 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     llm_primary: str = "anthropic"
 
+    # Per-tenant Anthropic token budget (input + output) per UTC day. A
+    # runaway prompt loop or a compromised key can generate six-figure daily
+    # costs in hours — this cap enforces a hard stop. Default: 1M tokens
+    # (~$15/day at Claude Sonnet pricing). Override via env for ops tuning.
+    anthropic_daily_token_budget_per_tenant: int = 1_000_000
+
     # ---- ADT webhook ----
     adt_webhook_secret: str = ""
+    # Reject webhook payloads whose `message_datetime`/`event_timestamp` is
+    # older than this many seconds (replay protection). Set to 0 to disable.
+    adt_replay_window_seconds: int = 300
 
     # ---- File uploads ----
     uploads_dir: str = "uploads"

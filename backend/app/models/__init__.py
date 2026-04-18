@@ -32,3 +32,4 @@ from app.models.data_protection import SourceFingerprint, GoldenRecord, DataCont
 from app.models.tag import Tag, EntityTag
 from app.models.tuva_baseline import TuvaRafBaseline, TuvaPmpmBaseline
 from app.models.audit_log import AuditLog
+from app.models.revoked_token import RevokedToken

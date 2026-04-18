@@ -63,7 +63,39 @@ async def process_adt_event(
     """
     Normalize incoming event (from any source format) to canonical ADTEvent model,
     match patient to existing member, create ADTEvent record, trigger alert generation.
+
+    Idempotent on `raw_message_id` — if an event with the same raw_message_id
+    already exists in the tenant, returns the existing row tagged
+    `{"status": "duplicate", ...}` without re-inserting. The DB-level unique
+    index `uq_adt_events_raw_message_id` backstops this against races from
+    concurrent webhook deliveries.
     """
+    # --- Dedup on raw_message_id -------------------------------------------
+    raw_message_id = event_data.get("raw_message_id")
+    if raw_message_id:
+        existing = await db.execute(
+            text(
+                "SELECT id, event_type, member_id, event_timestamp "
+                "FROM adt_events WHERE raw_message_id = :rid LIMIT 1"
+            ),
+            {"rid": raw_message_id},
+        )
+        row = existing.first()
+        if row:
+            logger.info(
+                "process_adt_event: duplicate raw_message_id=%s (existing event id=%s)",
+                raw_message_id, row[0],
+            )
+            return {
+                "id": row[0],
+                "status": "duplicate",
+                "raw_message_id": raw_message_id,
+                "event_type": row[1],
+                "member_id": row[2],
+                "event_timestamp": row[3],
+                "alerts": [],
+            }
+
     # Normalize event type
     raw_type = (event_data.get("event_type") or "").lower().strip()
     event_type = _normalize_event_type(raw_type)
@@ -249,11 +281,11 @@ async def generate_alerts(db: AsyncSession, event: dict) -> list[dict]:
     member_id = event.get("member_id")
     event_id = event["id"]
 
-    # Check member risk tier if matched
+    # Check member risk tier if matched — live members only.
     risk_tier = None
     if member_id:
         r = await db.execute(
-            text("SELECT risk_tier FROM members WHERE id = :mid"),
+            text("SELECT risk_tier FROM members WHERE id = :mid AND deleted_at IS NULL"),
             {"mid": member_id},
         )
         row = r.first()
@@ -373,10 +405,14 @@ async def generate_alerts(db: AsyncSession, event: dict) -> list[dict]:
     try:
         if member_id and diagnoses:
             from app.services.hcc_engine import lookup_hcc_for_icd10
+            # Live open suspects only — soft-deleted suspects shouldn't
+            # trigger suspect-match alerts.
             open_suspects_q = await db.execute(
                 text(
                     "SELECT hcc_code, hcc_label FROM hcc_suspects "
-                    "WHERE member_id = :mid AND status = 'open'"
+                    "WHERE member_id = :mid "
+                    "  AND status = 'open' "
+                    "  AND deleted_at IS NULL"
                 ),
                 {"mid": member_id},
             )
@@ -422,6 +458,9 @@ async def get_live_census(db: AsyncSession) -> dict:
     Current census: members currently admitted (no discharge event yet).
     Grouped by facility, patient class. Includes LOS, estimated daily cost.
     """
+    # Live census — exclude soft-deleted ADT events from both the anchor
+    # (e) and the discharge-match (d) sides so retracted events don't
+    # corrupt census counts.
     result = await db.execute(
         text("""
             SELECT
@@ -433,12 +472,14 @@ async def get_live_census(db: AsyncSession) -> dict:
             FROM adt_events e
             WHERE e.event_type IN ('admit', 'observation')
               AND e.discharge_date IS NULL
+              AND e.deleted_at IS NULL
               AND NOT EXISTS (
                   SELECT 1 FROM adt_events d
                   WHERE d.event_type = 'discharge'
                     AND d.member_id = e.member_id
                     AND d.facility_name = e.facility_name
                     AND d.discharge_date >= e.admit_date
+                    AND d.deleted_at IS NULL
               )
             ORDER BY e.admit_date ASC
         """)
@@ -489,6 +530,7 @@ async def get_census_summary(db: AsyncSession) -> dict:
     """
     # Current census counts by patient class — uses same discharge matching
     # logic as get_live_census (match on member + facility + discharge >= admit)
+    # Exclude soft-deleted events from both the anchor and discharge-match sides.
     census_result = await db.execute(
         text("""
             SELECT
@@ -497,12 +539,14 @@ async def get_census_summary(db: AsyncSession) -> dict:
             FROM adt_events e
             WHERE e.event_type IN ('admit', 'observation', 'ed_visit')
               AND e.discharge_date IS NULL
+              AND e.deleted_at IS NULL
               AND NOT EXISTS (
                   SELECT 1 FROM adt_events d
                   WHERE d.event_type = 'discharge'
                     AND d.member_id = e.member_id
                     AND d.facility_name = e.facility_name
                     AND d.discharge_date >= e.admit_date
+                    AND d.deleted_at IS NULL
               )
             GROUP BY e.patient_class
         """)
@@ -516,12 +560,14 @@ async def get_census_summary(db: AsyncSession) -> dict:
             FROM adt_events e
             WHERE e.event_type IN ('admit', 'observation', 'ed_visit')
               AND e.discharge_date IS NULL
+              AND e.deleted_at IS NULL
               AND NOT EXISTS (
                   SELECT 1 FROM adt_events d
                   WHERE d.event_type = 'discharge'
                     AND d.member_id = e.member_id
                     AND d.facility_name = e.facility_name
                     AND d.discharge_date >= e.admit_date
+                    AND d.deleted_at IS NULL
               )
             GROUP BY e.facility_name
             ORDER BY cnt DESC
@@ -532,27 +578,29 @@ async def get_census_summary(db: AsyncSession) -> dict:
         for r in facility_result.mappings().all()
     ]
 
-    # Today's admits
+    # Today's admits — live events only.
     today_admits_result = await db.execute(
         text("""
             SELECT COUNT(*) FROM adt_events
             WHERE event_type IN ('admit', 'ed_visit')
               AND DATE(event_timestamp) = CURRENT_DATE
+              AND deleted_at IS NULL
         """)
     )
     today_admits = today_admits_result.scalar_one()
 
-    # Today's discharges
+    # Today's discharges — live events only.
     today_discharges_result = await db.execute(
         text("""
             SELECT COUNT(*) FROM adt_events
             WHERE event_type = 'discharge'
               AND DATE(event_timestamp) = CURRENT_DATE
+              AND deleted_at IS NULL
         """)
     )
     today_discharges = today_discharges_result.scalar_one()
 
-    # 7-day trend
+    # 7-day trend — live events only.
     trend_result = await db.execute(
         text("""
             SELECT
@@ -561,6 +609,7 @@ async def get_census_summary(db: AsyncSession) -> dict:
                 SUM(CASE WHEN event_type = 'discharge' THEN 1 ELSE 0 END) AS discharges
             FROM adt_events
             WHERE event_timestamp >= CURRENT_DATE - INTERVAL '7 days'
+              AND deleted_at IS NULL
             GROUP BY DATE(event_timestamp)
             ORDER BY day
         """)
@@ -595,7 +644,9 @@ async def get_alerts(
     alert_type: str | None = None,
 ) -> list[dict]:
     """List care alerts, filterable by status, assignee, priority, type."""
-    conditions = []
+    # Live alerts only — a soft-deleted alert must not appear in the
+    # care-manager worklist.
+    conditions = ["ca.deleted_at IS NULL"]
     params: dict[str, Any] = {}
 
     if status:
@@ -754,12 +805,13 @@ async def get_sources(db: AsyncSession) -> list[dict]:
 async def get_events(
     db: AsyncSession, limit: int = 50, offset: int = 0
 ) -> list[dict]:
-    """List recent ADT events for review."""
+    """List recent ADT events for review — live events only."""
     result = await db.execute(
         text("""
             SELECT e.*, s.name AS source_name
             FROM adt_events e
             LEFT JOIN adt_sources s ON e.source_id = s.id
+            WHERE e.deleted_at IS NULL
             ORDER BY e.event_timestamp DESC
             LIMIT :limit OFFSET :offset
         """),
@@ -909,10 +961,13 @@ async def _match_patient(
 ) -> tuple[int | None, int | None]:
     """Attempt to match ADT patient to existing member. Returns (member_id, confidence)."""
 
+    # All matching is against LIVE members — an inbound ADT for a
+    # soft-deleted member cannot resolve back to that member row (we'll
+    # return (None, None) and the event is kept as an unmatched event).
     # Try exact match on external member ID first
     if external_member_id:
         result = await db.execute(
-            text("SELECT id FROM members WHERE member_id = :eid LIMIT 1"),
+            text("SELECT id FROM members WHERE member_id = :eid AND deleted_at IS NULL LIMIT 1"),
             {"eid": external_member_id},
         )
         row = result.first()
@@ -932,6 +987,7 @@ async def _match_patient(
                     WHERE LOWER(first_name) = LOWER(:first)
                       AND LOWER(last_name) = LOWER(:last)
                       AND date_of_birth = :dob
+                      AND deleted_at IS NULL
                     LIMIT 1
                 """),
                 {"first": first, "last": last, "dob": dob_val},
@@ -953,6 +1009,7 @@ async def _match_patient(
                         SELECT id FROM members
                         WHERE LOWER(last_name) = LOWER(:last)
                           AND LOWER(first_name) LIKE LOWER(:first_prefix)
+                          AND deleted_at IS NULL
                         LIMIT 1
                     """),
                     {"last": last, "first_prefix": first_initial + "%"},
@@ -979,6 +1036,7 @@ async def _check_readmission(
               AND event_type = 'discharge'
               AND discharge_date >= :cutoff
               AND discharge_date < :admit
+              AND deleted_at IS NULL
             ORDER BY discharge_date DESC
             LIMIT 1
         """),

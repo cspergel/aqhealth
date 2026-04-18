@@ -1,61 +1,118 @@
+# docker-compose — local dev + low-trust staging.
+#
+# Security notes:
+# - POSTGRES_USER / POSTGRES_PASSWORD must be set via env (no cleartext
+#   defaults shipping to prod). Use a .env file for local dev.
+# - SECRET_KEY / ENCRYPTION_KEY are validated by the app at startup
+#   (see backend/app/config.py). A blank / placeholder value refuses to boot.
+# - Bind-mounts (`./backend:/app`) are for DEV only; they let uvicorn --reload
+#   pick up code changes. Strip them in production compose files.
+
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-aqsoft}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aqsoft}
-      POSTGRES_DB: ${POSTGRES_DB:-aqsoft_health}
+      POSTGRES_USER:     ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB:       ${POSTGRES_DB:-aqsoft_health}
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     ports:
       - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
 
   backend:
     build: ./backend
     ports:
       - "${BACKEND_PORT:-8090}:8080"
     env_file: ./backend/.env
+    environment:
+      # DB URLs pulled from the common env so compose and the app agree
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aqsoft_health}
+      REDIS_URL:    redis://redis:6379/0
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   worker:
     build: ./backend
     env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aqsoft_health}
+      REDIS_URL:    redis://redis:6379/0
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     command: arq app.workers.ingestion_worker.WorkerSettings
+    restart: unless-stopped
 
   hcc-worker:
     build: ./backend
     env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aqsoft_health}
+      REDIS_URL:    redis://redis:6379/0
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     command: arq app.workers.hcc_worker.WorkerSettings
+    restart: unless-stopped
 
   insight-worker:
     build: ./backend
     env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aqsoft_health}
+      REDIS_URL:    redis://redis:6379/0
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     command: arq app.workers.insight_worker.WorkerSettings
+    restart: unless-stopped
 
 volumes:
   pgdata:
+  redisdata:

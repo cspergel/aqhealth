@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, Boolean, Text
+from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, Boolean, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -35,6 +35,14 @@ class GapMeasure(Base, TimestampMixin):
 class MemberGap(Base, TimestampMixin):
     """Individual care gap for a member."""
     __tablename__ = "member_gaps"
+    __table_args__ = (
+        # Gap pull for a member (caseload detail + member detail page)
+        Index("ix_member_gaps_member_status", "member_id", "status"),
+        # Yearly gap roll-ups need (member_id, measurement_year) combined
+        Index("ix_member_gaps_member_year", "member_id", "measurement_year", "status"),
+        # Provider scorecard gap_closure_rate groups by responsible provider
+        Index("ix_member_gaps_responsible_provider", "responsible_provider_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)
@@ -43,6 +51,7 @@ class MemberGap(Base, TimestampMixin):
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     closed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     measurement_year: Mapped[int] = mapped_column(Integer, index=True)
+    # FK indexed via ix_member_gaps_responsible_provider in __table_args__
     responsible_provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
 
     # --- Soft-delete / HIPAA §164.528 disclosure accounting ---

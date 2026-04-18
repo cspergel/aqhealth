@@ -6,10 +6,12 @@ live census data, care alerts, and source configuration.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel, Field
+from sqlalchemy import text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import contextlib
@@ -154,10 +156,94 @@ async def receive_webhook(
         if payload.event_type:
             event_data["event_type"] = payload.event_type
 
+        # --- Replay window (I9) ---------------------------------------
+        # If the payload carries a timestamp (message_datetime preferred,
+        # event_timestamp as a fallback), reject it if it's older than
+        # settings.adt_replay_window_seconds. This blunts replay attacks
+        # where a captured valid webhook is resent months later.
+        replay_window = getattr(settings, "adt_replay_window_seconds", 300)
+        if replay_window and replay_window > 0:
+            ts_raw = (
+                event_data.get("message_datetime")
+                or event_data.get("event_timestamp")
+            )
+            if ts_raw:
+                try:
+                    # Support both "Z" and offset-aware ISO strings.
+                    parsed = datetime.fromisoformat(
+                        ts_raw.replace("Z", "+00:00") if isinstance(ts_raw, str) else ts_raw
+                    )
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    age = (datetime.now(timezone.utc) - parsed).total_seconds()
+                    if age > replay_window:
+                        logger.warning(
+                            "ADT webhook rejected (replay): age=%.0fs > window=%ds, source=%s",
+                            age, replay_window, source_name,
+                        )
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                f"Webhook timestamp is {int(age)}s old — "
+                                f"older than the {replay_window}s replay window"
+                            ),
+                        )
+                except HTTPException:
+                    raise
+                except Exception as parse_err:
+                    # Don't fail the whole request on a garbled timestamp —
+                    # just log and proceed (the secret/HMAC is the real auth).
+                    logger.info(
+                        "Could not parse webhook timestamp %r for replay check: %s",
+                        ts_raw, parse_err,
+                    )
+
+        # --- Dedup on raw_message_id (I7) ------------------------------
+        # Return 200 + status=duplicate if this raw_message_id was already
+        # ingested for this tenant. The DB-level unique index
+        # (uq_adt_events_raw_message_id, added in migration 0004) backstops
+        # this check against a race between concurrent deliveries.
+        raw_message_id = event_data.get("raw_message_id")
+        if raw_message_id:
+            existing = await db.execute(
+                sa_text(
+                    "SELECT id FROM adt_events "
+                    "WHERE raw_message_id = :rid "
+                    "LIMIT 1"
+                ),
+                {"rid": raw_message_id},
+            )
+            existing_row = existing.first()
+            if existing_row:
+                logger.info(
+                    "ADT webhook duplicate: raw_message_id=%s already stored as event id=%s",
+                    raw_message_id, existing_row[0],
+                )
+                return {
+                    "status": "duplicate",
+                    "raw_message_id": raw_message_id,
+                    "event_id": existing_row[0],
+                }
+
         try:
             result = await process_adt_event(db, event_data, source_id)
             return {"status": "processed", "event_id": result["id"], "alerts": len(result.get("alerts", []))}
+        except HTTPException:
+            raise
         except Exception as e:
+            # Special-case the DB-level unique-violation that the index
+            # raises if two concurrent webhook deliveries slipped past the
+            # pre-check above — return duplicate rather than 500.
+            err_msg = str(e).lower()
+            if "uq_adt_events_raw_message_id" in err_msg or "duplicate key" in err_msg:
+                logger.info(
+                    "ADT webhook duplicate (race caught by unique index): raw_message_id=%s",
+                    event_data.get("raw_message_id"),
+                )
+                return {
+                    "status": "duplicate",
+                    "raw_message_id": event_data.get("raw_message_id"),
+                }
             logger.error("Webhook processing error: %s", e)
             raise HTTPException(status_code=500, detail="Failed to process webhook")
 

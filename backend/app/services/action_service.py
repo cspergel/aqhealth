@@ -100,8 +100,12 @@ async def create_from_alert(db: AsyncSession, alert_id: int, assigned_to: int | 
 # ---------------------------------------------------------------------------
 
 async def get_actions(db: AsyncSession, filters: dict | None = None) -> list[dict]:
-    """List action items with optional filters."""
-    query = select(ActionItem).order_by(ActionItem.created_at.desc())
+    """List action items with optional filters. Live items only."""
+    query = (
+        select(ActionItem)
+        .where(ActionItem.deleted_at.is_(None))
+        .order_by(ActionItem.created_at.desc())
+    )
 
     if filters:
         if filters.get("status"):
@@ -129,7 +133,7 @@ async def get_action(db: AsyncSession, action_id: int) -> dict | None:
 
 
 async def get_action_stats(db: AsyncSession) -> dict:
-    """Summary statistics for action items."""
+    """Summary statistics for action items — live items only."""
     today = date.today()
     result = await db.execute(
         select(
@@ -143,6 +147,7 @@ async def get_action_stats(db: AsyncSession) -> dict:
                 else_=0,
             )).label("overdue"),
         )
+        .where(ActionItem.deleted_at.is_(None))
     )
     row = result.one()
     total = row.total or 0
@@ -202,6 +207,7 @@ async def measure_outcomes(db: AsyncSession) -> list[dict]:
             ActionItem.status == "completed",
             ActionItem.expected_impact.is_not(None),
             ActionItem.outcome_measured == False,
+            ActionItem.deleted_at.is_(None),
         )
     )
     actions = result.scalars().all()

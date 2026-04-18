@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select, and_, func, case, literal
+from sqlalchemy import select, and_, func, case, literal, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.provider import Provider
@@ -76,6 +76,60 @@ def _percentile_rank(values: list[float], value: float) -> int:
     return round(below / len(values) * 100)
 
 
+# Metric -> DB column mapping used by _fetch_provider_percentiles.
+# "avg_raf" is surfaced via Provider.avg_panel_raf column.
+_PERCENTILE_COLUMNS: dict[str, str] = {
+    "panel_size": "panel_size",
+    "capture_rate": "capture_rate",
+    "recapture_rate": "recapture_rate",
+    "avg_raf": "avg_panel_raf",
+    "panel_pmpm": "panel_pmpm",
+    "gap_closure_rate": "gap_closure_rate",
+}
+
+# For PMPM, lower is better — we invert (100 - rank) in the caller.
+_PMPM_KEY = "panel_pmpm"
+
+
+async def _fetch_provider_percentiles(
+    db: AsyncSession,
+) -> dict[str, dict[int, int]]:
+    """Compute 0-100 percentile rank per provider per metric in SQL.
+
+    Returns a nested dict: {metric_key: {provider_id: pct}}.
+
+    Uses Postgres ``PERCENT_RANK()`` (0.0..1.0) scaled to 0..100. NULL rows
+    for a given metric are excluded from that metric's ranking via a
+    ``WHERE col IS NOT NULL`` filter inside the window subquery (each
+    metric's window runs over its non-null subset — matching the prior
+    Python behaviour which filtered None before computing).
+
+    Replaces the hot path ``scalars().all()`` -> Python percentile loop that
+    pulled every Provider row into memory.
+    """
+    # Build one UNION ALL query that returns (metric, provider_id, pct).
+    # PERCENT_RANK for PMPM is NOT inverted here — callers invert.
+    parts: list[str] = []
+    for metric_key, col in _PERCENTILE_COLUMNS.items():
+        parts.append(
+            f"""
+            SELECT
+                '{metric_key}' AS metric,
+                id             AS provider_id,
+                ROUND(PERCENT_RANK() OVER (ORDER BY {col}) * 100)::int AS pct
+            FROM providers
+            WHERE {col} IS NOT NULL
+            """
+        )
+    stmt = text(" UNION ALL ".join(parts))
+
+    rows = (await db.execute(stmt)).all()
+    percentiles: dict[str, dict[int, int]] = {k: {} for k in _PERCENTILE_COLUMNS}
+    for row in rows:
+        percentiles[row.metric][row.provider_id] = int(row.pct or 0)
+    return percentiles
+
+
 def _resolve_targets(provider: Provider) -> dict:
     """Merge provider-specific overrides with defaults."""
     targets = dict(DEFAULT_TARGETS)
@@ -125,7 +179,12 @@ async def get_provider_list(
     specialty_filter: str | None = None,
     tier_filter: str | None = None,
 ) -> list[dict]:
-    """Return all providers with computed metrics, tiers, and percentile ranks."""
+    """Return all providers with computed metrics, tiers, and percentile ranks.
+
+    Percentile ranks are computed in SQL via PERCENT_RANK() (see
+    ``_fetch_provider_percentiles``), eliminating the prior pattern that
+    loaded every Provider row into Python just to build metric vectors.
+    """
     stmt = select(Provider)
     if specialty_filter:
         stmt = stmt.where(Provider.specialty == specialty_filter)
@@ -139,22 +198,13 @@ async def get_provider_list(
     if not providers:
         return []
 
-    # Build metric vectors for percentile calculations
-    metric_vectors: dict[str, list[float]] = {k: [] for k in METRIC_KEYS}
-    rows: list[dict] = []
+    # One SQL round-trip computes every (metric, provider) percentile rank.
+    percentiles = await _fetch_provider_percentiles(db)
 
+    rows: list[dict] = []
     for p in providers:
         row = _provider_to_dict(p)
-        rows.append(row)
-        for key in METRIC_KEYS:
-            val = row.get(key)
-            if val is not None:
-                metric_vectors[key].append(val)
-
-    # Compute tiers and percentiles
-    for row in rows:
-        p_obj = next(p for p in providers if p.id == row["id"])
-        targets = _resolve_targets(p_obj)
+        targets = _resolve_targets(p)
 
         # Overall tier = worst tier across targeted metrics
         tiers = []
@@ -169,18 +219,22 @@ async def get_provider_list(
         else:
             row["tier"] = "green"
 
-        # Percentile per metric
+        # Percentile per metric — looked up from the SQL-computed map.
         row["percentiles"] = {}
         for key in METRIC_KEYS:
             val = row.get(key)
-            if val is not None:
-                # For PMPM lower is better — invert
-                if key == "panel_pmpm":
-                    row["percentiles"][key] = 100 - _percentile_rank(metric_vectors[key], val)
-                else:
-                    row["percentiles"][key] = _percentile_rank(metric_vectors[key], val)
-            else:
+            if val is None:
                 row["percentiles"][key] = None
+                continue
+            pct = percentiles.get(key, {}).get(p.id)
+            if pct is None:
+                row["percentiles"][key] = None
+            elif key == _PMPM_KEY:
+                # Lower PMPM is better — invert so top performers = 100.
+                row["percentiles"][key] = 100 - pct
+            else:
+                row["percentiles"][key] = pct
+        rows.append(row)
 
     # Optional tier filter (applied after computation)
     if tier_filter:
@@ -194,7 +248,11 @@ async def get_provider_list(
 # ---------------------------------------------------------------------------
 
 async def get_provider_scorecard(db: AsyncSession, provider_id: int) -> dict:
-    """Full scorecard: metrics, targets, tiers, peer percentile."""
+    """Full scorecard: metrics, targets, tiers, peer percentile.
+
+    Peer percentile is computed in SQL; we no longer pull every Provider
+    row into Python just to rank one.
+    """
     result = await db.execute(select(Provider).where(Provider.id == provider_id))
     provider = result.scalar_one_or_none()
     if not provider:
@@ -203,17 +261,8 @@ async def get_provider_scorecard(db: AsyncSession, provider_id: int) -> dict:
     row = _provider_to_dict(provider)
     targets = _resolve_targets(provider)
 
-    # Get all providers for percentile calc
-    all_result = await db.execute(select(Provider))
-    all_providers = all_result.scalars().all()
-
-    metric_vectors: dict[str, list[float]] = {k: [] for k in METRIC_KEYS}
-    for p in all_providers:
-        d = _provider_to_dict(p)
-        for key in METRIC_KEYS:
-            val = d.get(key)
-            if val is not None:
-                metric_vectors[key].append(val)
+    # Percentile ranks via PERCENT_RANK() in SQL (one round-trip)
+    percentiles = await _fetch_provider_percentiles(db)
 
     # Build metric cards
     metrics = []
@@ -225,12 +274,16 @@ async def get_provider_scorecard(db: AsyncSession, provider_id: int) -> dict:
         if key in ["capture_rate", "recapture_rate", "gap_closure_rate"]:
             tiers.append(tier)
 
-        if key == "panel_pmpm" and val is not None:
-            pct = 100 - _percentile_rank(metric_vectors[key], val)
-        elif val is not None:
-            pct = _percentile_rank(metric_vectors[key], val)
-        else:
+        if val is None:
             pct = None
+        else:
+            raw_pct = percentiles.get(key, {}).get(provider_id)
+            if raw_pct is None:
+                pct = None
+            elif key == _PMPM_KEY:
+                pct = 100 - raw_pct
+            else:
+                pct = raw_pct
 
         metrics.append({
             "key": key,
@@ -254,23 +307,40 @@ async def get_provider_scorecard(db: AsyncSession, provider_id: int) -> dict:
 # ---------------------------------------------------------------------------
 
 async def get_peer_comparison(db: AsyncSession, provider_id: int) -> dict:
-    """Anonymized benchmarks: network avg, top quartile, bottom quartile per metric."""
+    """Anonymized benchmarks: network avg, top quartile, bottom quartile per metric.
+
+    Quartiles + averages are computed entirely in Postgres via
+    ``percentile_cont`` — we no longer pull every Provider row to Python.
+    """
     result = await db.execute(select(Provider).where(Provider.id == provider_id))
     provider = result.scalar_one_or_none()
     if not provider:
         return None
 
-    all_result = await db.execute(select(Provider))
-    all_providers = all_result.scalars().all()
-
     provider_row = _provider_to_dict(provider)
-    comparisons = {}
+    comparisons: dict[str, dict[str, Any]] = {}
+
+    # One UNION-ed aggregate per metric — all in a single round-trip.
+    parts: list[str] = []
+    for metric_key, col in _PERCENTILE_COLUMNS.items():
+        parts.append(
+            f"""
+            SELECT
+                '{metric_key}'                                                      AS metric,
+                AVG({col})::float                                                   AS network_avg,
+                percentile_cont(0.75) WITHIN GROUP (ORDER BY {col})::float          AS top_quartile,
+                percentile_cont(0.25) WITHIN GROUP (ORDER BY {col})::float          AS bottom_quartile
+            FROM providers
+            WHERE {col} IS NOT NULL
+            """
+        )
+    stmt = text(" UNION ALL ".join(parts))
+    agg_rows = (await db.execute(stmt)).all()
+    agg_by_metric: dict[str, Any] = {row.metric: row for row in agg_rows}
 
     for key in METRIC_KEYS:
-        values = [_float(getattr(p, "avg_panel_raf" if key == "avg_raf" else key)) for p in all_providers]
-        values = [v for v in values if v is not None]
-
-        if not values:
+        agg = agg_by_metric.get(key)
+        if not agg or agg.network_avg is None:
             comparisons[key] = {
                 "provider_value": provider_row.get(key),
                 "network_avg": None,
@@ -278,14 +348,11 @@ async def get_peer_comparison(db: AsyncSession, provider_id: int) -> dict:
                 "bottom_quartile": None,
             }
             continue
-
-        sorted_vals = sorted(values)
-        n = len(sorted_vals)
         comparisons[key] = {
             "provider_value": provider_row.get(key),
-            "network_avg": round(sum(sorted_vals) / n, 2),
-            "top_quartile": sorted_vals[int(n * 0.75)] if n > 1 else sorted_vals[0],
-            "bottom_quartile": sorted_vals[int(n * 0.25)] if n > 1 else sorted_vals[0],
+            "network_avg": round(agg.network_avg, 2),
+            "top_quartile": round(agg.top_quartile, 2) if agg.top_quartile is not None else None,
+            "bottom_quartile": round(agg.bottom_quartile, 2) if agg.bottom_quartile is not None else None,
         }
 
     return {

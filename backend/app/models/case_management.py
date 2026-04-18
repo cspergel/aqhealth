@@ -29,7 +29,7 @@ class CaseNote(Base, TimestampMixin):
     __tablename__ = "case_notes"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    assignment_id: Mapped[int] = mapped_column(ForeignKey("case_assignments.id"))
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("case_assignments.id"), index=True)
     note_type: Mapped[str] = mapped_column(String(50))  # "phone_call", "in_person", "coordination", "assessment", "follow_up"
     content: Mapped[str] = mapped_column(Text)
     contact_method: Mapped[str | None] = mapped_column(String(20))  # "phone", "in_person", "video", "email", "letter"

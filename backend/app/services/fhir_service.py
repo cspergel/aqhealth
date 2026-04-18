@@ -19,14 +19,30 @@ logger = logging.getLogger(__name__)
 
 
 # Standard FHIR resource type handlers — maps resource type to its ingestion function.
-# Stub handlers (value is None) are recognized but do not increment counters.
+# A handler of None means the resource type is recognized but deliberately skipped.
 RESOURCE_HANDLERS: dict[str, str | None] = {
     "Patient": "_ingest_patient",
     "Condition": "_ingest_condition",
     "MedicationRequest": "_ingest_medication",
-    "Observation": None,       # stub — not yet implemented
-    "Encounter": None,         # stub — not yet implemented
-    "Procedure": None,         # stub — not yet implemented
+    "Observation": "_ingest_observation",
+    "Encounter": "_ingest_encounter",
+    "Procedure": "_ingest_procedure",
+}
+
+
+# FHIR Encounter.class code -> our `service_category` taxonomy.
+# See http://terminology.hl7.org/CodeSystem/v3-ActCode for the class codes.
+_ENCOUNTER_CLASS_TO_CATEGORY: dict[str, str] = {
+    "AMB": "professional",       # ambulatory
+    "EMER": "ed_observation",    # emergency
+    "IMP": "inpatient",          # inpatient encounter
+    "ACUTE": "inpatient",        # inpatient acute
+    "NONAC": "inpatient",        # inpatient non-acute
+    "OBSENC": "ed_observation",  # observation encounter
+    "SS": "professional",        # short stay
+    "HH": "home_health",         # home health
+    "VR": "professional",        # virtual
+    "PRENC": "professional",     # pre-admission
 }
 
 
@@ -305,16 +321,261 @@ async def _ingest_medication(db: AsyncSession, resource: dict) -> None:
     logger.info("Created pharmacy claim from FHIR MedicationRequest for member %s", patient_id)
 
 
+async def _resolve_member_from_subject(db: AsyncSession, resource: dict) -> Member | None:
+    """Return the Member referenced by `resource.subject.reference`, or None.
+
+    FHIR references look like ``Patient/123`` (relative) or
+    ``urn:uuid:...`` / absolute URLs. We pull the last segment and match
+    against ``Member.member_id`` — the same convention ``_ingest_patient``
+    uses when assigning the external FHIR id to ``member_id``.
+    """
+    subject_ref = (resource.get("subject") or {}).get("reference") or ""
+    if not subject_ref:
+        return None
+    patient_id = subject_ref.split("/")[-1] if "/" in subject_ref else subject_ref
+    if not patient_id:
+        return None
+    member_q = await db.execute(
+        select(Member).where(Member.member_id == patient_id)
+    )
+    return member_q.scalar_one_or_none()
+
+
+def _first_coding(code_block: dict | None) -> tuple[str | None, str | None, str | None]:
+    """Return (system, code, display) from the first coding on a CodeableConcept."""
+    if not code_block:
+        return (None, None, None)
+    for coding in code_block.get("coding") or []:
+        code = coding.get("code")
+        if code:
+            return (coding.get("system"), code, coding.get("display"))
+    return (None, None, code_block.get("text"))
+
+
 async def _ingest_encounter(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Encounter to visit / claim records — not yet implemented."""
-    logger.debug("FHIR Encounter ingestion not yet implemented (resource id=%s)", resource.get("id"))
+    """Map FHIR Encounter to a signal-tier Claim row.
+
+    We infer ``service_category`` from the encounter class code (AMB ->
+    professional, EMER -> ed_observation, IMP -> inpatient). Encounters are
+    stored as signal-tier because they don't carry payer adjudication data;
+    they'll be reconciled against a record-tier claim when it arrives.
+    """
+    member = await _resolve_member_from_subject(db, resource)
+    if not member:
+        logger.warning(
+            "FHIR Encounter references unknown patient: %s (encounter id=%s)",
+            (resource.get("subject") or {}).get("reference"),
+            resource.get("id"),
+        )
+        return
+
+    # Class code -> service_category. FHIR R4 Encounter.class is a Coding
+    # (not CodeableConcept) — it has `code`, `system`, `display` directly.
+    class_block = resource.get("class") or {}
+    class_code = class_block.get("code") if isinstance(class_block, dict) else None
+    service_category = _ENCOUNTER_CLASS_TO_CATEGORY.get(class_code or "", "professional")
+
+    # Period.start is the service start. Fall back to status-change dates.
+    period = resource.get("period") or {}
+    start_str = period.get("start") or resource.get("plannedStartDate")
+    end_str = period.get("end")
+    try:
+        service_date = date.fromisoformat(start_str[:10]) if start_str else date.today()
+    except ValueError:
+        service_date = date.today()
+
+    # LOS — only meaningful if we have both start and end.
+    los: int | None = None
+    if start_str and end_str:
+        try:
+            los = max((date.fromisoformat(end_str[:10]) - service_date).days, 0)
+        except ValueError:
+            los = None
+
+    # FHIR Encounter.diagnosis points at separate Condition resources, not
+    # raw ICD-10 codes. Those Conditions arrive (or already arrived) in the
+    # same Bundle via _ingest_condition. We don't stuff Condition IDs into
+    # Claim.diagnosis_codes (column is VARCHAR(10), IDs are longer).
+    diag_refs: list[str] = []
+    for diag in resource.get("diagnosis") or []:
+        cond_ref = (diag.get("condition") or {}).get("reference", "")
+        if cond_ref:
+            diag_refs.append(cond_ref)
+
+    claim_type_map = {
+        "inpatient": "institutional",
+        "ed_observation": "institutional",
+        "snf_postacute": "institutional",
+        "home_health": "institutional",
+    }
+    claim_type = claim_type_map.get(service_category, "professional")
+
+    claim = Claim(
+        member_id=member.id,
+        claim_type=claim_type,
+        service_date=service_date,
+        service_category=service_category,
+        los=los,
+        data_tier="signal",
+        is_estimated=False,
+        signal_source="fhir_encounter",
+        extra={
+            "fhir_encounter_id": resource.get("id"),
+            "class_code": class_code,
+            "status": resource.get("status"),
+            "diagnosis_refs": diag_refs or None,
+        },
+    )
+    db.add(claim)
+    await db.flush()
+    logger.info(
+        "Created signal-tier claim from FHIR Encounter %s for member %s (category=%s)",
+        resource.get("id"), member.member_id, service_category,
+    )
 
 
 async def _ingest_observation(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Observation to lab results — not yet implemented."""
-    logger.debug("FHIR Observation ingestion not yet implemented (resource id=%s)", resource.get("id"))
+    """Map FHIR Observation to a lab-result signal stored on a Claim row.
+
+    We don't have a dedicated Observation model (and introducing one would
+    ripple across 3 services). Instead we persist the observation as a
+    minimal signal-tier Claim with the observation payload in ``extra``.
+    The HCC engine, care-gap detector, and downstream analytics read Claim
+    rows with ``signal_source='fhir_observation'`` to pick up lab data.
+    """
+    member = await _resolve_member_from_subject(db, resource)
+    if not member:
+        logger.warning(
+            "FHIR Observation references unknown patient: %s (obs id=%s)",
+            (resource.get("subject") or {}).get("reference"),
+            resource.get("id"),
+        )
+        return
+
+    # Code (LOINC preferred)
+    system, code, display = _first_coding(resource.get("code"))
+
+    # Value extraction — FHIR has multiple `value[x]` choice fields.
+    value: dict = {}
+    if "valueQuantity" in resource:
+        vq = resource["valueQuantity"]
+        value = {
+            "type": "Quantity",
+            "value": vq.get("value"),
+            "unit": vq.get("unit") or vq.get("code"),
+        }
+    elif "valueString" in resource:
+        value = {"type": "string", "value": resource["valueString"]}
+    elif "valueCodeableConcept" in resource:
+        _, vcode, vdisplay = _first_coding(resource["valueCodeableConcept"])
+        value = {"type": "CodeableConcept", "code": vcode, "display": vdisplay}
+    elif "valueBoolean" in resource:
+        value = {"type": "boolean", "value": resource["valueBoolean"]}
+    elif "valueInteger" in resource:
+        value = {"type": "integer", "value": resource["valueInteger"]}
+
+    # Effective date: effectiveDateTime | effectivePeriod.start | issued
+    eff = (
+        resource.get("effectiveDateTime")
+        or (resource.get("effectivePeriod") or {}).get("start")
+        or resource.get("issued")
+    )
+    try:
+        service_date = date.fromisoformat(eff[:10]) if eff else date.today()
+    except ValueError:
+        service_date = date.today()
+
+    if not code:
+        logger.warning("FHIR Observation has no code; skipping (id=%s)", resource.get("id"))
+        return
+
+    claim = Claim(
+        member_id=member.id,
+        claim_type="professional",
+        service_date=service_date,
+        procedure_code=code if (system and "loinc" not in (system or "").lower()) else None,
+        service_category="professional",
+        data_tier="signal",
+        is_estimated=False,
+        signal_source="fhir_observation",
+        extra={
+            "fhir_observation_id": resource.get("id"),
+            "code_system": system,
+            "code": code,
+            "display": display,
+            "value": value,
+            "status": resource.get("status"),
+        },
+    )
+    db.add(claim)
+    await db.flush()
+    logger.info(
+        "Stored FHIR Observation %s as signal claim for member %s (code=%s)",
+        resource.get("id"), member.member_id, code,
+    )
 
 
 async def _ingest_procedure(db: AsyncSession, resource: dict) -> None:
-    """Map FHIR Procedure to procedure codes — not yet implemented."""
-    logger.debug("FHIR Procedure ingestion not yet implemented (resource id=%s)", resource.get("id"))
+    """Map FHIR Procedure to a professional Claim with the procedure code.
+
+    A Procedure resource usually has a CPT/HCPCS code on the
+    ``code.coding`` array. We store it as a signal-tier professional claim
+    so downstream modules (utilization, avoidable-visit detection, HCC
+    engine) pick it up without a model change.
+    """
+    member = await _resolve_member_from_subject(db, resource)
+    if not member:
+        logger.warning(
+            "FHIR Procedure references unknown patient: %s (procedure id=%s)",
+            (resource.get("subject") or {}).get("reference"),
+            resource.get("id"),
+        )
+        return
+
+    system, code, display = _first_coding(resource.get("code"))
+    if not code:
+        logger.warning("FHIR Procedure has no extractable code (id=%s)", resource.get("id"))
+        return
+
+    # Performed date can be performedDateTime or performedPeriod.start
+    performed = (
+        resource.get("performedDateTime")
+        or (resource.get("performedPeriod") or {}).get("start")
+    )
+    try:
+        service_date = date.fromisoformat(performed[:10]) if performed else date.today()
+    except ValueError:
+        service_date = date.today()
+
+    # Optional linked diagnoses (Procedure.reasonCode coding). Clamp to
+    # 10 chars because Claim.diagnosis_codes is ARRAY(String(10)).
+    reason_codes: list[str] = []
+    for rc in resource.get("reasonCode") or []:
+        _, rcode, _ = _first_coding(rc)
+        if rcode and len(rcode) <= 10:
+            reason_codes.append(rcode)
+
+    claim = Claim(
+        member_id=member.id,
+        claim_type="professional",
+        service_date=service_date,
+        procedure_code=code[:10] if code else None,
+        diagnosis_codes=reason_codes or None,
+        service_category="professional",
+        data_tier="signal",
+        is_estimated=False,
+        signal_source="fhir_procedure",
+        extra={
+            "fhir_procedure_id": resource.get("id"),
+            "code_system": system,
+            "code": code,
+            "display": display,
+            "status": resource.get("status"),
+        },
+    )
+    db.add(claim)
+    await db.flush()
+    logger.info(
+        "Stored FHIR Procedure %s as signal claim for member %s (code=%s)",
+        resource.get("id"), member.member_id, code,
+    )

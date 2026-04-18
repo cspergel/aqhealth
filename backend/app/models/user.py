@@ -26,8 +26,8 @@ class User(Base, TimestampMixin):
     full_name: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20))
     tenant_id: Mapped[int | None] = mapped_column(
-        ForeignKey("platform.tenants.id"), nullable=True
-    )  # NULL for superadmin
+        ForeignKey("platform.tenants.id"), nullable=True, index=True
+    )  # NULL for superadmin — index supports login tenant resolution
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     mfa_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

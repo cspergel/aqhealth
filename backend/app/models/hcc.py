@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, Text, UniqueConstraint
+from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, Text, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
 
@@ -27,6 +27,18 @@ class SuspectType(str, enum.Enum):
 class HccSuspect(Base, TimestampMixin):
     """Individual suspect HCC for a member."""
     __tablename__ = "hcc_suspects"
+    __table_args__ = (
+        # Suspect lookups — the hot dedup path in hcc_engine._analyze_member
+        # filters by (member_id, payment_year, hcc_code, suspect_type, status).
+        # Keeping status as an included column lets the index cover the common
+        # (member_id, status, payment_year) dashboard pulls.
+        Index(
+            "ix_hcc_suspects_dedup",
+            "member_id", "payment_year", "hcc_code", "suspect_type", "status",
+        ),
+        # Fast "open suspects for this member" lookups (member detail page)
+        Index("ix_hcc_suspects_member_status_year", "member_id", "status", "payment_year"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[int] = mapped_column(ForeignKey("members.id"), index=True)

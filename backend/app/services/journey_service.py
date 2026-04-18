@@ -106,8 +106,13 @@ async def get_member_journey(
     cutoff = date.today() - timedelta(days=months * 30)
 
     # ---- 1. Member demographics ----
+    # Live members only — journey for a soft-deleted member is not shown in
+    # the live UI (audit/export paths may re-query without this filter).
     member_q = await db.execute(
-        select(Member).where(Member.id == member_id)
+        select(Member).where(
+            Member.id == member_id,
+            Member.deleted_at.is_(None),
+        )
     )
     member = member_q.scalar_one_or_none()
     if not member:
@@ -143,10 +148,14 @@ async def get_member_journey(
         "risk_tier": member.risk_tier if member.risk_tier else None,
     }
 
-    # ---- 2. Claims ----
+    # ---- 2. Claims (live only) ----
     claims_q = await db.execute(
         select(Claim).where(
-            and_(Claim.member_id == member_id, Claim.service_date >= cutoff)
+            and_(
+                Claim.member_id == member_id,
+                Claim.service_date >= cutoff,
+                Claim.deleted_at.is_(None),
+            )
         ).order_by(Claim.service_date.desc())
     )
     claims = claims_q.scalars().all()
@@ -169,12 +178,13 @@ async def get_member_journey(
 
     member_summary["total_spend_12m"] = total_spend
 
-    # ---- 3. HCC suspect events ----
+    # ---- 3. HCC suspect events (live only) ----
     suspects_q = await db.execute(
         select(HccSuspect).where(
             and_(
                 HccSuspect.member_id == member_id,
                 HccSuspect.identified_date >= cutoff,
+                HccSuspect.deleted_at.is_(None),
             )
         ).order_by(HccSuspect.identified_date.desc())
     )
@@ -210,11 +220,13 @@ async def get_member_journey(
     # ---- 4. Care gap events ----
     # Join MemberGap with GapMeasure to get the measure code (MemberGap only
     # has measure_id FK, not measure_code directly).
+    # Live gaps only — soft-deleted gaps are hidden from the journey view.
     gaps_q = await db.execute(
         select(MemberGap, GapMeasure.code).join(
             GapMeasure, MemberGap.measure_id == GapMeasure.id
         ).where(
-            MemberGap.member_id == member_id
+            MemberGap.member_id == member_id,
+            MemberGap.deleted_at.is_(None),
         )
     )
     gap_rows = gaps_q.all()
@@ -267,10 +279,13 @@ async def get_member_risk_trajectory(
     """
     cutoff = date.today() - timedelta(days=months * 30)
 
+    # Live RAF snapshots only — a retracted snapshot shouldn't reappear on
+    # the trajectory chart.
     history_q = await db.execute(
         select(RafHistory).where(
             RafHistory.member_id == member_id,
             RafHistory.calculation_date >= cutoff,
+            RafHistory.deleted_at.is_(None),
         ).order_by(RafHistory.calculation_date.asc())
     )
     rows = history_q.scalars().all()
@@ -281,9 +296,14 @@ async def get_member_risk_trajectory(
     # them. Pulling service_date + paid_amount and summing in Python works on
     # every backend.
     cost_by_month: dict[str, float] = {}
+    # Live claims only for the monthly cost bucket.
     claims_q = await db.execute(
         select(Claim.service_date, Claim.paid_amount).where(
-            and_(Claim.member_id == member_id, Claim.service_date >= cutoff)
+            and_(
+                Claim.member_id == member_id,
+                Claim.service_date >= cutoff,
+                Claim.deleted_at.is_(None),
+            )
         )
     )
     for service_date, paid_amount in claims_q.all():
@@ -301,6 +321,7 @@ async def get_member_risk_trajectory(
                 HccSuspect.status == SuspectStatus.captured.value,
                 HccSuspect.captured_date.is_not(None),
                 HccSuspect.captured_date >= cutoff,
+                HccSuspect.deleted_at.is_(None),
             )
         )
     )
@@ -315,6 +336,7 @@ async def get_member_risk_trajectory(
                 MemberGap.status == GapStatus.closed.value,
                 MemberGap.closed_date.is_not(None),
                 MemberGap.closed_date >= cutoff,
+                MemberGap.deleted_at.is_(None),
             )
         )
     )

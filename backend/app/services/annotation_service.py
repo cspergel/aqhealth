@@ -49,13 +49,18 @@ async def get_annotations(
     entity_type: str,
     entity_id: int,
 ) -> list[Annotation]:
-    """Get all notes for an entity, pinned first then by date desc."""
+    """Get all notes for an entity, pinned first then by date desc.
+
+    Excludes soft-deleted notes — those are retained for HIPAA §164.528
+    disclosure accounting but must not appear in the live UI.
+    """
     result = await db.execute(
         select(Annotation)
         .where(
             and_(
                 Annotation.entity_type == entity_type,
                 Annotation.entity_id == entity_id,
+                Annotation.deleted_at.is_(None),
             )
         )
         .order_by(
@@ -123,6 +128,7 @@ async def get_follow_ups_due(
 ) -> list[Annotation]:
     """Get all notes with follow-up dates approaching or past due for a user."""
     cutoff = date.today() + timedelta(days=7)
+    # Skip soft-deleted annotations — a deleted note shouldn't page anyone.
     result = await db.execute(
         select(Annotation)
         .where(
@@ -131,6 +137,7 @@ async def get_follow_ups_due(
                 Annotation.requires_follow_up == True,  # noqa: E712
                 Annotation.follow_up_completed == False,  # noqa: E712
                 Annotation.follow_up_date <= cutoff,
+                Annotation.deleted_at.is_(None),
             )
         )
         .order_by(Annotation.follow_up_date.asc())

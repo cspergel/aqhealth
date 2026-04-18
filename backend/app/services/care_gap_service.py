@@ -170,7 +170,10 @@ async def _get_eligible_members(
     year_end: date,
 ) -> list[Member]:
     """Determine the eligible population for a measure based on detection logic."""
+    # Eligibility excludes soft-deleted members — a retracted member must
+    # not be counted in measure denominators.
     query = select(Member).where(
+        Member.deleted_at.is_(None),
         Member.coverage_start <= year_end,
         (Member.coverage_end >= year_start) | (Member.coverage_end == None),  # noqa: E711
     )
@@ -203,6 +206,7 @@ async def _get_eligible_members(
                 Claim.member_id.in_(member_ids),
                 Claim.service_date >= date(year_start.year - 1, 1, 1),
                 Claim.service_date <= year_end,
+                Claim.deleted_at.is_(None),
             )
             .distinct()
         )
@@ -250,7 +254,7 @@ async def _detect_screening_gaps(
 
     member_ids = [m.id for m in members]
 
-    # Find members who HAVE the required service
+    # Find members who HAVE the required service — live claims only.
     compliant_query = (
         select(Claim.member_id)
         .where(
@@ -258,18 +262,22 @@ async def _detect_screening_gaps(
             Claim.procedure_code.in_(required_cpt),
             Claim.service_date >= lookback_start,
             Claim.service_date <= year_end,
+            Claim.deleted_at.is_(None),
         )
         .distinct()
     )
     compliant_result = await db.execute(compliant_query)
     compliant_ids = {row[0] for row in compliant_result.all()}
 
-    # Batch-fetch existing gaps for all eligible members to avoid N+1 queries
+    # Batch-fetch existing gaps for all eligible members to avoid N+1 queries.
+    # Filter out soft-deleted gap records — a deleted gap shouldn't block
+    # creation of a new one.
     existing_gaps_result = await db.execute(
         select(MemberGap).where(
             MemberGap.member_id.in_(member_ids),
             MemberGap.measure_id == measure.id,
             MemberGap.measurement_year == measurement_year,
+            MemberGap.deleted_at.is_(None),
         )
     )
     existing_gaps_by_member: dict[int, MemberGap] = {
@@ -322,7 +330,7 @@ async def _detect_medication_gaps(
     pdc_threshold = logic.get("pdc_threshold", 0.8)
     member_ids = [m.id for m in members]
 
-    # Get pharmacy claims for these members
+    # Get pharmacy claims for these members — live claims only.
     rx_query = (
         select(Claim)
         .where(
@@ -330,6 +338,7 @@ async def _detect_medication_gaps(
             Claim.claim_type == ClaimType.pharmacy,
             Claim.service_date >= year_start,
             Claim.service_date <= year_end,
+            Claim.deleted_at.is_(None),
         )
         .order_by(Claim.member_id, Claim.service_date)
     )
@@ -350,12 +359,14 @@ async def _detect_medication_gaps(
     if period_days <= 0:
         period_days = 365
 
-    # Batch-fetch existing gaps for all eligible members to avoid N+1 queries
+    # Batch-fetch existing gaps for all eligible members to avoid N+1 queries.
+    # Filter soft-deleted rows.
     existing_gaps_result = await db.execute(
         select(MemberGap).where(
             MemberGap.member_id.in_(member_ids),
             MemberGap.measure_id == measure.id,
             MemberGap.measurement_year == measurement_year,
+            MemberGap.deleted_at.is_(None),
         )
     )
     existing_gaps_by_member: dict[int, MemberGap] = {
@@ -436,10 +447,11 @@ async def _detect_followup_gaps(
     trigger_dx = logic.get("trigger_dx", [])
     trigger_event = logic.get("trigger_event", "")
 
-    # Find trigger events (e.g., inpatient discharges, ED visits)
+    # Find trigger events (e.g., inpatient discharges, ED visits) — live claims only.
     trigger_query = select(Claim).where(
         Claim.service_date >= year_start,
         Claim.service_date <= year_end,
+        Claim.deleted_at.is_(None),
     )
 
     if "inpatient" in trigger_event:
@@ -477,13 +489,14 @@ async def _detect_followup_gaps(
 
     all_member_ids = list(member_events.keys())
 
-    # Batch-fetch all follow-up claims for these members to avoid N+1
+    # Batch-fetch all follow-up claims for these members to avoid N+1 — live only.
     fu_result = await db.execute(
         select(Claim.member_id, Claim.service_date).where(
             Claim.member_id.in_(all_member_ids),
             Claim.procedure_code.in_(required_cpt),
             Claim.service_date >= year_start,
             Claim.service_date <= year_end,
+            Claim.deleted_at.is_(None),
         )
     )
     # Index follow-up claims by member for fast lookup
@@ -492,21 +505,25 @@ async def _detect_followup_gaps(
     for row in fu_result.all():
         followup_claims_by_member[row.member_id].append(row.service_date)
 
-    # Batch-fetch existing gaps for this measure and all members
+    # Batch-fetch existing gaps for this measure and all members — live only.
     existing_gaps_result = await db.execute(
         select(MemberGap).where(
             MemberGap.member_id.in_(all_member_ids),
             MemberGap.measure_id == measure.id,
             MemberGap.measurement_year == measurement_year,
+            MemberGap.deleted_at.is_(None),
         )
     )
     existing_gaps_by_key: dict[tuple[int, date], MemberGap] = {}
     for g in existing_gaps_result.scalars().all():
         existing_gaps_by_key[(g.member_id, g.due_date)] = g
 
-    # Batch-fetch member PCP info for gap creation
+    # Batch-fetch member PCP info for gap creation — live members only.
     member_pcp_result = await db.execute(
-        select(Member.id, Member.pcp_provider_id).where(Member.id.in_(all_member_ids))
+        select(Member.id, Member.pcp_provider_id).where(
+            Member.id.in_(all_member_ids),
+            Member.deleted_at.is_(None),
+        )
     )
     member_pcp_map: dict[int, int | None] = {r.id: r.pcp_provider_id for r in member_pcp_result.all()}
 
@@ -568,7 +585,9 @@ async def get_gap_population_summary(db: AsyncSession) -> list[dict[str, Any]]:
     """
     measurement_year = date.today().year
 
-    # Single query: join measures with gap counts grouped by measure
+    # Single query: join measures with gap counts grouped by measure.
+    # The outer-join predicate excludes soft-deleted rows so they don't
+    # inflate/change closure rates.
     result = await db.execute(
         select(
             GapMeasure,
@@ -581,6 +600,7 @@ async def get_gap_population_summary(db: AsyncSession) -> list[dict[str, Any]]:
             and_(
                 MemberGap.measure_id == GapMeasure.id,
                 MemberGap.measurement_year == measurement_year,
+                MemberGap.deleted_at.is_(None),
             ),
         )
         .where(GapMeasure.is_active.is_(True))
@@ -635,10 +655,14 @@ async def get_gap_population_summary(db: AsyncSession) -> list[dict[str, Any]]:
 
 async def get_member_gaps(db: AsyncSession, member_id: int) -> list[dict[str, Any]]:
     """All gaps for a specific member with measure details and learned recommendations."""
+    # Live gaps only — deleted rows must not appear on the member detail view.
     result = await db.execute(
         select(MemberGap, GapMeasure)
         .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
-        .where(MemberGap.member_id == member_id)
+        .where(
+            MemberGap.member_id == member_id,
+            MemberGap.deleted_at.is_(None),
+        )
         .order_by(MemberGap.status, GapMeasure.code)
     )
 
@@ -679,7 +703,7 @@ async def get_member_gaps(db: AsyncSession, member_id: int) -> list[dict[str, An
 
 
 async def get_provider_gaps(db: AsyncSession, provider_id: int) -> dict[str, Any]:
-    """Gaps aggregated by provider panel."""
+    """Gaps aggregated by provider panel — live gaps only."""
     result = await db.execute(
         select(
             GapMeasure.code,
@@ -688,7 +712,10 @@ async def get_provider_gaps(db: AsyncSession, provider_id: int) -> dict[str, Any
             func.count(MemberGap.id),
         )
         .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
-        .where(MemberGap.responsible_provider_id == provider_id)
+        .where(
+            MemberGap.responsible_provider_id == provider_id,
+            MemberGap.deleted_at.is_(None),
+        )
         .group_by(GapMeasure.code, GapMeasure.name, MemberGap.status)
     )
 
@@ -820,7 +847,8 @@ async def _auto_create_actions_for_critical_gaps(
     """
     from app.models.action import ActionItem
 
-    # Find open gaps on measures with stars_weight >= 3
+    # Find open gaps on measures with stars_weight >= 3 — live gap + live
+    # member only.
     result = await db.execute(
         select(MemberGap, GapMeasure, Member)
         .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
@@ -829,6 +857,8 @@ async def _auto_create_actions_for_critical_gaps(
             MemberGap.status == GapStatus.open.value,
             MemberGap.measurement_year == measurement_year,
             GapMeasure.stars_weight >= 3,
+            MemberGap.deleted_at.is_(None),
+            Member.deleted_at.is_(None),
         )
     )
     rows = result.all()
@@ -844,6 +874,7 @@ async def _auto_create_actions_for_critical_gaps(
             ActionItem.source_type == "care_gap",
             ActionItem.member_id.in_(all_member_ids),
             ActionItem.status.in_(["open", "in_progress"]),
+            ActionItem.deleted_at.is_(None),
         )
     )
     # Build set of (member_id, measure_code) that already have action items
@@ -926,7 +957,7 @@ async def learn_gap_closure(db: AsyncSession, gap_id: int) -> None:
     provider_id = gap.responsible_provider_id
 
     if candidate_cpts:
-        # Find matching claim with one of the expected procedure codes
+        # Find matching claim with one of the expected procedure codes — live only.
         claim_result = await db.execute(
             select(Claim)
             .where(
@@ -934,6 +965,7 @@ async def learn_gap_closure(db: AsyncSession, gap_id: int) -> None:
                 Claim.procedure_code.in_(candidate_cpts),
                 Claim.service_date >= lookback,
                 Claim.service_date <= closed_dt,
+                Claim.deleted_at.is_(None),
             )
             .order_by(Claim.service_date.desc())
             .limit(1)
@@ -944,13 +976,14 @@ async def learn_gap_closure(db: AsyncSession, gap_id: int) -> None:
             if claim.provider_id:
                 provider_id = claim.provider_id
     else:
-        # No specific CPT expected — grab most recent professional claim
+        # No specific CPT expected — grab most recent professional claim (live only).
         claim_result = await db.execute(
             select(Claim)
             .where(
                 Claim.member_id == gap.member_id,
                 Claim.service_date >= lookback,
                 Claim.service_date <= closed_dt,
+                Claim.deleted_at.is_(None),
             )
             .order_by(Claim.service_date.desc())
             .limit(1)

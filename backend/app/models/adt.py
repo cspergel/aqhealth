@@ -8,7 +8,7 @@ health plan SFTPs, HL7 feeds) and generates care management alerts.
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,8 +31,28 @@ class ADTSource(Base, TimestampMixin):
 class ADTEvent(Base, TimestampMixin):
     """Individual ADT event -- admit, discharge, transfer, ER visit."""
     __tablename__ = "adt_events"
+    __table_args__ = (
+        # Member ADT timeline ORDER BY event_timestamp DESC — the hot path in
+        # patient_context and member-detail ADT panels.
+        Index("ix_adt_events_member_ts", "member_id", "event_timestamp"),
+        # FK to source — indexed for cascade integrity
+        Index("ix_adt_events_source_id", "source_id"),
+        # Dedup incoming HL7: raw_message_id must be unique where present.
+        # Defined as a partial unique index at the DB level in migration
+        # 0004 (WHERE raw_message_id IS NOT NULL). The ORM Index uses
+        # `postgresql_where` so autogen diffs match the migration shape.
+        Index(
+            "uq_adt_events_raw_message_id",
+            "raw_message_id",
+            unique=True,
+            postgresql_where=text("raw_message_id IS NOT NULL"),
+        ),
+        # FK on actual_claim_id to support reconciliation joins
+        Index("ix_adt_events_actual_claim_id", "actual_claim_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # FK indexed via ix_adt_events_source_id in __table_args__
     source_id: Mapped[int] = mapped_column(ForeignKey("adt_sources.id"))
     event_type: Mapped[str] = mapped_column(String(50), index=True)  # "admit", "discharge", "transfer", "ed_visit", "observation"
     event_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
@@ -91,8 +111,18 @@ class ADTEvent(Base, TimestampMixin):
 class CareAlert(Base, TimestampMixin):
     """Alert generated from an ADT event for care management."""
     __tablename__ = "care_alerts"
+    __table_args__ = (
+        # Member-scoped alert feed (member detail + caseload views) — "most
+        # recent alerts" on member page needs (member_id, created_at DESC).
+        Index("ix_care_alerts_member_created", "member_id", "created_at"),
+        # Dashboard "unacked alerts" + triage queues — filter by status/severity/priority
+        Index("ix_care_alerts_status_priority", "status", "priority"),
+        # FK indexes for cascading/joining back to ADT event
+        Index("ix_care_alerts_adt_event_id", "adt_event_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # FK indexed via ix_care_alerts_adt_event_id in __table_args__
     adt_event_id: Mapped[int] = mapped_column(ForeignKey("adt_events.id"))
     member_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True)
 

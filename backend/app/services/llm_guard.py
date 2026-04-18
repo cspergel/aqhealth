@@ -1,11 +1,12 @@
 """
-LLM Guard -- tenant isolation and output validation for AI calls.
+LLM Guard -- tenant isolation, output validation, and cost caps for AI calls.
 
 Most LLM interactions go through guarded_llm_call() which:
 1. Verifies all input data belongs to the same tenant
 2. Adds safety instructions to the prompt
-3. Validates output doesn't reference other tenants
-4. Logs the interaction for audit
+3. Enforces a per-tenant daily token budget (cost cap)
+4. Validates output doesn't reference other tenants
+5. Logs the interaction for audit
 
 KNOWN BYPASS PATHS (intentional, scoped, audited):
 
@@ -26,9 +27,134 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from fastapi import HTTPException
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Per-tenant daily token budget (cost cap)
+# ---------------------------------------------------------------------------
+#
+# We track usage in Redis when it's reachable (preferred — the counters are
+# hot on multi-worker deployments and Redis INCR is atomic) and fall back to
+# an in-process dict when Redis isn't configured. The in-process fallback is
+# best-effort only — acceptable for dev and single-worker test runs where
+# budget enforcement is informative rather than a security boundary.
+
+
+# In-process fallback store. Keys are {tenant}:{YYYY-MM-DD}, values are
+# ints (tokens used today). Reset naturally because dates change.
+_process_usage: dict[str, int] = {}
+
+
+def _budget_key(tenant_schema: str) -> str:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return f"claude_usage:{tenant_schema}:{today}"
+
+
+async def _get_redis():
+    """Return an async Redis client, or None if Redis isn't configured /
+    reachable. We import locally so the module doesn't hard-depend on redis
+    at import time for tests that stub it out."""
+    try:
+        import redis.asyncio as redis_async  # type: ignore
+
+        client = redis_async.from_url(settings.redis_url, decode_responses=True)
+        # Ping is cheap — if it fails, fall back to the in-process counter.
+        await client.ping()
+        return client
+    except Exception:
+        return None
+
+
+async def _get_tenant_usage(tenant_schema: str) -> int:
+    """Current day's token usage for ``tenant_schema`` (int, 0 on miss)."""
+    key = _budget_key(tenant_schema)
+    redis_client = await _get_redis()
+    if redis_client is not None:
+        try:
+            raw = await redis_client.get(key)
+            return int(raw) if raw is not None else 0
+        except Exception:
+            pass  # fall through to in-process
+        finally:
+            try:
+                await redis_client.close()
+            except Exception:
+                pass
+    return _process_usage.get(key, 0)
+
+
+async def _increment_tenant_usage(tenant_schema: str, tokens: int) -> int:
+    """Atomically add ``tokens`` to the tenant's day counter and return the
+    new total. Sets a TTL of ~48h so stale keys don't linger."""
+    if tokens <= 0:
+        return await _get_tenant_usage(tenant_schema)
+
+    key = _budget_key(tenant_schema)
+    redis_client = await _get_redis()
+    if redis_client is not None:
+        try:
+            # INCRBY returns the new value; EXPIRE is idempotent.
+            new_total = await redis_client.incrby(key, tokens)
+            await redis_client.expire(key, 48 * 60 * 60)
+            return int(new_total)
+        except Exception:
+            pass
+        finally:
+            try:
+                await redis_client.close()
+            except Exception:
+                pass
+
+    # In-process fallback
+    _process_usage[key] = _process_usage.get(key, 0) + tokens
+    return _process_usage[key]
+
+
+async def check_tenant_budget(tenant_schema: str) -> None:
+    """Raise HTTPException(429) if ``tenant_schema`` has exhausted its daily
+    Claude budget. Called at the start of every guarded_llm_call."""
+    budget = settings.anthropic_daily_token_budget_per_tenant
+    if budget <= 0:
+        return  # disabled
+
+    used = await _get_tenant_usage(tenant_schema)
+    if used >= budget:
+        logger.error(
+            "Daily AI budget exhausted | tenant=%s used=%d budget=%d",
+            tenant_schema, used, budget,
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Daily AI budget exhausted",
+        )
+
+
+async def _record_usage_and_warn(tenant_schema: str, tokens: int) -> None:
+    """Increment the tenant's day counter and emit a structured warning when
+    usage crosses 80% so ops can alert/monitor."""
+    budget = settings.anthropic_daily_token_budget_per_tenant
+    if tokens <= 0 or budget <= 0:
+        return
+
+    new_total = await _increment_tenant_usage(tenant_schema, tokens)
+    pct = (new_total / budget) * 100 if budget > 0 else 0
+    if new_total >= budget:
+        logger.error(
+            "Daily AI budget consumed | tenant=%s used=%d budget=%d pct=%.1f",
+            tenant_schema, new_total, budget, pct,
+        )
+    elif pct >= 80.0:
+        # Structured log line — ops dashboards should alert on this.
+        logger.warning(
+            "Claude daily budget nearing limit | tenant=%s used=%d budget=%d pct=%.1f",
+            tenant_schema, new_total, budget, pct,
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tenant-isolated LLM call
@@ -43,9 +169,11 @@ async def guarded_llm_call(
 ) -> dict:
     """Make a tenant-isolated LLM call with output validation.
 
-    Injects tenant isolation instructions, adds data provenance metadata,
-    calls the LLM (Anthropic first, httpx fallback), validates the output,
-    and returns a structured result dict.
+    Enforces the per-tenant daily token budget (``check_tenant_budget`` is
+    called before the LLM request, and the response tokens are booked into
+    the running counter on success). Injects tenant isolation instructions,
+    adds data provenance metadata, calls the LLM (Anthropic first, httpx
+    fallback), validates the output, and returns a structured result dict.
 
     Parameters
     ----------
@@ -65,7 +193,15 @@ async def guarded_llm_call(
     Returns
     -------
     dict with keys: response, tenant, tokens_used, validated, warnings
+
+    Raises
+    ------
+    HTTPException(429)
+        The tenant has exhausted its daily Claude budget.
     """
+
+    # 0. Daily budget gate — raises 429 if exhausted.
+    await check_tenant_budget(tenant_schema)
 
     # 1. Inject tenant isolation instructions into system prompt
     safety_prefix = (
@@ -118,6 +254,13 @@ async def guarded_llm_call(
                 "validated": False,
                 "warnings": [f"LLM call failed: {http_err}"],
             }
+
+    # 3b. Book consumed tokens against the tenant's daily budget.
+    # Done AFTER the successful call so failed/aborted attempts don't count.
+    try:
+        await _record_usage_and_warn(tenant_schema, token_count)
+    except Exception:
+        logger.exception("Failed to record Claude token usage for tenant %s", tenant_schema)
 
     # 4. Validate output
     validation = validate_llm_output(response_text, enriched, tenant_schema)

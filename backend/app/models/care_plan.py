@@ -26,7 +26,7 @@ class CarePlanGoal(Base, TimestampMixin):
     __tablename__ = "care_plan_goals"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    care_plan_id: Mapped[int] = mapped_column(ForeignKey("care_plans.id"))
+    care_plan_id: Mapped[int] = mapped_column(ForeignKey("care_plans.id"), index=True)
     description: Mapped[str] = mapped_column(Text)  # "Reduce A1c below 8%"
     target_metric: Mapped[str | None] = mapped_column(String(50))  # "hba1c", "bmi", "bp_systolic", "er_visits"
     target_value: Mapped[str | None] = mapped_column(String(50))  # "<8.0", "<30", "<140"
@@ -40,7 +40,7 @@ class CarePlanIntervention(Base, TimestampMixin):
     __tablename__ = "care_plan_interventions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    goal_id: Mapped[int] = mapped_column(ForeignKey("care_plan_goals.id"))
+    goal_id: Mapped[int] = mapped_column(ForeignKey("care_plan_goals.id"), index=True)
     description: Mapped[str] = mapped_column(Text)  # "Refer to endocrinology"
     intervention_type: Mapped[str] = mapped_column(String(50))  # "referral", "medication", "education", "screening", "outreach", "follow_up"
     assigned_to: Mapped[str | None] = mapped_column(String(200))

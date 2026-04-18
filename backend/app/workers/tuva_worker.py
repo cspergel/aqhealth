@@ -50,17 +50,27 @@ async def tuva_pipeline_job(ctx: dict, tenant_schema: str) -> dict[str, Any]:
         export_service.close()
 
     # ── Phase 2: dbt seed (terminology tables) ───────────────────────────
+    # Pass tenant_schema through to the runner so DBT_DUCKDB_PATH points at
+    # the tenant's DuckDB file — otherwise dbt would write into the shared
+    # warehouse and the sync read below (which uses ``duckdb_path``) would
+    # see stale data.
     runner = TuvaRunnerService()
 
-    seed_result = runner.run_seeds()
-    results["phases"]["seed"] = {"success": seed_result["success"]}
+    seed_result = runner.run_seeds(tenant_schema=tenant_schema)
+    results["phases"]["seed"] = {
+        "success": seed_result["success"],
+        "duckdb_path": seed_result.get("duckdb_path"),
+    }
     if not seed_result["success"]:
         logger.error("dbt seed failed: %s", seed_result.get("stderr", ""))
         return {"success": False, **results}
 
     # ── Phase 3: dbt run (Tuva models) ───────────────────────────────────
-    build_result = runner.run_models()
-    results["phases"]["build"] = {"success": build_result["success"]}
+    build_result = runner.run_models(tenant_schema=tenant_schema)
+    results["phases"]["build"] = {
+        "success": build_result["success"],
+        "duckdb_path": build_result.get("duckdb_path"),
+    }
     if not build_result["success"]:
         logger.error("dbt run failed: %s", build_result.get("stderr", ""))
         return {"success": False, **results}

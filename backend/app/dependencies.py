@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import set_request_context
 from app.database import get_session, get_tenant_session
-from app.services.auth_service import decode_token
+from app.services.auth_service import decode_token, is_token_revoked
 from app.models.user import User, UserRole
 
 security = HTTPBearer()
@@ -29,6 +29,14 @@ async def get_current_user(
         payload = decode_token(credentials.credentials)
         if payload.get("type") != "access":
             raise HTTPException(status_code=401, detail="Invalid token type")
+
+        # Per-token revocation check (logout / forced-expiry). Tokens issued
+        # before the jti change won't have a jti — is_token_revoked returns
+        # False in that case so pre-existing sessions keep working until
+        # their natural expiry.
+        jti = payload.get("jti")
+        if jti and await is_token_revoked(jti, session):
+            raise HTTPException(status_code=401, detail="Token has been revoked")
 
         user_id = int(payload["sub"])
 

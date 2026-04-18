@@ -15,3 +15,13 @@ sources:
         description: "Member-to-PCP attribution from AQSoft"
       - name: lab_result
         description: "Lab results and observations from eCW/EMR integration"
+      - name: condition
+        description: "Member conditions derived from ICD-10 codes on claims"
+      - name: encounter
+        description: "Encounters derived from claim headers (one per claim)"
+      - name: medication
+        description: "Dispensed medications derived from pharmacy claims"
+      - name: procedure
+        description: "Procedures derived from HCPCS/CPT codes on claims"
+      - name: observation
+        description: "Observations (vitals, social history) from eCW / signal-tier claims"

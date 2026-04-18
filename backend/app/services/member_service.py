@@ -53,11 +53,14 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
     twelve_months_ago = today - timedelta(days=365)
 
     # Subquery: days since last visit (MAX service_date per member)
+    # Soft-delete filters: every sub-agg must skip soft-deleted rows so a
+    # retracted claim doesn't inflate spend / visit counts.
     last_visit_sq = (
         select(
             Claim.member_id.label("member_id"),
             func.max(Claim.service_date).label("last_visit_date"),
         )
+        .where(Claim.deleted_at.is_(None))
         .group_by(Claim.member_id)
         .subquery("last_visit_sq")
     )
@@ -68,7 +71,7 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
             HccSuspect.member_id.label("member_id"),
             func.count(HccSuspect.id).label("suspect_count"),
         )
-        .where(HccSuspect.status == "open")
+        .where(HccSuspect.status == "open", HccSuspect.deleted_at.is_(None))
         .group_by(HccSuspect.member_id)
         .subquery("suspect_sq")
     )
@@ -79,7 +82,7 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
             MemberGap.member_id.label("member_id"),
             func.count(MemberGap.id).label("gap_count"),
         )
-        .where(MemberGap.status == "open")
+        .where(MemberGap.status == "open", MemberGap.deleted_at.is_(None))
         .group_by(MemberGap.member_id)
         .subquery("gap_sq")
     )
@@ -93,6 +96,7 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
         .where(
             Claim.service_category == "ed_observation",
             Claim.service_date >= twelve_months_ago,
+            Claim.deleted_at.is_(None),
         )
         .group_by(Claim.member_id)
         .subquery("er_sq")
@@ -107,6 +111,7 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
         .where(
             Claim.service_category == "inpatient",
             Claim.service_date >= twelve_months_ago,
+            Claim.deleted_at.is_(None),
         )
         .group_by(Claim.member_id)
         .subquery("admit_sq")
@@ -118,7 +123,10 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
             Claim.member_id.label("member_id"),
             func.coalesce(func.sum(Claim.paid_amount), 0).label("total_spend_12mo"),
         )
-        .where(Claim.service_date >= twelve_months_ago)
+        .where(
+            Claim.service_date >= twelve_months_ago,
+            Claim.deleted_at.is_(None),
+        )
         .group_by(Claim.member_id)
         .subquery("spend_sq")
     )
@@ -177,7 +185,10 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
     )
 
     # Apply filters
-    conditions = []
+    # Soft-delete filter on the primary Member table — excludes rows where
+    # the member has been marked deleted_at by an admin (HIPAA disclosure
+    # accounting retains the row but hides it from live views).
+    conditions = [Member.deleted_at.is_(None)]
 
     if filters.get("raf_min") is not None:
         conditions.append(Member.current_raf >= filters["raf_min"])
@@ -322,9 +333,13 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
 async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
     """Return full member detail including demographics, RAF, suspects, gaps, claims."""
 
-    # Find member by member_id string
+    # Find member by member_id string — exclude soft-deleted members from
+    # the detail view. Audit/export paths re-query without this filter.
     result = await db.execute(
-        select(Member).where(Member.member_id == member_id)
+        select(Member).where(
+            Member.member_id == member_id,
+            Member.deleted_at.is_(None),
+        )
     )
     member = result.scalar_one_or_none()
     if not member:
@@ -340,10 +355,10 @@ async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
         if pcp:
             pcp_name = f"Dr. {pcp.first_name or ''} {pcp.last_name or ''}".strip()
 
-    # Get recent claims
+    # Get recent claims (live claims only)
     claims_result = await db.execute(
         select(Claim)
-        .where(Claim.member_id == member.id)
+        .where(Claim.member_id == member.id, Claim.deleted_at.is_(None))
         .order_by(Claim.service_date.desc())
         .limit(20)
     )
@@ -359,10 +374,14 @@ async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
             "diagnoses": c.diagnosis_codes or [],
         })
 
-    # Get open suspects
+    # Get open suspects (live only)
     suspects_result = await db.execute(
         select(HccSuspect)
-        .where(HccSuspect.member_id == member.id, HccSuspect.status == "open")
+        .where(
+            HccSuspect.member_id == member.id,
+            HccSuspect.status == "open",
+            HccSuspect.deleted_at.is_(None),
+        )
     )
     suspects = suspects_result.scalars().all()
     suspect_list = [
@@ -376,10 +395,14 @@ async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
         for s in suspects
     ]
 
-    # Get open gaps
+    # Get open gaps (live only)
     gaps_result = await db.execute(
         select(MemberGap)
-        .where(MemberGap.member_id == member.id, MemberGap.status == "open")
+        .where(
+            MemberGap.member_id == member.id,
+            MemberGap.status == "open",
+            MemberGap.deleted_at.is_(None),
+        )
     )
     gaps = gaps_result.scalars().all()
     gap_list = [
@@ -441,11 +464,14 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
     twelve_months_ago = today - timedelta(days=365)
 
     # --- Subqueries (must mirror get_member_list so the filter semantics match) ---
+    # Soft-delete filters: every sub-agg skips deleted rows so stats never
+    # drift from the list.
     last_visit_sq = (
         select(
             Claim.member_id.label("member_id"),
             func.max(Claim.service_date).label("last_visit_date"),
         )
+        .where(Claim.deleted_at.is_(None))
         .group_by(Claim.member_id)
         .subquery("last_visit_sq")
     )
@@ -454,7 +480,7 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
             HccSuspect.member_id.label("member_id"),
             func.count(HccSuspect.id).label("suspect_count"),
         )
-        .where(HccSuspect.status == "open")
+        .where(HccSuspect.status == "open", HccSuspect.deleted_at.is_(None))
         .group_by(HccSuspect.member_id)
         .subquery("suspect_sq")
     )
@@ -463,7 +489,7 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
             MemberGap.member_id.label("member_id"),
             func.count(MemberGap.id).label("gap_count"),
         )
-        .where(MemberGap.status == "open")
+        .where(MemberGap.status == "open", MemberGap.deleted_at.is_(None))
         .group_by(MemberGap.member_id)
         .subquery("gap_sq")
     )
@@ -475,6 +501,7 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
         .where(
             Claim.service_category == "ed_observation",
             Claim.service_date >= twelve_months_ago,
+            Claim.deleted_at.is_(None),
         )
         .group_by(Claim.member_id)
         .subquery("er_sq")
@@ -487,6 +514,7 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
         .where(
             Claim.service_category == "inpatient",
             Claim.service_date >= twelve_months_ago,
+            Claim.deleted_at.is_(None),
         )
         .group_by(Claim.member_id)
         .subquery("admit_sq")
@@ -516,7 +544,9 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
     )
 
     # Member-level conditions (same as get_member_list)
-    conditions = []
+    # Exclude soft-deleted members from the aggregate stats — these numbers
+    # feed the "Members matching filter" tile and must match get_member_list.
+    conditions = [Member.deleted_at.is_(None)]
     if filters.get("raf_min") is not None:
         conditions.append(Member.current_raf >= filters["raf_min"])
     if filters.get("raf_max") is not None:

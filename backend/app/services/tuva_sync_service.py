@@ -26,8 +26,18 @@ PMPM_DISCREPANCY_PCT_THRESHOLD = Decimal("5.0")
 class TuvaSyncService:
     """Syncs Tuva outputs back to PostgreSQL with discrepancy tracking."""
 
-    def __init__(self, duckdb_path: str):
+    def __init__(self, duckdb_path: str | None = None, tenant_schema: str | None = None):
+        """Either pass an explicit ``duckdb_path`` (legacy) or a
+        ``tenant_schema`` and let the service resolve the per-tenant file.
+
+        ``None`` / ``"platform"`` tenant resolves to the shared warehouse
+        DB so single-DB deployments keep working.
+        """
+        if duckdb_path is None:
+            from app.services.tuva_export_service import get_duckdb_path
+            duckdb_path = get_duckdb_path(tenant_schema)
         self.duckdb_path = duckdb_path
+        self.tenant_schema = tenant_schema
 
     def _try_query(self, con: duckdb.DuckDBPyConnection, *queries: str) -> tuple[list[tuple], list[str]] | None:
         """Try each query form in order; return (rows, columns) from the first

@@ -53,7 +53,7 @@ class AlertRuleTrigger(Base, TimestampMixin):
     __tablename__ = "alert_rule_triggers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    rule_id: Mapped[int] = mapped_column(ForeignKey("alert_rules.id"))
+    rule_id: Mapped[int] = mapped_column(ForeignKey("alert_rules.id"), index=True)
 
     entity_type: Mapped[str] = mapped_column(String(50))
     entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

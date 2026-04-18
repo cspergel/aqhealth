@@ -59,7 +59,7 @@ class SkillExecution(Base, TimestampMixin):
     __tablename__ = "skill_executions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    skill_id: Mapped[int] = mapped_column(ForeignKey("skills.id"))
+    skill_id: Mapped[int] = mapped_column(ForeignKey("skills.id"), index=True)
     triggered_by: Mapped[str] = mapped_column(String(30))  # "manual", "schedule", "event", "condition"
     status: Mapped[str] = mapped_column(String(20), default="running")  # "running", "completed", "failed", "cancelled"
 

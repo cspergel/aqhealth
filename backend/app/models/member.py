@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric
+from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -17,6 +17,12 @@ class RiskTier(str, enum.Enum):
 class Member(Base, TimestampMixin):
     """Attributed member within an MSO's population."""
     __tablename__ = "members"
+    __table_args__ = (
+        # Panel sort: member list ordered by RAF descending (dashboard + panel views)
+        Index("ix_members_current_raf", "current_raf"),
+        # Provider panel lookups — every scorecard refresh groups by pcp_provider_id
+        Index("ix_members_pcp_provider_id", "pcp_provider_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     member_id: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # Health plan member ID
@@ -33,6 +39,7 @@ class Member(Base, TimestampMixin):
     coverage_end: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Attribution
+    # FK indexed via ix_members_pcp_provider_id in __table_args__
     pcp_provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
 
     # Demographics for RAF calculation

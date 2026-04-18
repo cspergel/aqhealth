@@ -40,8 +40,8 @@ class ActionItem(Base, TimestampMixin):
     completed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Affected entities
-    member_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True)
-    provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
+    member_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), nullable=True, index=True)
+    provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True, index=True)
     group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Outcome tracking

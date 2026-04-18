@@ -37,7 +37,7 @@ class GeneratedReport(Base, TimestampMixin):
     __tablename__ = "generated_reports"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    template_id: Mapped[int] = mapped_column(ForeignKey("report_templates.id"))
+    template_id: Mapped[int] = mapped_column(ForeignKey("report_templates.id"), index=True)
 
     title: Mapped[str] = mapped_column(String(500))
     period: Mapped[str] = mapped_column(String(100))  # "Q1 2026", "March 2026", etc.

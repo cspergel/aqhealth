@@ -19,6 +19,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
+from collections import defaultdict
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -287,9 +289,15 @@ async def _get_member_claims(
     years_back: int = 3,
 ) -> list[Claim]:
     cutoff = date.today() - timedelta(days=365 * years_back)
+    # Live claims only — soft-deleted rows must not influence HCC analysis
+    # (recapture / drop-off / RAF).
     result = await db.execute(
         select(Claim)
-        .where(Claim.member_id == member_pk, Claim.service_date >= cutoff)
+        .where(
+            Claim.member_id == member_pk,
+            Claim.service_date >= cutoff,
+            Claim.deleted_at.is_(None),
+        )
         .order_by(Claim.service_date.desc())
     )
     return list(result.scalars().all())
@@ -641,19 +649,27 @@ async def _detect_recapture_gaps(
     member_id: int,
     current_year_codes: set[str],
     db: AsyncSession,
+    prior_suspects: list[HccSuspect] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Find prior-year captured HCCs that have not been recaptured this year.
+
+    If ``prior_suspects`` is provided (population batch path), the DB round-trip
+    is skipped.
     """
     prior_year = get_current_payment_year() - 1
-    result = await db.execute(
-        select(HccSuspect).where(
-            HccSuspect.member_id == member_id,
-            HccSuspect.payment_year == prior_year,
-            HccSuspect.status == SuspectStatus.captured.value,
+    if prior_suspects is None:
+        # Live suspects only — deleted prior-year captures shouldn't
+        # re-spawn recapture gaps.
+        result = await db.execute(
+            select(HccSuspect).where(
+                HccSuspect.member_id == member_id,
+                HccSuspect.payment_year == prior_year,
+                HccSuspect.status == SuspectStatus.captured.value,
+                HccSuspect.deleted_at.is_(None),
+            )
         )
-    )
-    prior_suspects = result.scalars().all()
+        prior_suspects = list(result.scalars().all())
 
     gaps: list[dict[str, Any]] = []
 
@@ -906,6 +922,7 @@ async def analyze_member(
     member_id: int,
     db: AsyncSession,
     snf_client: SNFClient,
+    preloaded: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Run full HCC suspect analysis for a single member.
@@ -913,11 +930,24 @@ async def analyze_member(
     Gathers claims, detects gaps, calculates RAF, creates/updates suspect
     records and RAF history snapshot, and updates the member's computed fields.
 
+    ``preloaded`` (population-batch path) may supply any of:
+      - ``member``: the already-fetched Member row
+      - ``claims``: pre-fetched list of Claim rows for this member
+      - ``provider_patterns``: pre-computed provider capture patterns
+      - ``prior_captured_suspects``: list of last-year captured HccSuspect rows
+      - ``existing_open_suspects``: dict keyed by (hcc_code, suspect_type)
+        containing the existing open HccSuspect row (current payment year)
+    so analyze_member can skip ALL per-member SELECTs.
+
     Returns:
         {suspects_found, raf_current, raf_projected, uplift}
     """
+    preloaded = preloaded or {}
+
     # ---- load member ----
-    member = await db.get(Member, member_id)
+    member = preloaded.get("member")
+    if member is None:
+        member = await db.get(Member, member_id)
     if not member:
         logger.warning("Member %d not found", member_id)
         return {"suspects_found": 0, "raf_current": 0.0, "raf_projected": 0.0, "uplift": 0.0}
@@ -926,7 +956,9 @@ async def analyze_member(
 
     # ---- self-learning: load provider capture patterns ----
     provider_patterns: dict[str, dict[str, Any]] = {}
-    if member.pcp_provider_id:
+    if "provider_patterns" in preloaded:
+        provider_patterns = preloaded["provider_patterns"] or {}
+    elif member.pcp_provider_id:
         try:
             provider_patterns = await _get_provider_capture_patterns(db, member.pcp_provider_id)
         except Exception:
@@ -945,7 +977,10 @@ async def analyze_member(
         pass  # county rate service not available — use default
 
     # ---- gather claims ----
-    claims = await _get_member_claims(member_id, db)
+    if "claims" in preloaded:
+        claims = preloaded["claims"]
+    else:
+        claims = await _get_member_claims(member_id, db)
     all_dx_codes = _extract_diagnosis_codes(claims)
     current_year_codes = _extract_current_year_codes(claims)
     medications = _extract_medications(claims)
@@ -1029,7 +1064,10 @@ async def analyze_member(
                 })
 
     # ---- recapture gaps (always local) ----
-    suspects.extend(await _detect_recapture_gaps(member_id, current_year_codes, db))
+    suspects.extend(await _detect_recapture_gaps(
+        member_id, current_year_codes, db,
+        prior_suspects=preloaded.get("prior_captured_suspects"),
+    ))
 
     # ---- historical drop-offs (always local) ----
     suspects.extend(_detect_historical_dropoffs(yearly_codes, current_year_codes))
@@ -1166,22 +1204,39 @@ async def analyze_member(
     today = date.today()
     suspects_created = 0
 
+    # Population-batch path passes in all existing open suspects for this
+    # member keyed by (hcc_code, suspect_type_str) so the per-suspect dedup
+    # SELECT (which was the big N+1 amplifier — ~25 queries per member) can
+    # be resolved entirely in memory.
+    preloaded_existing = preloaded.get("existing_open_suspects")
+
     for s in suspects:
         hcc_code = s.get("hcc_code", 0)
         if not hcc_code or hcc_code <= 0:
             continue
 
-        # Deduplicate: check for existing open suspect with same key
-        existing = await db.execute(
-            select(HccSuspect).where(
-                HccSuspect.member_id == member_id,
-                HccSuspect.hcc_code == hcc_code,
-                HccSuspect.suspect_type == s["suspect_type"],
-                HccSuspect.payment_year == get_current_payment_year(),
-                HccSuspect.status == SuspectStatus.open.value,
-            )
+        suspect_type_val = (
+            s["suspect_type"].value
+            if hasattr(s["suspect_type"], "value")
+            else s["suspect_type"]
         )
-        existing_suspect = existing.scalars().first()
+
+        if preloaded_existing is not None:
+            existing_suspect = preloaded_existing.get((hcc_code, suspect_type_val))
+        else:
+            # Deduplicate: check for existing open suspect with same key.
+            # Ignore soft-deleted rows so we don't reuse a retracted suspect.
+            existing = await db.execute(
+                select(HccSuspect).where(
+                    HccSuspect.member_id == member_id,
+                    HccSuspect.hcc_code == hcc_code,
+                    HccSuspect.suspect_type == s["suspect_type"],
+                    HccSuspect.payment_year == get_current_payment_year(),
+                    HccSuspect.status == SuspectStatus.open.value,
+                    HccSuspect.deleted_at.is_(None),
+                )
+            )
+            existing_suspect = existing.scalars().first()
 
         raf_val = s.get("raf_value", Decimal("0"))
         annual_val = _annual_dollar_value(raf_val, county_pmpm=_county_pmpm)
@@ -1258,18 +1313,159 @@ async def analyze_member(
 # Population-level analysis
 # ---------------------------------------------------------------------------
 
+async def _bulk_load_batch_context(
+    db: AsyncSession,
+    member_ids: list[int],
+    payment_year: int,
+) -> dict[int, dict[str, Any]]:
+    """Bulk-load every per-member input analyze_member needs for a batch.
+
+    Replaces ~4-5 per-member SELECTs (member, claims, prior suspects, existing
+    open suspects, provider patterns) with 4 aggregate SELECTs per batch.
+
+    Returns: {member_id: {member, claims, prior_captured_suspects,
+                          existing_open_suspects, provider_patterns}}
+    """
+    if not member_ids:
+        return {}
+
+    cutoff = date.today() - timedelta(days=365 * 3)
+    prior_year = payment_year - 1
+
+    # 1. Members (single SELECT for the whole batch) — live only
+    member_result = await db.execute(
+        select(Member).where(
+            Member.id.in_(member_ids),
+            Member.deleted_at.is_(None),
+        )
+    )
+    members_by_id: dict[int, Member] = {m.id: m for m in member_result.scalars().all()}
+
+    # 2. Claims for every member in the batch, last 3 years — live only
+    claims_result = await db.execute(
+        select(Claim)
+        .where(
+            Claim.member_id.in_(member_ids),
+            Claim.service_date >= cutoff,
+            Claim.deleted_at.is_(None),
+        )
+        .order_by(Claim.member_id, Claim.service_date.desc())
+    )
+    claims_by_member: dict[int, list[Claim]] = defaultdict(list)
+    for c in claims_result.scalars().all():
+        claims_by_member[c.member_id].append(c)
+
+    # 3. Prior-year captured suspects (for recapture gap detection) — live only
+    prior_result = await db.execute(
+        select(HccSuspect).where(
+            HccSuspect.member_id.in_(member_ids),
+            HccSuspect.payment_year == prior_year,
+            HccSuspect.status == SuspectStatus.captured.value,
+            HccSuspect.deleted_at.is_(None),
+        )
+    )
+    prior_by_member: dict[int, list[HccSuspect]] = defaultdict(list)
+    for s in prior_result.scalars().all():
+        prior_by_member[s.member_id].append(s)
+
+    # 4. Existing OPEN suspects for the current payment year
+    #    — used for dedup on persistence. Replaces the per-suspect SELECT loop
+    #      that was the dominant cost of analyze_member. Live only.
+    open_result = await db.execute(
+        select(HccSuspect).where(
+            HccSuspect.member_id.in_(member_ids),
+            HccSuspect.payment_year == payment_year,
+            HccSuspect.status == SuspectStatus.open.value,
+            HccSuspect.deleted_at.is_(None),
+        )
+    )
+    open_by_member: dict[int, dict[tuple[int, str], HccSuspect]] = defaultdict(dict)
+    for s in open_result.scalars().all():
+        suspect_type_val = s.suspect_type.value if hasattr(s.suspect_type, "value") else s.suspect_type
+        open_by_member[s.member_id][(s.hcc_code, suspect_type_val)] = s
+
+    # 5. Provider capture patterns: batch over distinct PCPs in the batch
+    provider_ids = {m.pcp_provider_id for m in members_by_id.values() if m.pcp_provider_id}
+    patterns_by_provider: dict[int, dict[str, dict[str, Any]]] = {}
+    if provider_ids:
+        pattern_rows = await db.execute(
+            select(
+                SuspectOutcomeLearn.provider_id,
+                SuspectOutcomeLearn.suspect_type,
+                SuspectOutcomeLearn.outcome,
+                sa_func.count(SuspectOutcomeLearn.id),
+            )
+            .where(SuspectOutcomeLearn.provider_id.in_(provider_ids))
+            .group_by(
+                SuspectOutcomeLearn.provider_id,
+                SuspectOutcomeLearn.suspect_type,
+                SuspectOutcomeLearn.outcome,
+            )
+        )
+        for row in pattern_rows.all():
+            pid, stype, outcome, count = row[0], row[1], row[2], int(row[3])
+            prov_patterns = patterns_by_provider.setdefault(pid, {})
+            rec = prov_patterns.setdefault(stype, {"captured": 0, "dismissed": 0})
+            if outcome == "captured":
+                rec["captured"] = count
+            elif outcome == "dismissed":
+                rec["dismissed"] = count
+        # Compute rates & tiers (mirrors _get_provider_capture_patterns)
+        for prov_patterns in patterns_by_provider.values():
+            for rec in prov_patterns.values():
+                total = rec["captured"] + rec["dismissed"]
+                rec["capture_rate"] = rec["captured"] / total if total > 0 else 0.0
+                if total >= 5:
+                    rec["tier"] = "auto_adjust"
+                elif total >= 3:
+                    rec["tier"] = "recommend"
+                else:
+                    rec["tier"] = "silent"
+
+    # Assemble per-member context
+    context: dict[int, dict[str, Any]] = {}
+    for mid in member_ids:
+        member = members_by_id.get(mid)
+        if not member:
+            continue
+        context[mid] = {
+            "member": member,
+            "claims": claims_by_member.get(mid, []),
+            "prior_captured_suspects": prior_by_member.get(mid, []),
+            "existing_open_suspects": open_by_member.get(mid, {}),
+            "provider_patterns": (
+                patterns_by_provider.get(member.pcp_provider_id, {})
+                if member.pcp_provider_id else {}
+            ),
+        }
+    return context
+
+
 async def analyze_population(
     tenant_schema: str,
     db: AsyncSession,
 ) -> dict[str, Any]:
     """
     Run HCC suspect analysis for every member in a tenant population.
-    Processes in batches of 50 to avoid overwhelming the SNF service.
+
+    Query shape per batch of N members:
+      OLD: ~25 * N SELECTs (member-load, claims, prior-year, per-suspect dedup,
+           provider patterns) → 50k members = ~1.25M roundtrips.
+      NEW: 4 aggregate SELECTs per batch (members, claims, prior suspects,
+           open suspects) plus 1 patterns SELECT if any PCP is set → ~5 per
+           batch → 50k members at batch_size=50 = ~5,000 aggregate SELECTs.
+
+    Processes in batches of 50 to keep the payload size sane and to commit
+    incrementally so a crash mid-run doesn't lose prior work.
     """
     snf_client = SNFClient()
 
     try:
-        result = await db.execute(select(Member.id))
+        # Live members only — soft-deleted members are excluded from
+        # population HCC analysis.
+        result = await db.execute(
+            select(Member.id).where(Member.deleted_at.is_(None))
+        )
         member_ids = [row[0] for row in result.all()]
 
         total_members = len(member_ids)
@@ -1284,6 +1480,7 @@ async def analyze_population(
         )
 
         batch_size = 50
+        payment_year = get_current_payment_year()
         for batch_start in range(0, total_members, batch_size):
             batch = member_ids[batch_start : batch_start + batch_size]
             batch_num = (batch_start // batch_size) + 1
@@ -1291,10 +1488,21 @@ async def analyze_population(
 
             logger.info("Processing batch %d/%d (%d members)", batch_num, total_batches, len(batch))
 
+            # Bulk-load every input analyze_member needs for this batch of
+            # members — a handful of aggregate SELECTs instead of ~25*N.
+            try:
+                batch_context = await _bulk_load_batch_context(db, batch, payment_year)
+            except Exception:
+                logger.exception("Failed to preload batch context; falling back to per-member fetch")
+                batch_context = {}
+
             for mid in batch:
                 try:
                     async with db.begin_nested():
-                        summary = await analyze_member(mid, db, snf_client)
+                        summary = await analyze_member(
+                            mid, db, snf_client,
+                            preloaded=batch_context.get(mid),
+                        )
                     total_suspects += summary["suspects_found"]
                     total_uplift += summary["uplift"]
                     total_raf += summary["raf_current"]

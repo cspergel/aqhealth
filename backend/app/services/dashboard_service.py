@@ -7,7 +7,7 @@ Population Dashboard (Phase 5.1).
 """
 
 from datetime import date, datetime
-from sqlalchemy import select, func, case, and_, extract, literal_column
+from sqlalchemy import select, func, case, and_, extract, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from datetime import timedelta
@@ -27,77 +27,111 @@ from app.constants import PMPM_BENCHMARKS
 
 
 async def get_dashboard_metrics(db: AsyncSession) -> dict:
-    """Return top-level KPIs for the population dashboard."""
+    """Return top-level KPIs for the population dashboard.
 
-    current_year = date.today().year
+    Consolidates the 6 previously-serial aggregate queries into a single
+    round-trip built on CTEs. Each CTE runs once; the final SELECT
+    cross-joins them into one wide row.
+    """
 
-    # Total active lives (members with no coverage_end or coverage_end in the future)
     today = date.today()
-    total_lives_q = await db.execute(
-        select(func.count(Member.id)).where(
-            (Member.coverage_end.is_(None)) | (Member.coverage_end >= today)
-        )
-    )
-    total_lives = total_lives_q.scalar() or 0
+    current_year = today.year
+    captured_value = SuspectStatus.captured.value
+    open_value = SuspectStatus.open.value
 
-    # Average RAF score
-    avg_raf_q = await db.execute(
-        select(func.avg(Member.current_raf)).where(
-            (Member.coverage_end.is_(None)) | (Member.coverage_end >= today)
+    # Single SQL statement: 4 CTEs, 1 scalar SELECT.
+    # Postgres treats CTEs as independent subqueries, which in practice
+    # gives us the same plan as 6 separate SELECTs but in 1 roundtrip.
+    #
+    # Every CTE excludes soft-deleted rows (deleted_at IS NULL) so retracted
+    # PHI never inflates the dashboard KPIs — matches ORM-level filters
+    # applied elsewhere in this service.
+    stmt = text(
+        """
+        WITH active_members AS (
+            SELECT id, current_raf
+            FROM members
+            WHERE deleted_at IS NULL
+              AND (coverage_end IS NULL OR coverage_end >= :today)
+        ),
+        lives_and_raf AS (
+            SELECT
+                COUNT(*)                                AS total_lives,
+                COALESCE(AVG(current_raf), 0)           AS avg_raf
+            FROM active_members
+        ),
+        recapture_counts AS (
+            SELECT
+                COUNT(*)                                                           AS total,
+                COUNT(*) FILTER (WHERE status = :captured_status)                  AS captured
+            FROM hcc_suspects
+            WHERE payment_year = :current_year
+              AND suspect_type = 'recapture'
+              AND deleted_at IS NULL
+        ),
+        suspect_inventory AS (
+            SELECT
+                COUNT(*)                                 AS count,
+                COALESCE(SUM(raf_value), 0)              AS total_raf_value,
+                COALESCE(SUM(annual_value), 0)           AS total_annual_value
+            FROM hcc_suspects
+            WHERE status = :open_status
+              AND deleted_at IS NULL
+        ),
+        claims_range AS (
+            SELECT
+                MIN(service_date)                        AS min_date,
+                MAX(service_date)                        AS max_date,
+                COALESCE(SUM(paid_amount), 0)            AS total_paid
+            FROM claims
+            WHERE deleted_at IS NULL
         )
+        SELECT
+            lr.total_lives,
+            lr.avg_raf,
+            rc.total                AS recapture_total,
+            rc.captured             AS recapture_captured,
+            si.count                AS suspect_count,
+            si.total_raf_value      AS suspect_total_raf,
+            si.total_annual_value   AS suspect_total_annual,
+            cr.min_date,
+            cr.max_date,
+            cr.total_paid
+        FROM lives_and_raf lr
+        CROSS JOIN recapture_counts rc
+        CROSS JOIN suspect_inventory si
+        CROSS JOIN claims_range cr
+        """
     )
-    avg_raf = float(avg_raf_q.scalar() or 0)
-
-    # Recapture rate: suspects with status=captured in current year / total prior-year suspects
-    prior_year_total_q = await db.execute(
-        select(func.count(HccSuspect.id)).where(
-            HccSuspect.payment_year == current_year,
-            HccSuspect.suspect_type == "recapture",
+    row = (
+        await db.execute(
+            stmt,
+            {
+                "today": today,
+                "current_year": current_year,
+                "captured_status": captured_value,
+                "open_status": open_value,
+            },
         )
-    )
-    prior_year_total = prior_year_total_q.scalar() or 0
+    ).one()
 
-    prior_year_captured_q = await db.execute(
-        select(func.count(HccSuspect.id)).where(
-            HccSuspect.payment_year == current_year,
-            HccSuspect.suspect_type == "recapture",
-            HccSuspect.status == SuspectStatus.captured.value,
-        )
-    )
-    prior_year_captured = prior_year_captured_q.scalar() or 0
-
+    total_lives = int(row.total_lives or 0)
+    avg_raf = float(row.avg_raf or 0)
+    prior_year_total = int(row.recapture_total or 0)
+    prior_year_captured = int(row.recapture_captured or 0)
     recapture_rate = (
         (prior_year_captured / prior_year_total * 100) if prior_year_total > 0 else 0
     )
 
-    # Suspect inventory: open suspects
-    suspect_inv_q = await db.execute(
-        select(
-            func.count(HccSuspect.id),
-            func.coalesce(func.sum(HccSuspect.raf_value), 0),
-            func.coalesce(func.sum(HccSuspect.annual_value), 0),
-        ).where(HccSuspect.status == SuspectStatus.open.value)
-    )
-    inv_row = suspect_inv_q.one()
     suspect_inventory = {
-        "count": inv_row[0] or 0,
-        "total_raf_value": float(inv_row[1]),
-        "total_annual_value": float(inv_row[2]),
+        "count": int(row.suspect_count or 0),
+        "total_raf_value": float(row.suspect_total_raf or 0),
+        "total_annual_value": float(row.suspect_total_annual or 0),
     }
 
-    # Total PMPM: sum of paid_amount / total_lives / months of data
-    # Determine months span from claims
-    date_range_q = await db.execute(
-        select(
-            func.min(Claim.service_date),
-            func.max(Claim.service_date),
-            func.coalesce(func.sum(Claim.paid_amount), 0),
-        )
-    )
-    date_row = date_range_q.one()
-    total_paid = float(date_row[2])
-    min_date = date_row[0]
-    max_date = date_row[1]
+    total_paid = float(row.total_paid or 0)
+    min_date = row.min_date
+    max_date = row.max_date
 
     if min_date and max_date and total_lives > 0:
         months = max(
@@ -129,10 +163,12 @@ async def get_raf_distribution(db: AsyncSession) -> list[dict]:
     """Return histogram buckets of member RAF scores."""
 
     today = date.today()
-    # Get all active member RAF scores
+    # Get all active member RAF scores — live members only (soft-deleted
+    # rows must not appear in the histogram).
     result = await db.execute(
         select(Member.current_raf).where(
             Member.current_raf.is_not(None),
+            Member.deleted_at.is_(None),
             (Member.coverage_end.is_(None)) | (Member.coverage_end >= today),
         )
     )
@@ -165,6 +201,8 @@ async def get_raf_distribution(db: AsyncSession) -> list[dict]:
 async def get_revenue_opportunities(db: AsyncSession) -> list[dict]:
     """Return top 10 HCC categories by aggregate dollar impact (open suspects)."""
 
+    # Live open suspects only — retracted suspects must not appear on the
+    # revenue-opportunities tile.
     result = await db.execute(
         select(
             HccSuspect.hcc_code,
@@ -173,7 +211,10 @@ async def get_revenue_opportunities(db: AsyncSession) -> list[dict]:
             func.coalesce(func.sum(HccSuspect.raf_value), 0).label("total_raf"),
             func.coalesce(func.sum(HccSuspect.annual_value), 0).label("total_value"),
         )
-        .where(HccSuspect.status == SuspectStatus.open.value)
+        .where(
+            HccSuspect.status == SuspectStatus.open.value,
+            HccSuspect.deleted_at.is_(None),
+        )
         .group_by(HccSuspect.hcc_code, HccSuspect.hcc_label)
         .order_by(func.sum(HccSuspect.annual_value).desc())
         .limit(10)
@@ -197,17 +238,19 @@ async def get_cost_hotspots(db: AsyncSession) -> list[dict]:
     benchmarks = PMPM_BENCHMARKS
 
     today = date.today()
-    # Count active lives for PMPM calc
+    # Count active lives for PMPM calc — live members only.
     lives_q = await db.execute(
         select(func.count(Member.id)).where(
-            (Member.coverage_end.is_(None)) | (Member.coverage_end >= today)
+            Member.deleted_at.is_(None),
+            (Member.coverage_end.is_(None)) | (Member.coverage_end >= today),
         )
     )
     total_lives = lives_q.scalar() or 1
 
-    # Date range for months
+    # Date range for months — live claims only.
     date_range_q = await db.execute(
         select(func.min(Claim.service_date), func.max(Claim.service_date))
+        .where(Claim.deleted_at.is_(None))
     )
     dr = date_range_q.one()
     if dr[0] and dr[1]:
@@ -217,13 +260,17 @@ async def get_cost_hotspots(db: AsyncSession) -> list[dict]:
     else:
         months = 1
 
+    # Cost hotspots — aggregate live claims only.
     result = await db.execute(
         select(
             Claim.service_category,
             func.coalesce(func.sum(Claim.paid_amount), 0).label("total_spend"),
             func.count(Claim.id).label("claim_count"),
         )
-        .where(Claim.service_category.is_not(None))
+        .where(
+            Claim.service_category.is_not(None),
+            Claim.deleted_at.is_(None),
+        )
         .group_by(Claim.service_category)
         .order_by(func.sum(Claim.paid_amount).desc())
     )
@@ -297,6 +344,8 @@ async def get_care_gap_summary(db: AsyncSession) -> list[dict]:
 
     current_year = date.today().year
 
+    # Care gap summary — live gaps only (soft-deleted gaps shouldn't affect
+    # closure rates).
     result = await db.execute(
         select(
             GapMeasure.code,
@@ -311,7 +360,10 @@ async def get_care_gap_summary(db: AsyncSession) -> list[dict]:
             ).label("open_count"),
         )
         .join(MemberGap, MemberGap.measure_id == GapMeasure.id)
-        .where(MemberGap.measurement_year == current_year)
+        .where(
+            MemberGap.measurement_year == current_year,
+            MemberGap.deleted_at.is_(None),
+        )
         .group_by(GapMeasure.code, GapMeasure.name, GapMeasure.category)
         .order_by(func.count(MemberGap.id).desc())
     )
@@ -364,73 +416,93 @@ async def get_dashboard_insights(db: AsyncSession) -> list[dict]:
 
 
 async def get_dashboard_actions(db: AsyncSession) -> dict:
-    """Return actionable items across all modules for the dashboard action bar."""
+    """Return actionable items across all modules for the dashboard action bar.
+
+    Consolidates 6 serial aggregates into a single CTE that cross-joins
+    per-table counts into one scalar row — 1 roundtrip instead of 6.
+    """
     today = date.today()
     thirty_days_ago = today - timedelta(days=30)
+    urgent_cutoff = today - timedelta(days=3)
+    standard_cutoff = today - timedelta(days=14)
+    open_gap_status = GapStatus.open.value
 
-    # 1. Pending prior auths
-    pending_auths_q = await db.execute(
-        select(func.count(PriorAuth.id)).where(PriorAuth.status == "pending")
-    )
-    pending_auths = pending_auths_q.scalar() or 0
-
-    # Overdue auths (urgent >3 days, standard >14 days)
-    from sqlalchemy import or_
-    overdue_auths_q = await db.execute(
-        select(func.count(PriorAuth.id)).where(
-            PriorAuth.status == "pending",
-            or_(
-                and_(PriorAuth.urgency == "urgent", PriorAuth.request_date <= today - timedelta(days=3)),
-                and_(PriorAuth.urgency == "standard", PriorAuth.request_date <= today - timedelta(days=14)),
-            ),
+    stmt = text(
+        """
+        WITH pa AS (
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                COUNT(*) FILTER (
+                    WHERE status = 'pending' AND (
+                        (urgency = 'urgent'   AND request_date <= :urgent_cutoff) OR
+                        (urgency = 'standard' AND request_date <= :standard_cutoff)
+                    )
+                ) AS overdue
+            FROM prior_authorizations
+        ),
+        goals AS (
+            SELECT COUNT(*) AS past_due
+            FROM care_plan_goals
+            WHERE status IN ('in_progress', 'not_started')
+              AND target_date IS NOT NULL
+              AND target_date < :today
+        ),
+        cases AS (
+            SELECT COUNT(*) AS no_contact
+            FROM case_assignments
+            WHERE status = 'active'
+              AND (last_contact_date IS NULL OR last_contact_date < :thirty_days_ago)
+        ),
+        gaps AS (
+            SELECT COUNT(*) AS critical
+            FROM member_gaps mg
+            JOIN gap_measures gm ON gm.id = mg.measure_id
+            WHERE mg.status = :open_gap
+              AND gm.stars_weight = 3
+              AND mg.deleted_at IS NULL
+        ),
+        alerts AS (
+            SELECT COUNT(*) AS unack
+            FROM care_alerts
+            WHERE status = 'open'
+              AND deleted_at IS NULL
+        ),
+        rule_triggers AS (
+            SELECT COUNT(*) AS triggered
+            FROM alert_rule_triggers
+            WHERE acknowledged = FALSE
         )
+        SELECT
+            pa.pending         AS pending_auths,
+            pa.overdue         AS overdue_auths,
+            goals.past_due     AS past_due_goals,
+            cases.no_contact   AS no_contact,
+            gaps.critical      AS critical_gaps,
+            alerts.unack       AS unack_alerts,
+            rule_triggers.triggered AS triggered_rules
+        FROM pa, goals, cases, gaps, alerts, rule_triggers
+        """
     )
-    overdue_auths = overdue_auths_q.scalar() or 0
-
-    # 2. Care plans with past-due goals
-    past_due_goals_q = await db.execute(
-        select(func.count(CarePlanGoal.id)).where(
-            CarePlanGoal.status.in_(["in_progress", "not_started"]),
-            CarePlanGoal.target_date.isnot(None),
-            CarePlanGoal.target_date < today,
+    row = (
+        await db.execute(
+            stmt,
+            {
+                "today": today,
+                "thirty_days_ago": thirty_days_ago,
+                "urgent_cutoff": urgent_cutoff,
+                "standard_cutoff": standard_cutoff,
+                "open_gap": open_gap_status,
+            },
         )
-    )
-    past_due_goals = past_due_goals_q.scalar() or 0
+    ).one()
 
-    # 3. Caseload alerts — members with no contact in 30+ days
-    no_contact_q = await db.execute(
-        select(func.count(CaseAssignment.id)).where(
-            CaseAssignment.status == "active",
-            (CaseAssignment.last_contact_date.is_(None))
-            | (CaseAssignment.last_contact_date < thirty_days_ago),
-        )
-    )
-    no_contact_count = no_contact_q.scalar() or 0
-
-    # 4. Critical care gaps (open, triple-weighted)
-    critical_gaps_q = await db.execute(
-        select(func.count(MemberGap.id))
-        .join(GapMeasure, MemberGap.measure_id == GapMeasure.id)
-        .where(
-            MemberGap.status == GapStatus.open.value,
-            GapMeasure.stars_weight == 3,
-        )
-    )
-    critical_gaps = critical_gaps_q.scalar() or 0
-
-    # 5. Unacknowledged ADT alerts
-    unack_alerts_q = await db.execute(
-        select(func.count(CareAlert.id)).where(CareAlert.status == "open")
-    )
-    unack_alerts = unack_alerts_q.scalar() or 0
-
-    # 6. Alert rules triggered (recent)
-    triggered_rules_q = await db.execute(
-        select(func.count(AlertRuleTrigger.id)).where(
-            AlertRuleTrigger.acknowledged == False,
-        )
-    )
-    triggered_rules = triggered_rules_q.scalar() or 0
+    pending_auths = int(row.pending_auths or 0)
+    overdue_auths = int(row.overdue_auths or 0)
+    past_due_goals = int(row.past_due_goals or 0)
+    no_contact_count = int(row.no_contact or 0)
+    critical_gaps = int(row.critical_gaps or 0)
+    unack_alerts = int(row.unack_alerts or 0)
+    triggered_rules = int(row.triggered_rules or 0)
 
     return {
         "pending_auths": pending_auths,

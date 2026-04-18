@@ -8,10 +8,16 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.core.logging import configure_logging, RequestIdMiddleware
 from app.core.audit import AuditMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.observability import init_sentry
 
 # Logging must be configured before any other module emits a log line, so
 # that the first line is already JSON-formatted with the correct level.
 configure_logging()
+
+# Sentry is opt-in: no-op unless SENTRY_DSN is set AND sentry-sdk is installed.
+init_sentry()
+
 logger = logging.getLogger(__name__)
 
 from app.routers import actions, adt, ai_pipeline, alert_rules, annotations, auth, attribution, avoidable, awv, boi, care_gaps, care_plans, case_management, claims, clinical, clinical_exchange, cohorts, dashboard, data_protection, data_quality, discovery, education, expenditure, fhir, financial, filters, groups, hcc, health, ingestion, insights, interfaces, journey, learning, members, onboarding, payer_api, patterns, practice_expenses, predictions, prior_auth, providers, query, radv, reconciliation, reports, risk_accounting, scenarios, skills, stars, stoploss, tags, tcm, temporal, tenants, utilization, watchlist
@@ -60,6 +66,7 @@ app.add_middleware(
 # RequestIdMiddleware, so RequestIdMiddleware must be outermost. Register
 # AuditMiddleware FIRST and RequestIdMiddleware SECOND so the wire order
 # becomes: client -> RequestIdMiddleware -> AuditMiddleware -> router.
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(AuditMiddleware)
 app.add_middleware(RequestIdMiddleware)
 

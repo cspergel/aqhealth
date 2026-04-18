@@ -35,8 +35,8 @@ class SubcapPayment(Base, TimestampMixin):
     __tablename__ = "subcap_payments"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
-    practice_group_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True)
+    provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True, index=True)
+    practice_group_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True, index=True)
     specialty: Mapped[str | None] = mapped_column(String(100))
     payment_month: Mapped[date] = mapped_column(Date)
     member_count: Mapped[int] = mapped_column(Integer)

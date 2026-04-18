@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, UniqueConstraint
+from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, Numeric, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 import enum
@@ -24,6 +24,16 @@ class Claim(Base, TimestampMixin):
         # DB (WHERE claim_id IS NOT NULL) since many signal-tier claim rows
         # don't carry a payer claim_id.
         UniqueConstraint("claim_id", "member_id", name="uq_claim_identity"),
+        # Member journey / timeline — every member detail page + HCC engine
+        # _get_member_claims hits (member_id, service_date). Composite DESC
+        # on service_date keeps the ORDER BY service_date DESC a cheap scan.
+        Index("ix_claims_member_svcdate", "member_id", "service_date"),
+        # ER / inpatient / post-acute rollups group by category + bucket dates
+        Index("ix_claims_category_svcdate", "service_category", "service_date"),
+        # Group / office expenditure rollups filter by group then date
+        Index("ix_claims_group_svcdate", "practice_group_id", "service_date"),
+        # Provider scorecard / provider panel opens hit rendering_provider_id
+        Index("ix_claims_rendering_provider", "rendering_provider_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -42,6 +52,7 @@ class Claim(Base, TimestampMixin):
     ndc_code: Mapped[str | None] = mapped_column(String(15), nullable=True)  # Pharmacy
 
     # Provider / Facility
+    # FK indexed via composite ix_claims_rendering_provider in __table_args__
     rendering_provider_id: Mapped[int | None] = mapped_column(ForeignKey("providers.id"), nullable=True)
     practice_group_id: Mapped[int | None] = mapped_column(
         ForeignKey("practice_groups.id"), nullable=True, index=True

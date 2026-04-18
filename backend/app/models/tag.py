@@ -22,7 +22,7 @@ class EntityTag(Base, TimestampMixin):
     __tablename__ = "entity_tags"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tag_id: Mapped[int] = mapped_column(ForeignKey("tags.id"))
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tags.id"), index=True)
     entity_type: Mapped[str] = mapped_column(String(50))  # "member", "provider", "group", "claim", "insight", "action"
     entity_id: Mapped[int] = mapped_column(Integer)
     applied_by: Mapped[int | None] = mapped_column(Integer, nullable=True)

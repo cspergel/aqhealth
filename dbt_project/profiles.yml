@@ -3,6 +3,9 @@ aqsoft_health:
   outputs:
     dev:
       type: duckdb
-      path: "../data/tuva_warehouse.duckdb"
+      # Templated on an env var so each tenant's dbt run lands in its own
+      # DuckDB file. Default matches the historical shared warehouse so
+      # local `dbt run` invocations still work without extra setup.
+      path: "{{ env_var('DBT_DUCKDB_PATH', '../data/tuva_warehouse.duckdb') }}"
       schema: main
       threads: 4

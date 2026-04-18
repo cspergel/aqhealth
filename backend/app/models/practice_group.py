@@ -12,7 +12,7 @@ class PracticeGroup(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))  # e.g., "ISG Tampa Office", "FMG St. Pete"
     group_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "mso", "practice", "location", "department"
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True)  # FK to self — enables hierarchy (MSO → practice → location)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True, index=True)  # FK to self — enables hierarchy (MSO → practice → location)
     client_code: Mapped[str | None] = mapped_column(String(50), nullable=True)  # billing company client code
     address: Mapped[str | None] = mapped_column(String(300), nullable=True)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)

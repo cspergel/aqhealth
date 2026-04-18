@@ -16,6 +16,19 @@ vars:
   # Enable all claims-based Tuva marts (core + downstream)
   claims_enabled: true
 
+  # HCC marts rely only on claims-derived HCC suspects → safe to enable.
+  hcc_recapture_enabled: true
+  hcc_suspecting_enabled: true
+
+  # Provider attribution + clinical marts require source tables we don't
+  # yet export (provider_attribution, appointment, location, practitioner,
+  # medication_administration, ...). Turning either on forces Tuva to
+  # compile models that ref unsupplied nodes. Leave both false until the
+  # corresponding input surfaces are complete. See
+  # reviews/phase-tuva-deepening.md for the wiring checklist.
+  clinical_enabled: false
+  provider_attribution_enabled: false
+
   # Input layer
   input_database: aqsoft_health
   input_schema: raw

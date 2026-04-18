@@ -43,5 +43,5 @@ class Intervention(Base, TimestampMixin):
     # Scope
     affected_members: Mapped[int | None] = mapped_column(Integer, nullable=True)
     affected_providers: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    practice_group_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True)
+    practice_group_id: Mapped[int | None] = mapped_column(ForeignKey("practice_groups.id"), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # "planned", "active", "completed", "cancelled"
