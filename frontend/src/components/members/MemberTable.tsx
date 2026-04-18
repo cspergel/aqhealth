@@ -36,19 +36,20 @@ function admitsColor(admits: number): string {
   return tokens.textMuted;
 }
 
-function daysColor(days: number): string {
+function daysColor(days: number | null): string {
+  if (days == null) return tokens.textMuted;
   if (days > 180) return tokens.red;
   if (days > 90) return tokens.amber;
   return tokens.textSecondary;
 }
 
-function tierTag(tier: string): { bg: string; text: string } {
+function tierTag(tier: string | null | undefined): { bg: string; text: string; label: string } {
   switch (tier) {
-    case "low": return { bg: tokens.accentSoft, text: tokens.accentText };
-    case "rising": return { bg: tokens.amberSoft, text: tokens.amber };
-    case "high": return { bg: tokens.redSoft, text: tokens.red };
-    case "complex": return { bg: "#f3e8ff", text: "#7c3aed" };
-    default: return { bg: tokens.surfaceAlt, text: tokens.textSecondary };
+    case "low": return { bg: tokens.accentSoft, text: tokens.accentText, label: "low" };
+    case "rising": return { bg: tokens.amberSoft, text: tokens.amber, label: "rising" };
+    case "high": return { bg: tokens.redSoft, text: tokens.red, label: "high" };
+    case "complex": return { bg: "#f3e8ff", text: "#7c3aed", label: "complex" };
+    default: return { bg: tokens.surfaceAlt, text: tokens.textMuted, label: "unknown" };
   }
 }
 
@@ -57,7 +58,11 @@ function formatDollars(n: number): string {
   return `$${n.toLocaleString()}`;
 }
 
-function daysAgoLabel(days: number): string {
+function daysAgoLabel(days: number | null): string {
+  // "never seen" is operationally distinct from a long gap. The members
+  // list filters on days_since_visit include nulls (backend treats them as
+  // "overdue"), so the UI needs to let care managers tell the two apart.
+  if (days == null) return "never seen";
   if (days === 0) return "today";
   if (days === 1) return "1 day ago";
   return `${days}d ago`;
@@ -221,17 +226,20 @@ export function MemberTable({ members, sortBy, order, onSort }: Props) {
                         textTransform: "capitalize",
                       }}
                     >
-                      {m.risk_tier}
+                      {tier.label}
                     </span>
                   </td>
 
                   {/* Last Visit */}
                   <td style={{ padding: "10px 12px" }}>
-                    <span style={{ fontSize: 12, color: tokens.textSecondary }}>{m.last_visit_date}</span>
+                    <span style={{ fontSize: 12, color: tokens.textSecondary }}>
+                      {m.last_visit_date || (m.days_since_visit == null ? "—" : "")}
+                    </span>
                     <div
                       style={{
                         fontSize: 11,
-                        fontWeight: 600,
+                        fontWeight: m.days_since_visit == null ? 500 : 600,
+                        fontStyle: m.days_since_visit == null ? "italic" : "normal",
                         color: daysColor(m.days_since_visit),
                       }}
                     >

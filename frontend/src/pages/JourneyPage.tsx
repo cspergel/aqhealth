@@ -23,7 +23,7 @@ interface MemberSummaryData {
   member_id: string;
   name: string;
   dob: string;
-  age: number;
+  age: number | null;
   gender: string;
   health_plan: string | null;
   pcp: string | null;

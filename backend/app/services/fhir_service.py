@@ -108,7 +108,13 @@ async def ingest_conditions(db: AsyncSession, conditions: list[dict]) -> dict:
 
 
 def get_capability_statement() -> dict:
-    """Return a minimal FHIR CapabilityStatement for our server."""
+    """Return a minimal FHIR CapabilityStatement for our server.
+
+    Resources with an active handler advertise `create`. Recognized resources
+    without an implementation are not listed, so FHIR conformance tooling
+    does not see claimed support for endpoints that silently skip ingestion.
+    """
+    active = sorted(rt for rt, handler in RESOURCE_HANDLERS.items() if handler is not None)
     return {
         "resourceType": "CapabilityStatement",
         "status": "active",
@@ -124,7 +130,7 @@ def get_capability_statement() -> dict:
                         "type": rt,
                         "interaction": [{"code": "create"}],
                     }
-                    for rt in sorted(RESOURCE_HANDLERS)
+                    for rt in active
                 ],
             }
         ],

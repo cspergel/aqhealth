@@ -129,9 +129,11 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
     # Use epoch division to get total days from an interval.
     # extract('day', interval) returns only the "days" component, not total days.
     # extract('epoch', interval) / 86400 gives the correct total number of days.
-    days_since_visit_col = func.coalesce(
-        func.floor(func.extract("epoch", func.current_date() - last_visit_sq.c.last_visit_date) / 86400),
-        9999
+    # Keep NULL when there's no last_visit_date. A sentinel like 9999 would
+    # trip every "days not seen >= N" alert rule for members who simply have
+    # no visit history yet.
+    days_since_visit_col = func.floor(
+        func.extract("epoch", func.current_date() - last_visit_sq.c.last_visit_date) / 86400
     ).label("days_since_visit")
     total_spend_col = func.coalesce(spend_sq.c.total_spend_12mo, 0).label("total_spend_12mo")
     er_visits_col = func.coalesce(er_sq.c.er_visits_12mo, 0).label("er_visits_12mo")
@@ -223,7 +225,14 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
     outer = select(sq)
 
     if having_filters.get("days_not_seen") is not None:
-        outer = outer.where(sq.c.days_since_visit >= having_filters["days_not_seen"])
+        # "Overdue for a visit" means BOTH (a) seen longer ago than the
+        # threshold AND (b) never seen at all — both are operationally
+        # overdue. NULL >= N is NULL (excluded by default), so add an
+        # explicit IS NULL branch.
+        threshold = having_filters["days_not_seen"]
+        outer = outer.where(
+            (sq.c.days_since_visit >= threshold) | (sq.c.days_since_visit.is_(None))
+        )
     if having_filters.get("has_suspects"):
         outer = outer.where(sq.c.suspect_count > 0)
     if having_filters.get("has_gaps"):
@@ -274,20 +283,25 @@ async def get_member_list(db: AsyncSession, filters: dict[str, Any]) -> dict:
         items.append({
             "member_id": row.member_id,
             "name": f"{row.first_name or ''} {row.last_name or ''}".strip(),
-            "dob": str(row.date_of_birth) if row.date_of_birth else None,
-            "pcp": pcp_name,
+            "dob": str(row.date_of_birth) if row.date_of_birth else "",
+            "pcp": pcp_name or "",
             "pcp_id": row.pcp_provider_id,
-            "group": row.group_name,
+            "group": row.group_name or "",
             "current_raf": float(row.current_raf) if row.current_raf else 0.0,
+            # Emit null for unknown tier rather than "low" — misclassifying an
+            # unknown-risk member as low-risk is a clinical sentinel bug. The
+            # frontend renders null as "unknown" tier badge.
             "risk_tier": row.risk_tier,
-            "last_visit_date": str(row.last_visit_date) if row.last_visit_date else None,
+            "last_visit_date": str(row.last_visit_date) if row.last_visit_date else "",
+            # Keep None when we have no visit data. A sentinel like 999 would
+            # trigger every "days since visit >= 180" alert rule for new tenants.
             "days_since_visit": int(row.days_since_visit) if row.days_since_visit is not None else None,
             "suspect_count": int(row.suspect_count),
             "gap_count": int(row.gap_count),
             "total_spend_12mo": float(row.total_spend_12mo),
             "er_visits_12mo": int(row.er_visits_12mo),
             "admissions_12mo": int(row.admissions_12mo),
-            "plan": row.health_plan,
+            "plan": row.health_plan or "",
             "has_suspects": int(row.suspect_count) > 0,
             "has_gaps": int(row.gap_count) > 0,
         })
@@ -385,20 +399,25 @@ async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
             (today.month, today.day) < (member.date_of_birth.month, member.date_of_birth.day)
         )
 
+    # Null convention aligned with get_member_list:
+    # - strings for display (dob, pcp, plan): coerce to "" so the frontend can
+    #   render without null-guards
+    # - risk_tier: keep null — mapping unknown -> "low" is a clinical-sentinel
+    #   bug (misclassifies as low-risk)
     return {
         "member_id": member.member_id,
         "name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
-        "dob": str(member.date_of_birth) if member.date_of_birth else None,
-        "pcp": pcp_name,
+        "dob": str(member.date_of_birth) if member.date_of_birth else "",
+        "pcp": pcp_name or "",
         "pcp_id": member.pcp_provider_id,
         "current_raf": float(member.current_raf) if member.current_raf else 0.0,
         "projected_raf": float(member.projected_raf) if member.projected_raf else 0.0,
         "risk_tier": member.risk_tier,
-        "plan": member.health_plan,
+        "plan": member.health_plan or "",
         "demographics": {
-            "age": age,
-            "gender": member.gender,
-            "zip_code": member.zip_code,
+            "age": age if member.date_of_birth else None,
+            "gender": member.gender or "",
+            "zip_code": member.zip_code or "",
         },
         "suspect_count": len(suspect_list),
         "gap_count": len(gap_list),
@@ -413,11 +432,23 @@ async def get_member_detail(db: AsyncSession, member_id: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
-    """Return aggregate stats for the filtered population."""
-    # Build same base query as get_member_list but only for aggregates
-    today = date.today()
+    """Return aggregate stats for the filtered population.
 
-    # Open suspect count
+    Applies the same filter set as get_member_list so "Stats for current
+    filter" and "Members matching filter" never disagree.
+    """
+    today = date.today()
+    twelve_months_ago = today - timedelta(days=365)
+
+    # --- Subqueries (must mirror get_member_list so the filter semantics match) ---
+    last_visit_sq = (
+        select(
+            Claim.member_id.label("member_id"),
+            func.max(Claim.service_date).label("last_visit_date"),
+        )
+        .group_by(Claim.member_id)
+        .subquery("last_visit_sq")
+    )
     suspect_sq = (
         select(
             HccSuspect.member_id.label("member_id"),
@@ -427,8 +458,6 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
         .group_by(HccSuspect.member_id)
         .subquery("suspect_sq")
     )
-
-    # Open gap count
     gap_sq = (
         select(
             MemberGap.member_id.label("member_id"),
@@ -438,20 +467,55 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
         .group_by(MemberGap.member_id)
         .subquery("gap_sq")
     )
+    er_sq = (
+        select(
+            Claim.member_id.label("member_id"),
+            func.count(Claim.id).label("er_visits_12mo"),
+        )
+        .where(
+            Claim.service_category == "ed_observation",
+            Claim.service_date >= twelve_months_ago,
+        )
+        .group_by(Claim.member_id)
+        .subquery("er_sq")
+    )
+    admit_sq = (
+        select(
+            Claim.member_id.label("member_id"),
+            func.count(Claim.id).label("admissions_12mo"),
+        )
+        .where(
+            Claim.service_category == "inpatient",
+            Claim.service_date >= twelve_months_ago,
+        )
+        .group_by(Claim.member_id)
+        .subquery("admit_sq")
+    )
+
+    suspect_count_col = func.coalesce(suspect_sq.c.suspect_count, 0)
+    gap_count_col = func.coalesce(gap_sq.c.gap_count, 0)
+    days_since_visit_col = func.floor(
+        func.extract("epoch", func.current_date() - last_visit_sq.c.last_visit_date) / 86400
+    )
+    er_visits_col = func.coalesce(er_sq.c.er_visits_12mo, 0)
+    admissions_col = func.coalesce(admit_sq.c.admissions_12mo, 0)
 
     query = (
         select(
             func.count(Member.id).label("count"),
             func.avg(Member.current_raf).label("avg_raf"),
-            func.coalesce(func.sum(suspect_sq.c.suspect_count), 0).label("total_suspects"),
-            func.coalesce(func.sum(gap_sq.c.gap_count), 0).label("total_gaps"),
+            func.coalesce(func.sum(suspect_count_col), 0).label("total_suspects"),
+            func.coalesce(func.sum(gap_count_col), 0).label("total_gaps"),
         )
         .outerjoin(Provider, Member.pcp_provider_id == Provider.id)
+        .outerjoin(last_visit_sq, Member.id == last_visit_sq.c.member_id)
         .outerjoin(suspect_sq, Member.id == suspect_sq.c.member_id)
         .outerjoin(gap_sq, Member.id == gap_sq.c.member_id)
+        .outerjoin(er_sq, Member.id == er_sq.c.member_id)
+        .outerjoin(admit_sq, Member.id == admit_sq.c.member_id)
     )
 
-    # Apply same direct filters
+    # Member-level conditions (same as get_member_list)
     conditions = []
     if filters.get("raf_min") is not None:
         conditions.append(Member.current_raf >= filters["raf_min"])
@@ -474,6 +538,21 @@ async def get_member_stats(db: AsyncSession, filters: dict[str, Any]) -> dict:
                 Member.member_id.ilike(q),
             )
         )
+
+    # Post-aggregate conditions (same as get_member_list's having_filters)
+    if filters.get("days_not_seen") is not None:
+        threshold = filters["days_not_seen"]
+        conditions.append(
+            (days_since_visit_col >= threshold) | (days_since_visit_col.is_(None))
+        )
+    if filters.get("has_suspects"):
+        conditions.append(suspect_count_col > 0)
+    if filters.get("has_gaps"):
+        conditions.append(gap_count_col > 0)
+    if filters.get("min_er_visits") is not None:
+        conditions.append(er_visits_col >= filters["min_er_visits"])
+    if filters.get("min_admissions") is not None:
+        conditions.append(admissions_col >= filters["min_admissions"])
 
     if conditions:
         query = query.where(and_(*conditions))

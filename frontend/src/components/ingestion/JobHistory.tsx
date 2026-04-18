@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "../../lib/api";
 import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
+
+const POLL_INTERVAL_MS = 5000;
+// Anything not in this set of in-flight statuses is treated as terminal, so
+// new backend statuses ("cancelled", "skipped", …) don't trap the poller in
+// an infinite loop.
+const IN_FLIGHT_STATUSES = new Set(["pending", "processing", "validating", "mapping", "queued"]);
 
 interface Job {
   id: number;
@@ -26,21 +32,56 @@ export function JobHistory() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandedErrors, setExpandedErrors] = useState<Array<{ row: number; message: string }>>([]);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    fetchJobs();
-  }, []);
+  const jobsRef = useRef<Job[]>([]);
+  // Has at least one fetch succeeded? If not, keep polling — otherwise a
+  // transient first-mount failure leaves jobsRef empty forever and the poller
+  // deadlocks (predicate never fires).
+  const hasFetchedOkRef = useRef(false);
 
   const fetchJobs = async () => {
     try {
       const res = await api.get("/api/ingestion/jobs");
-      setJobs(Array.isArray(res.data?.items) ? res.data.items : []);
+      if (!isMountedRef.current) return;
+      const items = Array.isArray(res.data?.items) ? res.data.items : [];
+      jobsRef.current = items;
+      hasFetchedOkRef.current = true;
+      setJobs(items);
     } catch {
-      // silent
+      // Reset the "we've fetched ok" flag so the poller keeps running even
+      // after the jobs array claims "all terminal" — a stale snapshot plus a
+      // subsequent API outage (token expiry, network drop) would otherwise
+      // lock the UI in a stuck-terminal state forever.
+      hasFetchedOkRef.current = false;
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchJobs();
+
+    // Single long-lived interval. It inspects the latest jobs via a ref so a
+    // one-off fetch failure doesn't kill the poller (previous setTimeout chain
+    // did exactly that).
+    const interval = setInterval(() => {
+      if (!isMountedRef.current) return;
+      const hasInFlight = jobsRef.current.some((j) => IN_FLIGHT_STATUSES.has(j.status));
+      // Poll if we've never successfully fetched (recovery) OR any job is
+      // still in flight.
+      if (!hasFetchedOkRef.current || hasInFlight) fetchJobs();
+    }, POLL_INTERVAL_MS);
+    pollTimerRef.current = interval as unknown as ReturnType<typeof setTimeout>;
+
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(interval);
+      pollTimerRef.current = null;
+    };
+  }, []);
 
   const toggleExpand = async (job: Job) => {
     if (expandedId === job.id) {

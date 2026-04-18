@@ -95,6 +95,11 @@ export function WizardStep5Processing({
   const [metrics, setMetrics] = useState<ResultMetrics | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const startedRef = useRef(false);
+  // Sticky flag — once we've successfully notified the parent that the pipeline
+  // is complete, don't re-fire if transient step state changes (e.g. a retry
+  // flips a step back to "running" momentarily, which would otherwise re-satisfy
+  // the success gate and advance the wizard prematurely).
+  const hasNotifiedCompleteRef = useRef(false);
 
   /* ---- Demo pipeline simulation ---- */
   const runDemoPipeline = useCallback(async () => {
@@ -127,14 +132,45 @@ export function WizardStep5Processing({
   }, []);
 
   /* ---- Real pipeline (call backend APIs) ---- */
+  const API_STEPS: { key: string; skillName: string }[] = [
+    { key: "load", skillName: "data_load" },
+    { key: "hcc", skillName: "hcc_analysis" },
+    { key: "scorecards", skillName: "provider_scorecards" },
+    { key: "gaps", skillName: "care_gap_detection" },
+    { key: "insights", skillName: "ai_insights" },
+  ];
+
+  const runStep = useCallback(async (key: string, skillName: string) => {
+    setSteps((prev) =>
+      prev.map((s) => (s.key === key ? { ...s, status: "running", errorText: null } : s)),
+    );
+    try {
+      const res = await api.post("/api/skills/execute-by-name", { action: skillName });
+      const result = res.data;
+      const isStub = result.status === "stub" || result.status === "not_implemented";
+      const isFailed = result.status === "failed" || result.status === "error";
+      setSteps((prev) =>
+        prev.map((s) =>
+          s.key === key
+            ? {
+                ...s,
+                status: isFailed ? "error" : isStub ? "warning" : "complete",
+                resultText: isStub ? "Not yet implemented" : result.summary || result.message || "Done",
+                errorText: isFailed ? (result.message || "Step failed") : null,
+              }
+            : s,
+        ),
+      );
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err.message || "Failed";
+      setSteps((prev) =>
+        prev.map((s) => (s.key === key ? { ...s, status: "error", errorText: msg } : s)),
+      );
+    }
+  }, []);
+
   const runRealPipeline = useCallback(async () => {
-    const apiSteps: { key: string; skillName: string }[] = [
-      { key: "load", skillName: "data_load" },
-      { key: "hcc", skillName: "hcc_analysis" },
-      { key: "scorecards", skillName: "provider_scorecards" },
-      { key: "gaps", skillName: "care_gap_detection" },
-      { key: "insights", skillName: "ai_insights" },
-    ];
+    const apiSteps = API_STEPS;
 
     for (const step of apiSteps) {
       setSteps((prev) =>
@@ -216,10 +252,26 @@ export function WizardStep5Processing({
     }
   }, [demoMode, runDemoPipeline, runRealPipeline]);
 
-  /* ---- Notify parent when done ---- */
+  /* ---- Success predicates — shared by render gate and onComplete gate ---- */
+  const anyFailed = steps.some((s) => s.status === "error");
+  const allTerminalOk = steps.every(
+    (s) => s.status === "complete" || s.status === "warning",
+  );
+  const hasRealCompletion = steps.some((s) => s.status === "complete");
+  // Celebration: every step succeeded with real work (no stubs).
+  const pipelineSucceeded = allDone && allTerminalOk && hasRealCompletion;
+  // Advance-allowed: no hard errors and every step settled. All-warning
+  // (stub-only) runs are not a success, but the user MUST be able to exit
+  // the wizard — otherwise onboarding is a deadlock when backend skills
+  // aren't implemented yet.
+  const pipelineCanAdvance = allDone && !anyFailed && allTerminalOk;
+
+  /* ---- Notify parent when done — no errors + all settled, at most once ---- */
   useEffect(() => {
-    if (allDone) onComplete?.();
-  }, [allDone, onComplete]);
+    if (!pipelineCanAdvance || hasNotifiedCompleteRef.current) return;
+    hasNotifiedCompleteRef.current = true;
+    onComplete?.();
+  }, [pipelineCanAdvance, onComplete]);
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
@@ -232,13 +284,71 @@ export function WizardStep5Processing({
           overflow: "hidden",
         }}
       >
-        {steps.map((step, i) => (
-          <PipelineStepRow key={step.key} step={step} isLast={i === steps.length - 1} />
-        ))}
+        {steps.map((step, i) => {
+          const onRetry = !demoMode && step.status === "error"
+            ? () => {
+                const apiStep = API_STEPS.find((a) => a.key === step.key);
+                if (apiStep) runStep(apiStep.key, apiStep.skillName);
+              }
+            : undefined;
+          return (
+            <PipelineStepRow
+              key={step.key}
+              step={step}
+              isLast={i === steps.length - 1}
+              onRetry={onRetry}
+            />
+          );
+        })}
       </div>
 
-      {/* Results section — shown after all complete */}
-      {allDone && metrics && (
+      {/* Warning summary — all-stub pipeline */}
+      {allDone && !anyFailed && !hasRealCompletion && allTerminalOk && (
+        <div
+          style={{
+            marginTop: 20,
+            padding: 16,
+            borderRadius: 12,
+            background: tokens.amberSoft,
+            border: `1px solid ${tokens.amber}`,
+            color: "#78350f",
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+            No pipeline steps ran
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+            Every step returned "not implemented". The backend skills aren't
+            wired up yet, so your dashboard will be empty. Continue to finish
+            setup and check back once the skills are enabled.
+          </div>
+        </div>
+      )}
+
+      {/* Error summary — shown when any step failed */}
+      {allDone && anyFailed && (
+        <div
+          style={{
+            marginTop: 20,
+            padding: 16,
+            borderRadius: 12,
+            background: tokens.redSoft,
+            border: `1px solid ${tokens.red}`,
+            color: "#7f1d1d",
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+            Some steps didn't complete
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+            Your dashboard may be missing data. Retry each failed step above, or continue and
+            re-run later from the Ingestion page.
+          </div>
+        </div>
+      )}
+
+      {/* Results section — only celebrate when onComplete gate would pass */}
+      {pipelineSucceeded && metrics && (
         <div
           style={{
             marginTop: 32,
@@ -363,7 +473,7 @@ export function WizardStep5Processing({
 /* Pipeline step row                                                    */
 /* ------------------------------------------------------------------ */
 
-function PipelineStepRow({ step, isLast }: { step: PipelineStep; isLast: boolean }) {
+function PipelineStepRow({ step, isLast, onRetry }: { step: PipelineStep; isLast: boolean; onRetry?: () => void }) {
   return (
     <div
       style={{
@@ -461,16 +571,31 @@ function PipelineStepRow({ step, isLast }: { step: PipelineStep; isLast: boolean
           </div>
         )}
 
-        {/* Error text */}
-        {step.status === "error" && step.errorText && (
-          <div
-            style={{
-              fontSize: 13,
-              color: tokens.red,
-              fontFamily: fonts.code,
-            }}
-          >
-            {step.errorText}
+        {/* Error text + retry */}
+        {step.status === "error" && (step.errorText || onRetry) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {step.errorText && (
+              <div style={{ fontSize: 13, color: tokens.red, fontFamily: fonts.code, flex: 1 }}>
+                {step.errorText}
+              </div>
+            )}
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${tokens.red}`,
+                  background: "transparent",
+                  color: tokens.red,
+                  cursor: "pointer",
+                }}
+              >
+                Retry
+              </button>
+            )}
           </div>
         )}
       </div>

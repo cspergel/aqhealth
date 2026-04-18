@@ -146,12 +146,22 @@ async def get_dashboard_summary(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     """Lightweight summary for onboarding wizard and quick status checks."""
+    from sqlalchemy import func, select
+    from app.models.care_gap import MemberGap, GapStatus
+
     metrics = await get_dashboard_metrics(db)
+    suspect_inv = metrics.get("suspect_inventory") or {}
+
+    open_gaps_q = await db.execute(
+        select(func.count(MemberGap.id)).where(MemberGap.status == GapStatus.open.value)
+    )
+    open_gaps = open_gaps_q.scalar() or 0
+
     return {
-        "total_members": metrics.get("total_members", 0),
-        "hcc_suspects": metrics.get("open_suspects", 0),
-        "dollar_opportunity": metrics.get("suspect_value", 0),
-        "care_gaps": metrics.get("open_care_gaps", 0),
+        "total_members": metrics.get("total_lives", 0),
+        "hcc_suspects": suspect_inv.get("count", 0),
+        "dollar_opportunity": suspect_inv.get("total_annual_value", 0),
+        "care_gaps": open_gaps,
     }
 
 

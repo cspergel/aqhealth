@@ -1050,6 +1050,84 @@ export function enableDemoMode() {
           ],
         };
       }
+      // ---- Ingestion: file upload (backend UploadResponse shape) ----
+      else if (url.includes("/api/ingestion/upload")) {
+        const headers = ["member_id", "dos", "dx_primary", "paid_amt", "rendering_npi"];
+        const sample_rows: string[][] = [
+          ["HM-10023", "2026-02-14", "E11.22", "142.58", "1234567890"],
+          ["HM-10024", "2026-02-14", "I10",    "84.10",  "1234567890"],
+          ["HM-10025", "2026-02-15", "N18.32", "316.42", "9876543210"],
+          ["HM-10026", "2026-02-15", "E11.9",  "61.75",  "1234567890"],
+          ["HM-10027", "2026-02-16", "J44.9",  "228.00", "4567891230"],
+        ];
+        const proposed_mapping: Record<string, { platform_field: string; confidence: number; transform: null }> = {
+          member_id:      { platform_field: "member_id",     confidence: 98, transform: null },
+          dos:            { platform_field: "service_date",  confidence: 88, transform: null },
+          dx_primary:     { platform_field: "diagnosis_1",   confidence: 82, transform: null },
+          paid_amt:       { platform_field: "paid_amount",   confidence: 92, transform: null },
+          rendering_npi:  { platform_field: "rendering_npi", confidence: 95, transform: null },
+        };
+        mockResponse = {
+          job_id: Math.floor(Date.now() / 1000) % 100000,
+          filename: "demo_claims.csv",
+          detected_type: "claims",
+          proposed_mapping,
+          sample_rows,
+          headers,
+          preprocessing: { warnings: [] },
+          file_identification: { data_type: "claims", confidence: 92, payer_hint: "Humana" },
+        };
+      }
+      // ---- Ingestion: confirm mapping ----
+      else if (/\/api\/ingestion\/\d+\/confirm-mapping/.test(url)) {
+        const jobId = parseInt(url.match(/\/api\/ingestion\/(\d+)/)![1]);
+        mockResponse = { job_id: jobId, status: "completed", message: "Processed in demo mode." };
+      }
+      // ---- Onboarding: org discovery (matches DiscoveryResult in OrgDiscoveryReview.tsx) ----
+      else if (url.includes("/api/onboarding/discover-structure")) {
+        mockResponse = {
+          groups: [
+            {
+              tin: "XX-XX8901",
+              name: "Pinellas Medical Associates",
+              is_existing: false,
+              relationship_type: "owned",
+              providers: [
+                { npi: "1234567890", name: "Dr. Maria Rivera", specialty: "Internal Medicine" },
+                { npi: "1234567891", name: "Dr. James Chen", specialty: "Family Medicine" },
+                { npi: "1234567892", name: "Dr. Lisa Okafor", specialty: "Internal Medicine" },
+              ],
+            },
+            {
+              tin: "XX-XX2211",
+              name: "Clearwater Family Medicine",
+              is_existing: false,
+              relationship_type: "owned",
+              providers: [
+                { npi: "1234567893", name: "Dr. Sarah Patel", specialty: "Family Medicine" },
+                { npi: "1234567894", name: "Dr. Michael Thompson", specialty: "Family Medicine" },
+              ],
+            },
+            {
+              tin: "XX-XX3345",
+              name: "Palm Harbor Specialists",
+              is_existing: false,
+              relationship_type: "affiliated",
+              providers: [
+                { npi: "1234567895", name: "Dr. Rachel Kim", specialty: "Cardiology" },
+              ],
+            },
+          ],
+          unmatched_count: 0,
+        };
+      }
+      else if (url.includes("/api/onboarding/confirm-structure")) {
+        mockResponse = { status: "saved", groups_saved: 3, providers_saved: 6 };
+      }
+      // ---- Tuva: pipeline trigger ----
+      else if (url.includes("/api/tuva/run")) {
+        mockResponse = { status: "queued", message: "Pipeline triggered (demo mode)." };
+      }
       else {
         mockResponse = { success: true };
       }
@@ -2078,6 +2156,85 @@ export function enableDemoMode() {
       }
       else if (url.includes("/api/onboarding/payer-guidance")) {
         mockResponse = { payer: "Humana", data_type: "claims", guidance: "In the Humana portal, go to Availity → Reports → Claims Detail → select 'All Claims' and date range of last 24 months → Export CSV." };
+      }
+
+      // ---- Ingestion: single job detail (polling by ColumnMapper + JobHistory) ----
+      else if (/\/api\/ingestion\/jobs\/\d+/.test(url)) {
+        const jobId = parseInt(url.match(/\/api\/ingestion\/jobs\/(\d+)/)![1]);
+        mockResponse = {
+          id: jobId,
+          filename: "demo_file.csv",
+          detected_type: "claims",
+          status: "completed",
+          total_rows: 1847,
+          processed_rows: 1847,
+          error_rows: 0,
+          column_mapping: {},
+          errors: [],
+          uploaded_by: 1,
+          created_at: new Date(Date.now() - 60_000).toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
+      // ---- Ingestion: paginated jobs list ----
+      else if (/\/api\/ingestion\/jobs/.test(url)) {
+        mockResponse = {
+          items: [
+            {
+              id: 101, filename: "Humana_claims_2025Q4.csv", detected_type: "claims",
+              status: "completed", total_rows: 12483, processed_rows: 12483, error_rows: 0,
+              uploaded_by: 1,
+              created_at: new Date(Date.now() - 86_400_000).toISOString(),
+              updated_at: new Date(Date.now() - 86_400_000 + 30_000).toISOString(),
+            },
+            {
+              id: 102, filename: "Member_roster_Mar.csv", detected_type: "roster",
+              status: "completed", total_rows: 1847, processed_rows: 1847, error_rows: 3,
+              uploaded_by: 1,
+              created_at: new Date(Date.now() - 43_200_000).toISOString(),
+              updated_at: new Date(Date.now() - 43_200_000 + 12_000).toISOString(),
+            },
+          ],
+          total: 2, page: 1, page_size: 25,
+        };
+      }
+
+      // ---- Tuva endpoints (summary matches RafSummary in TuvaPage.tsx:23) ----
+      else if (url.includes("/api/tuva/raf-baselines/summary")) {
+        mockResponse = {
+          total_baselines: 247,
+          discrepancies: 12,
+          agreement_rate: 95.1,
+          avg_discrepancy_raf: 0.089,
+        };
+      }
+      else if (url.includes("/api/tuva/raf-baselines")) {
+        mockResponse = { items: [], total: 0 };
+      }
+      else if (url.includes("/api/tuva/pmpm-baselines")) {
+        mockResponse = { items: [], total: 0 };
+      }
+      else if (url.includes("/api/tuva/comparison")) {
+        mockResponse = { items: [], summary: null };
+      }
+      else if (/\/api\/tuva\/member\//.test(url)) {
+        mockResponse = null; // triggers the page's own demo-fallback path
+      }
+      else if (url.includes("/api/tuva/demo/summary")) {
+        mockResponse = {
+          status: "ok",
+          members_scored: 1000,
+          avg_v24_risk_score: 1.217,
+          avg_v28_risk_score: 1.143,
+          min_v28_risk_score: 0.32,
+          max_v28_risk_score: 4.82,
+        };
+      }
+      else if (url.includes("/api/tuva/demo/suspects")) {
+        mockResponse = { total_suspects: 812, by_reason: { missing_capture: 421, recapture: 298, specificity: 93 } };
+      }
+      else if (url.includes("/api/tuva/demo/risk-scores")) {
+        mockResponse = { items: [], total: 0 };
       }
     }
 

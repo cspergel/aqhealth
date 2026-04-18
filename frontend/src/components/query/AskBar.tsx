@@ -28,6 +28,8 @@ export function AskBar({ pageContext }: { pageContext: string }) {
   const [answer, setAnswer] = useState<QueryAnswer | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [focused, setFocused] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lastAskedQuestion, setLastAskedQuestion] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -43,9 +45,11 @@ export function AskBar({ pageContext }: { pageContext: string }) {
     const text = q || question;
     if (!text.trim()) return;
     setQuestion(text);
+    setLastAskedQuestion(text);
     setExpanded(true);
     setLoading(true);
     setAnswer(null);
+    setErrorMessage(null);
 
     // Track the question for learning
     api.post("/api/learning/track", {
@@ -62,14 +66,18 @@ export function AskBar({ pageContext }: { pageContext: string }) {
         page_context: pageContext,
       });
       setAnswer(res.data);
-    } catch {
-      setAnswer({
-        answer: "Sorry, something went wrong. Please try again.",
-        data_points: [],
-        related_members: [],
-        recommended_actions: [],
-        follow_up_questions: [],
-      });
+    } catch (err) {
+      const e = err as { response?: { status?: number; data?: { detail?: string } }; message?: string };
+      const status = e?.response?.status;
+      const detail = e?.response?.data?.detail;
+      let msg: string;
+      if (status === 429) msg = "Rate limit reached. Try again in a minute.";
+      else if (status === 504 || status === 408) msg = "The AI is taking too long. Try again or simplify your question.";
+      else if (status === 400) msg = typeof detail === "string" ? detail : "That question couldn't be parsed. Try rephrasing.";
+      else if (status === 401 || status === 403) msg = "You don't have access to this query.";
+      else if (!status || e?.message === "Network Error") msg = "Can't reach the server. Check your connection and retry.";
+      else msg = typeof detail === "string" ? detail : `Something went wrong (${status}). Retry.`;
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -88,6 +96,7 @@ export function AskBar({ pageContext }: { pageContext: string }) {
     setExpanded(false);
     setAnswer(null);
     setQuestion("");
+    setErrorMessage(null);
   }
 
   const showSuggestions = focused && !question && !expanded && suggestions.length > 0;
@@ -166,6 +175,19 @@ export function AskBar({ pageContext }: { pageContext: string }) {
                 <span className="text-sm ml-2" style={{ color: tokens.textMuted }}>
                   Analyzing your data...
                 </span>
+              </div>
+            ) : errorMessage ? (
+              <div className="flex items-center justify-between gap-4 py-4">
+                <div className="text-sm" style={{ color: tokens.red }}>
+                  {errorMessage}
+                </div>
+                <button
+                  onClick={() => lastAskedQuestion && handleAsk(lastAskedQuestion)}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg"
+                  style={{ background: tokens.accent, color: "#fff" }}
+                >
+                  Retry
+                </button>
               </div>
             ) : answer ? (
               <div className="space-y-4">

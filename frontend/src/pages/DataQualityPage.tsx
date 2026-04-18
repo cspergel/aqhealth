@@ -194,8 +194,8 @@ export function DataQualityPage() {
           <div className="flex-1 space-y-3">
             <div className="grid grid-cols-4 gap-3">
               <MetricCard label="Total Rows" value={latest.total_rows.toLocaleString()} />
-              <MetricCard label="Valid" value={latest.valid_rows.toLocaleString()} trend={`${((latest.valid_rows / latest.total_rows) * 100).toFixed(1)}%`} trendDirection="up" />
-              <MetricCard label="Quarantined" value={latest.quarantined_rows.toLocaleString()} trend={`${((latest.quarantined_rows / latest.total_rows) * 100).toFixed(1)}%`} trendDirection="down" />
+              <MetricCard label="Valid" value={latest.valid_rows.toLocaleString()} trend={latest.total_rows > 0 ? `${((latest.valid_rows / latest.total_rows) * 100).toFixed(1)}%` : "0%"} trendDirection="up" />
+              <MetricCard label="Quarantined" value={latest.quarantined_rows.toLocaleString()} trend={latest.total_rows > 0 ? `${((latest.quarantined_rows / latest.total_rows) * 100).toFixed(1)}%` : "0%"} trendDirection="down" />
               <MetricCard label="Warnings" value={latest.warning_rows.toLocaleString()} />
             </div>
           </div>

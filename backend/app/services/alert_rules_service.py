@@ -209,10 +209,11 @@ async def _evaluate_member_metric(db: AsyncSession, rule: AlertRule) -> list[dic
             .outerjoin(last_visit_sq, Member.id == last_visit_sq.c.member_id)
         )
         for row in result.all():
-            if row.last_visit:
-                value = (today - row.last_visit).days
-            else:
-                value = 9999
+            if not row.last_visit:
+                # No visit data -> not a trigger. A sentinel like 9999 would
+                # fire "member not seen > 180" on every fresh tenant.
+                continue
+            value = (today - row.last_visit).days
             if _compare(value, rule.operator, threshold):
                 triggers.append({
                     "entity_type": "member",

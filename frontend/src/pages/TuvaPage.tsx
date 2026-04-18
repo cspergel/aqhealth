@@ -190,20 +190,18 @@ export function TuvaPage() {
   }, [showDiscrepanciesOnly]);
 
   async function loadData() {
-    // Use raw fetch to bypass auth interceptor — Tuva endpoints don't require auth
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8090";
     try {
       const [summaryRes, rafRes, pmpmRes, compRes] = await Promise.all([
-        fetch(`${baseUrl}/api/tuva/raf-baselines/summary`).then(r => r.json()),
-        fetch(`${baseUrl}/api/tuva/raf-baselines?discrepancies_only=${showDiscrepanciesOnly}&limit=50`).then(r => r.json()),
-        fetch(`${baseUrl}/api/tuva/pmpm-baselines?limit=50`).then(r => r.json()),
-        fetch(`${baseUrl}/api/tuva/comparison`).then(r => r.json()),
+        api.get("/api/tuva/raf-baselines/summary"),
+        api.get(`/api/tuva/raf-baselines?discrepancies_only=${showDiscrepanciesOnly}&limit=50`),
+        api.get("/api/tuva/pmpm-baselines?limit=50"),
+        api.get("/api/tuva/comparison"),
       ]);
-      setSummary(summaryRes);
-      setRafBaselines(rafRes.items || []);
-      setPmpmBaselines(pmpmRes.items || []);
-      setComparisons(compRes.items || []);
-      setCompSummary(compRes.summary || null);
+      setSummary(summaryRes.data);
+      setRafBaselines(rafRes.data?.items || []);
+      setPmpmBaselines(pmpmRes.data?.items || []);
+      setComparisons(compRes.data?.items || []);
+      setCompSummary(compRes.data?.summary || null);
       setUseDemo(false);
     } catch {
       // Backend not running — use demo data
@@ -224,10 +222,9 @@ export function TuvaPage() {
     setSelectedMember(memberId);
     setDetailLoading(true);
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8090";
-      const res = await fetch(`${baseUrl}/api/tuva/member/${memberId}`);
-      if (res.ok) {
-        setMemberDetail(await res.json());
+      const res = await api.get(`/api/tuva/member/${memberId}`);
+      if (res.data) {
+        setMemberDetail(res.data);
       } else {
         throw new Error("API unavailable");
       }
@@ -244,7 +241,7 @@ export function TuvaPage() {
     setPipelineResult(null);
     try {
       const res = await api.post<PipelineStatus>("/api/tuva/run");
-      setPipelineResult(res.data.message);
+      setPipelineResult(res.data?.message ?? "Pipeline triggered.");
     } catch {
       setPipelineResult("Pipeline trigger failed — is the backend running?");
     }
@@ -912,16 +909,15 @@ function Demo1kTab() {
   }, []);
 
   async function loadDemoData() {
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8090";
     try {
       const [sumRes, susRes, scrRes] = await Promise.all([
-        fetch(`${baseUrl}/api/tuva/demo/summary`).then(r => r.json()),
-        fetch(`${baseUrl}/api/tuva/demo/suspects`).then(r => r.json()),
-        fetch(`${baseUrl}/api/tuva/demo/risk-scores`).then(r => r.json()),
+        api.get("/api/tuva/demo/summary"),
+        api.get("/api/tuva/demo/suspects"),
+        api.get("/api/tuva/demo/risk-scores"),
       ]);
-      setSummary(sumRes);
-      setSuspects(susRes);
-      setScores(scrRes.items || []);
+      setSummary(sumRes.data);
+      setSuspects(susRes.data);
+      setScores(scrRes.data?.items || []);
     } catch {
       setSummary(null);
       setSuspects(null);

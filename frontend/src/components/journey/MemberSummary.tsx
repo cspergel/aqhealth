@@ -5,7 +5,7 @@ interface MemberSummaryData {
   member_id: string;
   name: string;
   dob: string;
-  age: number;
+  age: number | null;
   gender: string;
   health_plan: string | null;
   pcp: string | null;
@@ -27,7 +27,17 @@ const tierColors: Record<string, { bg: string; text: string; border: string }> =
   rising: { bg: tokens.blueSoft, text: tokens.blue, border: tokens.blue },
   high: { bg: tokens.amberSoft, text: tokens.amber, border: tokens.amber },
   complex: { bg: tokens.redSoft, text: tokens.red, border: tokens.red },
+  unknown: { bg: tokens.surfaceAlt, text: tokens.textMuted, border: tokens.border },
 };
+
+function genderLabel(g: string | null | undefined): string {
+  if (!g) return "gender unknown";
+  const upper = g.trim().toUpperCase();
+  if (upper === "F" || upper === "FEMALE") return "Female";
+  if (upper === "M" || upper === "MALE") return "Male";
+  if (upper === "U" || upper === "UNKNOWN" || upper === "") return "gender unknown";
+  return g;
+}
 
 function formatCurrency(v: number): string {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
@@ -36,7 +46,10 @@ function formatCurrency(v: number): string {
 }
 
 export function MemberSummary({ member }: MemberSummaryProps) {
-  const tier = tierColors[member.risk_tier || "low"] || tierColors.low;
+  // Null / unknown risk tier must NOT fall back to "low" — that's a
+  // clinical-sentinel bug (unknown-risk rendered as green low-risk).
+  const tierKey = member.risk_tier ?? "unknown";
+  const tier = tierColors[tierKey] ?? tierColors.unknown;
   const rafDelta = member.projected_raf - member.current_raf;
   const rafDirection = rafDelta > 0 ? "up" : rafDelta < 0 ? "down" : "flat";
 
@@ -60,11 +73,12 @@ export function MemberSummary({ member }: MemberSummaryProps) {
             </span>
             <span className="w-px h-3" style={{ background: tokens.border }} />
             <span className="text-xs" style={{ color: tokens.textSecondary }}>
-              {member.age}yo {member.gender === "F" ? "Female" : "Male"}
+              {member.age ? `${member.age}yo` : "age unknown"}{" "}
+              {genderLabel(member.gender)}
             </span>
             <span className="w-px h-3" style={{ background: tokens.border }} />
             <span className="text-xs" style={{ color: tokens.textSecondary }}>
-              DOB: {member.dob}
+              DOB: {member.dob || "—"}
             </span>
             {member.health_plan && (
               <>

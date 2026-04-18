@@ -38,9 +38,9 @@ class MemberRow(BaseModel):
     group: str = ""
     group_id: int | None = None
     current_raf: float = 0.0
-    risk_tier: str = "low"
+    risk_tier: str | None = None
     last_visit_date: str = ""
-    days_since_visit: int = 999
+    days_since_visit: int | None = None
     suspect_count: int = 0
     gap_count: int = 0
     total_spend_12mo: float = 0.0

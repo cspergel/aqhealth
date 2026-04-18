@@ -4,15 +4,33 @@ import { tokens, fonts } from "../../lib/tokens";
 import { Tag } from "../ui/Tag";
 
 /* ------------------------------------------------------------------ */
-/* Types                                                               */
+/* Types — backend contract + normalized frontend shape                */
 /* ------------------------------------------------------------------ */
 
+// Backend UploadResponse (backend/app/routers/ingestion.py:80)
+interface ColumnMappingEntry {
+  platform_field: string | null;
+  confidence: number;
+  transform?: Record<string, unknown> | null;
+}
+
+interface UploadResponse {
+  job_id: number;
+  filename: string;
+  detected_type: string;
+  proposed_mapping: Record<string, ColumnMappingEntry>;
+  sample_rows: string[][];
+  headers: string[];
+  preprocessing?: { warnings?: string[] } | null;
+  file_identification?: { data_type: string; confidence: number; payer_hint: string | null } | null;
+}
+
+// Frontend normalized shape consumed by IngestionPage + ColumnMapper
 interface UploadResult {
   job_id: string;
   proposed_mapping: Record<string, string>;
   sample_data: Record<string, string[]>;
   detected_type: string;
-  /** Extended fields from detect_type_with_metadata (may not exist on older backends) */
   confidence?: number;
   row_count?: number;
   detected_payer?: string | null;
@@ -20,6 +38,36 @@ interface UploadResult {
 
 interface FileUploadProps {
   onUploadComplete: (result: UploadResult) => void;
+}
+
+function normalizeUploadResponse(resp: UploadResponse): UploadResult {
+  // Flatten nested proposed_mapping to the flat Record<source, target> shape
+  const flatMapping: Record<string, string> = {};
+  for (const [source, entry] of Object.entries(resp.proposed_mapping || {})) {
+    flatMapping[source] = entry?.platform_field || "(unmapped)";
+  }
+
+  // Pivot sample_rows (row-major) into sample_data (column-major) keyed by header
+  const sample_data: Record<string, string[]> = {};
+  const headers = Array.isArray(resp.headers) ? resp.headers : [];
+  const rows = Array.isArray(resp.sample_rows) ? resp.sample_rows : [];
+  headers.forEach((h, i) => {
+    sample_data[h] = rows.map((r) => (r && r[i] != null ? String(r[i]) : ""));
+  });
+
+  return {
+    job_id: String(resp.job_id),
+    proposed_mapping: flatMapping,
+    sample_data,
+    detected_type: resp.detected_type,
+    confidence: resp.file_identification?.confidence,
+    // NOTE: backend UploadResponse does not emit a total row count at this
+    // stage (it's discovered during post-upload processing). Emitting
+    // sample_rows.length here would claim ~5 rows on a 100k-row file —
+    // misleading by 3-4 orders of magnitude. Leave undefined.
+    row_count: undefined,
+    detected_payer: resp.file_identification?.payer_hint ?? null,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -106,13 +154,23 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     try {
       const form = new FormData();
       form.append("file", selectedFile);
-      const res = await api.post<UploadResult>("/api/ingestion/upload", form, {
+      const res = await api.post<UploadResponse>("/api/ingestion/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      // Show identification before proceeding
-      setIdentification(res.data);
+      const normalized = normalizeUploadResponse(res.data);
+      if (!normalized || Object.keys(normalized.proposed_mapping).length === 0) {
+        setError("The server returned an empty mapping. Check the file and retry.");
+        return;
+      }
+      setIdentification(normalized);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Upload failed. Please try again.");
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+      if (status === 413) setError("File is too large. Split it into smaller files and retry.");
+      else if (status === 415) setError("Unsupported file type. Use CSV or Excel.");
+      else if (status === 504 || status === 408) setError("Server took too long. Try a smaller sample or retry.");
+      else if (!status || err?.message === "Network Error") setError("Can't reach the server. Check your connection.");
+      else setError(typeof detail === "string" ? detail : "Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }

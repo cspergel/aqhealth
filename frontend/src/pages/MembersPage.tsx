@@ -153,7 +153,7 @@ export function MembersPage() {
   const handleExport = () => {
     const header = "Member ID,Name,DOB,PCP,Group,RAF,Risk Tier,Last Visit,Days Since Visit,ER Visits 12mo,Admissions 12mo,SNF Days 12mo,Suspects,Gaps,12mo Spend,Plan\n";
     const rows = members.map((m) =>
-      `${m.member_id},"${m.name}",${m.dob},"${m.pcp}","${m.group}",${m.current_raf},${m.risk_tier},${m.last_visit_date},${m.days_since_visit},${m.er_visits_12mo},${m.admissions_12mo},${m.snf_days_12mo},${m.suspect_count},${m.gap_count},${m.total_spend_12mo},"${m.plan}"`
+      `${m.member_id},"${m.name}",${m.dob},"${m.pcp}","${m.group}",${m.current_raf},${m.risk_tier},${m.last_visit_date},${m.days_since_visit ?? ""},${m.er_visits_12mo},${m.admissions_12mo},${m.snf_days_12mo},${m.suspect_count},${m.gap_count},${m.total_spend_12mo},"${m.plan}"`
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

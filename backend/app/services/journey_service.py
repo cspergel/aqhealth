@@ -129,11 +129,13 @@ async def get_member_journey(
         "id": member.id,
         "member_id": member.member_id,
         "name": f"{member.first_name or ''} {member.last_name or ''}".strip(),
-        "dob": member.date_of_birth.isoformat() if member.date_of_birth else None,
+        "dob": member.date_of_birth.isoformat() if member.date_of_birth else "",
+        # Age is nullable — emitting 0 for a missing DOB is indistinguishable
+        # from a real infant and lies to consumers.
         "age": (date.today().year - member.date_of_birth.year - (
             (date.today().month, date.today().day) < (member.date_of_birth.month, member.date_of_birth.day)
         )) if member.date_of_birth else None,
-        "gender": member.gender,
+        "gender": member.gender or "",
         "health_plan": member.health_plan,
         "pcp": pcp_name,
         "current_raf": float(member.current_raf or 0),
@@ -179,7 +181,11 @@ async def get_member_journey(
     suspects = suspects_q.scalars().all()
 
     open_suspects = 0
+    conditions_set: set[str] = set()
     for s in suspects:
+        label = s.hcc_label or (f"HCC {s.hcc_code}" if s.hcc_code else None)
+        if label and s.status in (SuspectStatus.open.value, SuspectStatus.captured.value):
+            conditions_set.add(label)
         if s.status == SuspectStatus.captured.value and s.captured_date:
             events.append({
                 "date": s.captured_date.isoformat(),
@@ -199,6 +205,7 @@ async def get_member_journey(
             open_suspects += 1
 
     member_summary["open_suspects"] = open_suspects
+    member_summary["conditions"] = sorted(conditions_set)
 
     # ---- 4. Care gap events ----
     # Join MemberGap with GapMeasure to get the measure code (MemberGap only
@@ -248,27 +255,86 @@ async def get_member_journey(
 
 
 async def get_member_risk_trajectory(
-    db: AsyncSession, member_id: int
+    db: AsyncSession, member_id: int, months: int = 24
 ) -> list[dict]:
     """
     Return monthly RAF score and cost trajectory for the member,
     with overlay markers for interventions (HCC captures, gap closures).
+
+    Bounded by `months` so a data-rich member with years of claims can't
+    tip the endpoint into a wall-clock DoS. Matches get_member_journey's
+    default window.
     """
+    cutoff = date.today() - timedelta(days=months * 30)
+
     history_q = await db.execute(
         select(RafHistory).where(
-            RafHistory.member_id == member_id
+            RafHistory.member_id == member_id,
+            RafHistory.calculation_date >= cutoff,
         ).order_by(RafHistory.calculation_date.asc())
     )
     rows = history_q.scalars().all()
 
+    # Monthly claim spend, keyed by YYYY-MM. We bucket in Python rather than
+    # in SQL — neither func.strftime (SQLite-only) nor func.to_char
+    # (Postgres-only) is portable, and SQLAlchemy does not translate between
+    # them. Pulling service_date + paid_amount and summing in Python works on
+    # every backend.
+    cost_by_month: dict[str, float] = {}
+    claims_q = await db.execute(
+        select(Claim.service_date, Claim.paid_amount).where(
+            and_(Claim.member_id == member_id, Claim.service_date >= cutoff)
+        )
+    )
+    for service_date, paid_amount in claims_q.all():
+        if not service_date:
+            continue
+        ym = service_date.strftime("%Y-%m")
+        cost_by_month[ym] = cost_by_month.get(ym, 0.0) + float(paid_amount or 0)
+
+    # Month tags: captured HCC or closed gap -> event marker
+    event_by_month: dict[str, str] = {}
+    captured_q = await db.execute(
+        select(HccSuspect.captured_date).where(
+            and_(
+                HccSuspect.member_id == member_id,
+                HccSuspect.status == SuspectStatus.captured.value,
+                HccSuspect.captured_date.is_not(None),
+                HccSuspect.captured_date >= cutoff,
+            )
+        )
+    )
+    for (d,) in captured_q.all():
+        if d:
+            event_by_month[d.strftime("%Y-%m")] = "HCC captured"
+
+    closed_q = await db.execute(
+        select(MemberGap.closed_date).where(
+            and_(
+                MemberGap.member_id == member_id,
+                MemberGap.status == GapStatus.closed.value,
+                MemberGap.closed_date.is_not(None),
+                MemberGap.closed_date >= cutoff,
+            )
+        )
+    )
+    for (d,) in closed_q.all():
+        if d:
+            # Don't overwrite "HCC captured" if both in same month
+            event_by_month.setdefault(d.strftime("%Y-%m"), "Care gap closed")
+
     trajectory = []
     for r in rows:
+        d = r.calculation_date
+        ym = d.strftime("%Y-%m") if d else ""
         trajectory.append({
-            "date": r.calculation_date.isoformat() if r.calculation_date else None,
+            "date": d.isoformat() if d else "",
             "raf": float(r.total_raf or 0),
+            "cost": cost_by_month.get(ym, 0.0),
             "disease_raf": float(r.disease_raf or 0),
             "demographic_raf": float(r.demographic_raf or 0),
             "hcc_count": r.hcc_count or 0,
+            "event": event_by_month.get(ym),
         })
 
     return trajectory

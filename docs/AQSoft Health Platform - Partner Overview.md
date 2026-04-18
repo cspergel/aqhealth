@@ -169,7 +169,7 @@ The Health Platform is the intelligence hub connecting:
 | **AQCoder** | AI-powered CPT + ICD-10 coding engine |
 | **SNF Admit Assist** | HCC coding optimizer for complex clinical documents |
 | **Tuva Health** | Community-validated analytics baseline (open source) |
-| **redact.health** | PHI de-identification for AI processing |
+| **redact.health** | PHI de-identification/re-identification for AI processing |
 
 Plus direct integrations with: eClinicalWorks, Humana, Availity, Florida Blue, Optimum Healthcare, Freedom Health, Bamboo Health, and Metriport HIE.
 

@@ -3080,9 +3080,9 @@ export interface MockMember {
   group: string;
   group_id: number;
   current_raf: number;
-  risk_tier: "low" | "rising" | "high" | "complex";
+  risk_tier: "low" | "rising" | "high" | "complex" | null;
   last_visit_date: string;
-  days_since_visit: number;
+  days_since_visit: number | null;
   suspect_count: number;
   gap_count: number;
   total_spend_12mo: number;
